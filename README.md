@@ -10,21 +10,55 @@
 
 ---
 
-## 封裝為可執行檔 (Raspberry Pi 部署)
-若要在樹莓派上直接執行而無需在部署環境安裝 Python 套件 (`pip`/`uv`)，請依照以下步驟封裝：
-### 1. 準備封裝環境 (非常重要)
-**PyInstaller 不支援交叉編譯 (Cross-compilation)**。若你要產生可以在樹莓派 (ARM64 Linux) 上執行的二進位檔案，你**必須**在以下環境之一執行打包：
-1. **直接在樹莓派 5 上**進行封裝。
-2. 在支援 ARM64 架構的 Linux 虛擬機或 Docker 容器 (如 Ubuntu ARM64) 中進行。
+## 部署指南 (強烈建議：直接在樹莓派上建置)
 
-在 Windows 或 Intel Mac (x86/x64) 上執行指令，只會產出 x86/x64 的執行檔，放到樹莓派會出現 `Exec format error`。
+⚠️ **避免跨架構編譯 (Cross-compilation)** ⚠️
+請**不要**在 Windows/Mac (x86_64) 上使用 QEMU 或 Docker ARM64 容器嘗試打包 PyInstaller。這不但速度極慢，而且 Python 含有 C 語言擴充套件 (如 OpenCV, Numpy, Ultralytics) 時，跨架構打包極容易遺漏動態庫 (`.so`)，導致在樹莓派上執行時發生閃退。
 
-進入 ARM64 環境後，安裝 PyInstaller：
+**最佳做法：把這份原始碼直接放到樹莓派上處理。**
+
+### 方案 A：直接執行 (最推薦，最穩定)
+在樹莓派本機上安裝依賴並透過 systemd 背景執行：
+```bash
+pip install -r requirements.txt
+python main.py
+```
+*(建議寫一個 systemd service 讓它開機自動啟動)*
+
+---
+
+## 特殊情境：樹莓派無對外網路 (但與開發電腦在同區網)
+
+若樹莓派處於封閉網路無法直接執行 `pip install`，最簡單的做法是**將你的開發電腦作為臨時 Proxy**：
+
+1. **在有網路的開發電腦 (Windows/Mac/WSL) 啟動 Proxy：**
+   ```bash
+   pip install proxy.py
+   proxy --hostname 0.0.0.0 --port 8899
+   ```
+   *(啟動後畫面會停住待命，Windows 若跳出防火牆警告請允許)*
+
+2. **SSH 進入樹莓派，設定 Proxy 並安裝：**
+   ```bash
+   # 將 IP 換成你開發電腦的區網 IP
+   export http_proxy="http://<開發電腦IP>:8899"
+   export https_proxy="http://<開發電腦IP>:8899"
+   
+   # 像平常一樣安裝，流量會走開發電腦出去
+   pip install -r requirements.txt
+   ```
+
+3. 裝完後，回到開發電腦按 `Ctrl + C` 關閉 Proxy 即可。
+
+### 方案 B：硬要打包成單一執行檔
+如果你一定要產出單一 `argus_predictor` 檔案，請**在樹莓派本機上**執行打包：
+
+1. 進入樹莓派終端機，安裝 PyInstaller：
 ```bash
 pip install pyinstaller
 ```
 
-### 2. 封裝指令
+2. 執行打包指令：
 在專案根目錄執行以下指令，將主程式與依賴封裝為單一可執行檔：
 
 ```bash
