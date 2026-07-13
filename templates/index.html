@@ -1,40 +1,219 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-TW">
 <head>
-    <title>Argus Safety Predictor Config</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Argus // System Config</title>
+    <style>
+        :root {
+            --bg: #050505;
+            --panel: #0a0a0a;
+            --text: #00ff41; /* Terminal Green */
+            --text-dim: #008f11;
+            --border: #003b00;
+        }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+            margin: 0;
+            padding: clamp(1rem, 3vw, 3rem);
+            text-transform: uppercase;
+            line-height: 1.4;
+            /* Scanline effect */
+            background-image: linear-gradient(rgba(0, 255, 65, 0.03) 1px, transparent 1px);
+            background-size: 100% 3px;
+        }
+        .sys-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 1rem;
+            margin-bottom: 2rem;
+        }
+        .blink {
+            width: 12px; height: 12px;
+            background: var(--text);
+            margin-right: 15px;
+            animation: blink 1.2s step-end infinite;
+            box-shadow: 0 0 10px var(--text);
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+        h1 {
+            font-size: clamp(1.2rem, 2.5vw, 2rem);
+            margin: 0;
+            letter-spacing: 2px;
+        }
+        .sys-core {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+            align-items: start;
+        }
+        {% if config.get('mode', 'rtsp') == 'video' %}
+        @media (min-width: 900px) {
+            .sys-core { grid-template-columns: 350px 1fr; }
+            .sys-core.hide-config { grid-template-columns: 1fr; }
+        }
+        .sys-core.hide-config #config-panel { display: none; }
+        {% endif %}
+        .panel {
+            border: 1px solid var(--border);
+            background: var(--panel);
+            padding: 1.5rem;
+            position: relative;
+        }
+        .panel::before {
+            content: attr(data-title);
+            position: absolute;
+            top: -0.6rem; left: 1rem;
+            background: var(--bg);
+            padding: 0 0.5rem;
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.2rem;
+            margin-top: 0.5rem;
+        }
+        .field { display: flex; flex-direction: column; }
+        label {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-bottom: 0.3rem;
+        }
+        input, select, textarea {
+            box-sizing: border-box;
+            width: 100%;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.6rem;
+            font-family: inherit;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--text);
+            background: rgba(0, 255, 65, 0.05);
+            box-shadow: 0 0 8px rgba(0, 255, 65, 0.2) inset;
+        }
+        textarea { resize: vertical; min-height: 80px; }
+        
+        .btn-exec {
+            margin-top: 1.5rem;
+            width: 100%;
+            background: transparent;
+            color: var(--text);
+            border: 1px solid var(--text);
+            padding: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: inherit;
+            letter-spacing: 2px;
+            transition: all 0.1s;
+        }
+        .btn-exec:hover {
+            background: var(--text);
+            color: var(--bg);
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.4);
+        }
+        .btn-exec:active { transform: scale(0.98); }
+        
+        .feed-container {
+            border: 1px solid var(--border);
+            position: relative;
+            padding: 4px;
+            background: var(--panel);
+        }
+        .feed-header {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem;
+            font-size: 0.75rem;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-dim);
+        }
+        .feed-header span.live { color: var(--text); animation: blink 2s infinite; }
+        .cam-feed {
+            width: 100%;
+            display: block;
+        }
+    </style>
 </head>
 <body>
-    <h1>系統設定</h1>
-    <form method="POST">
-        <label>運作模式:</label>
-        <select name="mode">
-            <option value="rtsp" {% if config.get('mode', 'rtsp') == 'rtsp' %}selected{% endif %}>RTSP 多路模式</option>
-            <option value="video" {% if config.get('mode', 'rtsp') == 'video' %}selected{% endif %}>影片驗證模式</option>
-        </select><br><br>
-        <label>模型路徑:</label><br>
-        <input type="text" name="model_path" value="{{ config.model_path }}"><br>
-        <label>影片檔路徑 (影片驗證模式使用):</label><br>
-        <input type="text" name="video_path" value="{{ config.get('video_path', '') }}" style="width: 300px;"><br>
-        <label>信心度門檻 (Conf Threshold):</label><br>
-        <input type="number" name="conf_threshold" value="{{ config.get('conf_threshold', 0.25) }}" step="0.01" min="0.01" max="1.0"><br>
-        <label>RTSP 串流 (一行一個):</label><br>
-        <textarea name="rtsp_streams" rows="5">{{ '\n'.join(config.rtsp_streams) }}</textarea><br>
-        <label>FPS Limit:</label><br>
-        <input type="number" name="fps_limit" value="{{ config.fps_limit }}"><br>
-        <label>CPU Cores:</label><br>
-        <input type="number" name="cpu_cores" value="{{ config.cpu_cores }}"><br>
-        <label>Log Interval (sec):</label><br>
-        <input type="number" name="log_interval_seconds" value="{{ config.log_interval_seconds }}"><br>
-        <label>Log File:</label><br>
-        <input type="text" name="log_file" value="{{ config.log_file }}"><br>
-        <label>Detection Log File:</label><br>
-        <input type="text" name="detection_log_file" value="{{ config.detection_log_file }}"><br><br>
-        <button type="submit">儲存設定</button>
-    </form>
-    {% if config.get('mode', 'rtsp') == 'video' %}
-    <hr>
-    <h2>推論畫面 (影片驗證模式)</h2>
-    <img src="/video_feed" style="max-width: 100%; border: 1px solid #ccc;">
-    {% endif %}
+    <header class="sys-header">
+        <div style="display: flex; align-items: center;">
+            <div class="blink"></div>
+            <h1>ARGUS // PREDICTOR_NANO</h1>
+        </div>
+        <button type="button" class="btn-exec" style="margin:0; width:auto; padding: 0.5rem 1rem;" onclick="document.getElementById('sys-core').classList.toggle('hide-config')">[ TOGGLE_CONFIG ]</button>
+    </header>
+
+    <main class="sys-core" id="sys-core">
+        <form method="POST" class="panel" id="config-panel" data-title="SYS_CONFIG_PARAMETERS">
+            <div class="form-grid">
+                    <label>運作模式 (MODE)</label>
+                    <select name="mode">
+                        <option value="rtsp" {% if config.get('mode', 'rtsp') == 'rtsp' %}selected{% endif %}>RTSP 多路模式</option>
+                        <option value="video" {% if config.get('mode', 'rtsp') == 'video' %}selected{% endif %}>影片驗證模式</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>模型路徑 (MODEL_PATH)</label>
+                    <input type="text" name="model_path" value="{{ config.model_path }}">
+                </div>
+                <div class="field">
+                    <label>影片路徑 (VIDEO_PATH)</label>
+                    <input type="text" name="video_path" value="{{ config.get('video_path', '') }}">
+                </div>
+                <div class="field">
+                    <label>信心度門檻 (CONF_THRESHOLD)</label>
+                    <input type="number" name="conf_threshold" value="{{ config.get('conf_threshold', 0.25) }}" step="0.01" min="0.01" max="1.0">
+                </div>
+                <div class="field">
+                    <label>RTSP 串流 (STREAMS)</label>
+                    <textarea name="rtsp_streams">{{ '\n'.join(config.rtsp_streams) }}</textarea>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="field">
+                        <label>FPS 限制</label>
+                        <input type="number" name="fps_limit" value="{{ config.fps_limit }}">
+                    </div>
+                    <div class="field">
+                        <label>CPU 核心數</label>
+                        <input type="number" name="cpu_cores" value="{{ config.cpu_cores }}">
+                    </div>
+                </div>
+                <div class="field">
+                    <label>日誌寫入間隔 (LOG_INTERVAL_SEC)</label>
+                    <input type="number" name="log_interval_seconds" value="{{ config.log_interval_seconds }}">
+                </div>
+                <div class="field">
+                    <label>效能日誌 (LOG_FILE)</label>
+                    <input type="text" name="log_file" value="{{ config.log_file }}">
+                </div>
+                <div class="field">
+                    <label>偵測日誌 (DETECTION_LOG)</label>
+                    <input type="text" name="detection_log_file" value="{{ config.detection_log_file }}">
+                </div>
+            </div>
+            <button type="submit" class="btn-exec">[ EXECUTE_UPDATE ]</button>
+        </form>
+
+        {% if config.get('mode', 'rtsp') == 'video' %}
+        <aside class="feed-container">
+            <div class="feed-header">
+                <span>SIGNAL: DETECT_LINK_OK</span>
+                <span class="live">● LIVE_INFERENCE</span>
+            </div>
+            <img src="/video_feed" class="cam-feed" alt="Video Feed">
+        </aside>
+        {% endif %}
+    </main>
 </body>
 </html>
