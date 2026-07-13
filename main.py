@@ -1,0 +1,134 @@
+import os
+os.environ["OPENCV_LOG_LEVEL"] = "ERROR"
+import cv2
+import web_ui
+import time
+from config_manager import ConfigManager
+from stream_handler import StreamHandler
+
+import threading
+from web_ui import app
+
+def run_web_ui():
+    app.run(host="0.0.0.0", port=8188, use_reloader=False)
+
+from inference_engine import InferenceEngine
+from stats_logger import StatsLogger
+def main():
+    # 啟動 Web UI
+    threading.Thread(target=run_web_ui, daemon=True).start()
+    
+    config_mgr = ConfigManager()
+    config = config_mgr.config
+    
+    engine = InferenceEngine(model_path=config.get("model_path", "yolov8n.pt"))
+    logger = StatsLogger(log_file=config.get("log_file", "performance.log"), detection_log_file=config.get("detection_log_file", "detections.log"))
+    
+    mode = config.get("mode", "rtsp")
+    video_path = config.get("video_path", "")
+    video_cap = None
+    
+    streams = []
+    if mode == 'rtsp':
+        streams = [StreamHandler(url, config.get("fps_limit", 5)) for url in config.get("rtsp_streams", [])]
+        for s in streams:
+            s.start()
+    elif mode == 'video' and video_path:
+        video_cap = cv2.VideoCapture(video_path)
+
+    last_log_time = time.time()
+    log_interval = config.get("log_interval_seconds", 60)
+
+    try:
+        while True:
+            if config_mgr.check_for_updates():
+                new_config = config_mgr.config
+                print("[Config] Settings updated dynamically!")
+                
+                # 更新 Logger
+                logger = StatsLogger(log_file=new_config.get("log_file", "performance.log"), 
+                                     detection_log_file=new_config.get("detection_log_file", "detections.log"))
+                
+                # 更新 Inference Engine
+                if new_config.get("model_path") != config.get("model_path"):
+                    engine = InferenceEngine(model_path=new_config.get("model_path", "yolov8n.pt"))
+                
+                # 更新 Streams / 模式
+                mode_changed = new_config.get("mode") != config.get("mode")
+                video_path_changed = new_config.get("video_path") != config.get("video_path")
+                rtsp_changed = new_config.get("rtsp_streams") != config.get("rtsp_streams") or new_config.get("fps_limit") != config.get("fps_limit")
+                
+                if mode_changed or video_path_changed or rtsp_changed:
+                    for s in streams:
+                        s.stop()
+                    streams = []
+                    
+                    if video_cap:
+                        video_cap.release()
+                        video_cap = None
+                        
+                    mode = new_config.get("mode", "rtsp")
+                    if mode == 'rtsp':
+                        streams = [StreamHandler(url, new_config.get("fps_limit", 5)) for url in new_config.get("rtsp_streams", [])]
+                        for s in streams:
+                            s.start()
+                    elif mode == 'video' and new_config.get("video_path", ""):
+                        video_cap = cv2.VideoCapture(new_config.get("video_path", ""))
+                log_interval = new_config.get("log_interval_seconds", 60)
+                config = new_config
+
+            mode = config.get("mode", "rtsp")
+            
+            if mode == 'rtsp':
+                for s in streams:
+                    frame = s.get_latest_frame()
+                    if frame is not None:
+                        detections, inf_time = engine.infer(frame, config.get("conf_threshold", 0.25))
+                        logger.add_inference_time(inf_time)
+                        
+                        if detections:
+                            logger.log_detection(s.rtsp_url, detections)
+            elif mode == 'video' and video_cap:
+                ret, frame = video_cap.read()
+                if not ret:
+                    # 影片結束，重新播放
+                    video_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                    ret, frame = video_cap.read()
+                
+                if ret and frame is not None:
+                    detections, inf_time = engine.infer(frame, config.get("conf_threshold", 0.25))
+                    logger.add_inference_time(inf_time)
+                    if detections:
+                        logger.log_detection(config.get("video_path", ""), detections)
+                    
+                    # 畫框 (供網頁顯示)
+                    for det in detections:
+                        x1, y1, x2, y2 = map(int, det["xyxy"][0])
+                        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                        label = f"Class {det['cls']} ({det['conf']:.2f})"
+                        cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                    
+                    # 轉為 JPG 並放入全域變數供 Flask 讀取
+                    ret, buffer = cv2.imencode('.jpg', frame)
+                    if ret:
+                        web_ui.LATEST_FRAME = buffer.tobytes()
+                    
+                    # 稍微暫停以控制 FPS
+                    fps_limit = config.get("fps_limit", 30)
+                    if fps_limit > 0:
+                        time.sleep(1.0 / fps_limit)
+
+            if time.time() - last_log_time > log_interval:
+                logger.log_stats()
+                last_log_time = time.time()
+            
+            if mode == 'rtsp':
+                time.sleep(0.01)
+    except KeyboardInterrupt:
+        for s in streams:
+            s.stop()
+        if 'video_cap' in locals() and video_cap:
+            video_cap.release()
+
+if __name__ == "__main__":
+    main()

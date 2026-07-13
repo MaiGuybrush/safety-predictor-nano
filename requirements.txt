@@ -1,0 +1,6 @@
+opencv-python-headless
+ultralytics
+pyyaml
+psutil
+flask
+pyyaml

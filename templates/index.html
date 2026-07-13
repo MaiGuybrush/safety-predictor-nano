@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Argus Safety Predictor Config</title>
+</head>
+<body>
+    <h1>系統設定</h1>
+    <form method="POST">
+        <label>運作模式:</label>
+        <select name="mode">
+            <option value="rtsp" {% if config.get('mode', 'rtsp') == 'rtsp' %}selected{% endif %}>RTSP 多路模式</option>
+            <option value="video" {% if config.get('mode', 'rtsp') == 'video' %}selected{% endif %}>影片驗證模式</option>
+        </select><br><br>
+        <label>模型路徑:</label><br>
+        <input type="text" name="model_path" value="{{ config.model_path }}"><br>
+        <label>影片檔路徑 (影片驗證模式使用):</label><br>
+        <input type="text" name="video_path" value="{{ config.get('video_path', '') }}" style="width: 300px;"><br>
+        <label>信心度門檻 (Conf Threshold):</label><br>
+        <input type="number" name="conf_threshold" value="{{ config.get('conf_threshold', 0.25) }}" step="0.01" min="0.01" max="1.0"><br>
+        <label>RTSP 串流 (一行一個):</label><br>
+        <textarea name="rtsp_streams" rows="5">{{ '\n'.join(config.rtsp_streams) }}</textarea><br>
+        <label>FPS Limit:</label><br>
+        <input type="number" name="fps_limit" value="{{ config.fps_limit }}"><br>
+        <label>CPU Cores:</label><br>
+        <input type="number" name="cpu_cores" value="{{ config.cpu_cores }}"><br>
+        <label>Log Interval (sec):</label><br>
+        <input type="number" name="log_interval_seconds" value="{{ config.log_interval_seconds }}"><br>
+        <label>Log File:</label><br>
+        <input type="text" name="log_file" value="{{ config.log_file }}"><br>
+        <label>Detection Log File:</label><br>
+        <input type="text" name="detection_log_file" value="{{ config.detection_log_file }}"><br><br>
+        <button type="submit">儲存設定</button>
+    </form>
+    {% if config.get('mode', 'rtsp') == 'video' %}
+    <hr>
+    <h2>推論畫面 (影片驗證模式)</h2>
+    <img src="/video_feed" style="max-width: 100%; border: 1px solid #ccc;">
+    {% endif %}
+</body>
+</html>
