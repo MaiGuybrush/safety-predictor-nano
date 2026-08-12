@@ -5,6 +5,7 @@ import web_ui
 import time
 from config_manager import ConfigManager
 from stream_handler import StreamHandler
+from video_handler import VideoHandler
 
 import threading
 from web_ui import app
@@ -34,7 +35,7 @@ def main():
     
     mode = config.get("mode", "rtsp")
     video_path = config.get("video_path", "")
-    video_cap = None
+    video_handler = None
     
     streams = []
     if mode == 'rtsp':
@@ -42,7 +43,8 @@ def main():
         for s in streams:
             s.start()
     elif mode == 'video' and video_path:
-        video_cap = cv2.VideoCapture(video_path)
+        video_handler = VideoHandler(video_path)
+        video_handler.start()
 
     last_log_time = time.time()
     log_interval = config.get("log_interval_seconds", 60)
@@ -81,9 +83,9 @@ def main():
                         s.stop()
                     streams = []
                     
-                    if video_cap:
-                        video_cap.release()
-                        video_cap = None
+                    if video_handler:
+                        video_handler.stop()
+                        video_handler = None
                         
                     mode = new_config.get("mode", "rtsp")
                     if mode == 'rtsp':
@@ -91,7 +93,8 @@ def main():
                         for s in streams:
                             s.start()
                     elif mode == 'video' and new_config.get("video_path", ""):
-                        video_cap = cv2.VideoCapture(new_config.get("video_path", ""))
+                        video_handler = VideoHandler(new_config.get("video_path", ""))
+                        video_handler.start()
                 log_interval = new_config.get("log_interval_seconds", 60)
                 config = new_config
 
@@ -106,35 +109,18 @@ def main():
                         
                         if detections:
                             logger.log_detection(s.rtsp_url, detections)
-            elif mode == 'video' and video_cap:
-                ret, frame = video_cap.read()
-                if not ret:
-                    # 影片結束，重新播放
-                    video_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                    ret, frame = video_cap.read()
-                
-                if ret and frame is not None:
+            elif mode == 'video' and video_handler:
+                frame = video_handler.get_latest_frame()
+                if frame is not None:
                     detections, inf_time = engine.infer(frame, config.get("conf_threshold", 0.25))
                     logger.add_inference_time(inf_time)
+                    video_handler.update_detections(detections)
                     if detections:
                         logger.log_detection(config.get("video_path", ""), detections)
-                    
-                    # 畫框 (供網頁顯示)
-                    for det in detections:
-                        x1, y1, x2, y2 = map(int, det["xyxy"][0])
-                        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                        label = f"Class {det['cls']} ({det['conf']:.2f})"
-                        cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                    
-                    # 轉為 JPG 並放入全域變數供 Flask 讀取
-                    ret, buffer = cv2.imencode('.jpg', frame)
-                    if ret:
-                        web_ui.LATEST_FRAME = buffer.tobytes()
-                    
-                    # 稍微暫停以控制 FPS
-                    fps_limit = config.get("fps_limit", 30)
-                    if fps_limit > 0:
-                        time.sleep(1.0 / fps_limit)
+                
+                fps_limit = config.get("fps_limit", 30)
+                if fps_limit > 0:
+                    time.sleep(1.0 / fps_limit)
 
             if time.time() - last_log_time > log_interval:
                 logger.log_stats()
@@ -145,8 +131,9 @@ def main():
     except KeyboardInterrupt:
         for s in streams:
             s.stop()
-        if 'video_cap' in locals() and video_cap:
-            video_cap.release()
+        if video_handler:
+            video_handler.stop()
 
 if __name__ == "__main__":
     main()
+

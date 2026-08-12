@@ -46,7 +46,7 @@ def gen_frames():
         if LATEST_FRAME is not None:
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + LATEST_FRAME + b'\r\n')
-        time.sleep(0.1)
+        time.sleep(0.03)
 
 from flask import Response, jsonify
 
