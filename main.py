@@ -21,7 +21,15 @@ def main():
     config_mgr = ConfigManager()
     config = config_mgr.config
     
-    engine = InferenceEngine(model_path=config.get("model_path", "yolov8n.pt"))
+    engine = InferenceEngine(
+        model_path=config.get("model_path", "yolov8n.pt"),
+        num_threads=config.get("cpu_cores", 4)
+    )
+    web_ui.MODEL_INFO = {
+        "type": engine.model_type,
+        "path": engine.model_path,
+        "cpu_cores": config.get("cpu_cores", 4)
+    }
     logger = StatsLogger(log_file=config.get("log_file", "performance.log"), detection_log_file=config.get("detection_log_file", "detections.log"))
     
     mode = config.get("mode", "rtsp")
@@ -50,8 +58,18 @@ def main():
                                      detection_log_file=new_config.get("detection_log_file", "detections.log"))
                 
                 # 更新 Inference Engine
-                if new_config.get("model_path") != config.get("model_path"):
-                    engine = InferenceEngine(model_path=new_config.get("model_path", "yolov8n.pt"))
+                model_changed = new_config.get("model_path") != config.get("model_path")
+                cores_changed = new_config.get("cpu_cores") != config.get("cpu_cores")
+                if model_changed or cores_changed:
+                    engine = InferenceEngine(
+                        model_path=new_config.get("model_path", "yolov8n.pt"),
+                        num_threads=new_config.get("cpu_cores", 4)
+                    )
+                    web_ui.MODEL_INFO = {
+                        "type": engine.model_type,
+                        "path": engine.model_path,
+                        "cpu_cores": new_config.get("cpu_cores", 4)
+                    }
                 
                 # 更新 Streams / 模式
                 mode_changed = new_config.get("mode") != config.get("mode")

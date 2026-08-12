@@ -143,6 +143,20 @@
             width: 100%;
             display: block;
         }
+        .model-status-bar {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            background: var(--panel);
+            font-size: 0.75rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+        .status-label { color: var(--text-dim); }
+        .status-value { color: var(--text); font-weight: bold; }
+        .status-sep   { color: var(--border); }
     </style>
 </head>
 <body>
@@ -153,6 +167,17 @@
         </div>
         <button type="button" class="btn-exec" style="margin:0; width:auto; padding: 0.5rem 1rem;" onclick="document.getElementById('sys-core').classList.toggle('hide-config')">[ TOGGLE_CONFIG ]</button>
     </header>
+
+    <div class="model-status-bar" id="model-status-bar">
+        <span class="status-label">MODEL_BACKEND</span>
+        <span class="status-value" id="model-type">---</span>
+        <span class="status-sep">//</span>
+        <span class="status-label">PATH</span>
+        <span class="status-value" id="model-path">---</span>
+        <span class="status-sep">//</span>
+        <span class="status-label">CPU_CORES</span>
+        <span class="status-value" id="model-cores">---</span>
+    </div>
 
     <main class="sys-core" id="sys-core">
         <form method="POST" class="panel" id="config-panel" data-title="SYS_CONFIG_PARAMETERS">
@@ -215,5 +240,19 @@
         </aside>
         {% endif %}
     </main>
+    <script>
+        function refreshModelInfo() {
+            fetch('/model_info')
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('model-type').textContent = data.type || '---';
+                    document.getElementById('model-path').textContent = data.path || '---';
+                    document.getElementById('model-cores').textContent = data.cpu_cores || '---';
+                })
+                .catch(err => console.error('Error fetching model info:', err));
+        }
+        refreshModelInfo();
+        setInterval(refreshModelInfo, 5000);
+    </script>
 </body>
 </html>

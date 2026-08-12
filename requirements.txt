@@ -3,4 +3,5 @@ ultralytics
 pyyaml
 psutil
 flask
-pyyaml
+ncnn
+

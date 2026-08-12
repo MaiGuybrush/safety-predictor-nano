@@ -34,6 +34,11 @@ def index():
     return render_template("index.html", config=config)
 
 LATEST_FRAME = None
+MODEL_INFO = {
+    "type": "Unknown",
+    "path": "",
+    "cpu_cores": 4
+}
 
 def gen_frames():
     import time
@@ -43,10 +48,16 @@ def gen_frames():
                    b'Content-Type: image/jpeg\r\n\r\n' + LATEST_FRAME + b'\r\n')
         time.sleep(0.1)
 
-from flask import Response
+from flask import Response, jsonify
+
+@app.route('/model_info')
+def model_info():
+    return jsonify(MODEL_INFO)
+
 @app.route('/video_feed')
 def video_feed():
     return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8188)
+
