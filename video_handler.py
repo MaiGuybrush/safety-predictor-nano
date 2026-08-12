@@ -75,7 +75,12 @@ class VideoHandler:
             display_frame = frame.copy()
             dets = self.get_latest_detections()
             for det in dets:
-                x1, y1, x2, y2 = map(int, det["xyxy"][0])
+                xyxy = det.get("xyxy", [])
+                if isinstance(xyxy, list) and len(xyxy) > 0 and isinstance(xyxy[0], (list, tuple)):
+                    coords = xyxy[0]
+                else:
+                    coords = xyxy
+                x1, y1, x2, y2 = map(int, coords)
                 cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 label = f"Class {det['cls']} ({det['conf']:.2f})"
                 cv2.putText(display_frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
