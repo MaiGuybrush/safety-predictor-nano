@@ -21,16 +21,27 @@ class StreamHandler:
         if self.thread:
             self.thread.join()
 
+    def _open_capture(self):
+        """建立 VideoCapture，統一設定 RTSP 接收 buffer（4MB）。
+        
+        加大 buffer 可防止高位元率 IDR frame（單幀可達 500KB+）截斷，
+        避免 'corrupted macroblock' / 'Invalid level prefix' 解碼錯誤。
+        """
+        cap = cv2.VideoCapture(
+            self.rtsp_url + "?buffer_size=4194304",
+            cv2.CAP_FFMPEG
+        )
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 3)  # OpenCV 內部幀佇列
+        return cap
+
     def _capture_frames(self):
-        cap = cv2.VideoCapture(self.rtsp_url)
-        # 設定為無頭模式，不需要 GUI
-        # 對 RPi 來說，使用 FFmpeg 作為後端通常較好
+        cap = self._open_capture()
         
         fail_count = 0
         while self.running:
             if not cap.isOpened():
                 time.sleep(2)
-                cap = cv2.VideoCapture(self.rtsp_url)
+                cap = self._open_capture()  # 重連時保持相同 buffer 設定
                 continue
 
             ret, frame = cap.read()
