@@ -1,7 +1,6 @@
 import os
 os.environ["OPENCV_LOG_LEVEL"] = "ERROR"
 os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
-os.environ["OPENCV_FFMPEG_LOGLEVEL"] = "-8"
 
 import web_ui
 import time
