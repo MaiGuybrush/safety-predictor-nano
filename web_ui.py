@@ -40,13 +40,35 @@ MODEL_INFO = {
     "cpu_cores": 4
 }
 
+import cv2
+import numpy as np
+
+
+def _create_no_signal_frame():
+    img = np.zeros((360, 640, 3), dtype=np.uint8)
+    text = "NO SIGNAL"
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 1.2
+    thickness = 2
+    color = (0, 255, 65)
+    text_size = cv2.getTextSize(text, font, font_scale, thickness)[0]
+    text_x = (640 - text_size[0]) // 2
+    text_y = (360 + text_size[1]) // 2
+    cv2.putText(img, text, (text_x, text_y), font, font_scale, color, thickness, cv2.LINE_AA)
+    ret, buf = cv2.imencode('.jpg', img, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+    return buf.tobytes() if ret else b''
+
+NO_SIGNAL_FRAME = _create_no_signal_frame()
+
 def gen_frames():
     import time
     while True:
-        if LATEST_FRAME is not None:
+        frame = LATEST_FRAME if LATEST_FRAME is not None else NO_SIGNAL_FRAME
+        if frame:
             yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + LATEST_FRAME + b'\r\n')
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
         time.sleep(0.03)
+
 
 from flask import Response, jsonify
 

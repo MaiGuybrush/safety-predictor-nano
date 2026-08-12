@@ -21,6 +21,9 @@
 | [ADR-003](ADR-003-cpu-cores-as-num-threads.md) | cpu_cores 欄位兼用為 NCNN num_threads | 已接受 | 2026-08-11 |
 | [ADR-004](ADR-004-global-vars-cross-thread.md) | 模組級全域變數作為跨執行緒資料通道 | 已接受 | 2026-08-11 |
 | [ADR-005](ADR-005-arm64-build-constraint.md) | PyInstaller 部署需在 ARM64 環境建置 | 已接受 | 2026-08-11 |
+| [ADR-006](ADR-006-per-stream-model-assignment.md) | 每路 RTSP 串流綁定獨立模型（Per-Stream Model Assignment） | 已接受 | 2026-08-12 |
+| [ADR-007](ADR-007-engine-instance-cache.md) | 相同模型路徑共用 InferenceEngine 實例（Engine Instance Cache） | 已接受 | 2026-08-12 |
+| [ADR-008](ADR-008-round-robin-inference-scheduling.md) | 多路 RTSP 串流採 Round-Robin 推論排程 | 已接受 | 2026-08-12 |
 
 ## 新增 ADR
 

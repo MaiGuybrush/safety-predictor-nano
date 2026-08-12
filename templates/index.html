@@ -51,13 +51,12 @@
             gap: 2rem;
             align-items: start;
         }
-        {% if config.get('mode', 'rtsp') == 'video' %}
         @media (min-width: 900px) {
             .sys-core { grid-template-columns: 350px 1fr; }
             .sys-core.hide-config { grid-template-columns: 1fr; }
         }
         .sys-core.hide-config #config-panel { display: none; }
-        {% endif %}
+
         .panel {
             border: 1px solid var(--border);
             background: var(--panel);
@@ -230,7 +229,6 @@
             <button type="submit" class="btn-exec">[ EXECUTE_UPDATE ]</button>
         </form>
 
-        {% if config.get('mode', 'rtsp') == 'video' %}
         <aside class="feed-container">
             <div class="feed-header">
                 <span>SIGNAL: DETECT_LINK_OK</span>
@@ -238,7 +236,6 @@
             </div>
             <img src="/video_feed" class="cam-feed" alt="Video Feed">
         </aside>
-        {% endif %}
     </main>
     <script>
         function refreshModelInfo() {

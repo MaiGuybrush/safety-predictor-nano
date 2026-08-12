@@ -28,3 +28,39 @@ class ConfigManager:
 
     def get(self, key, default=None):
         return self.config.get(key, default)
+
+    def get_stream_configs(self):
+        global_model = self.config.get("model_path", "yolov8n.pt")
+        
+        if "streams" in self.config and isinstance(self.config["streams"], list):
+            stream_configs = []
+            for item in self.config["streams"]:
+                if not isinstance(item, dict):
+                    continue
+                url = item.get("url", "")
+                if not url or not isinstance(url, str) or not url.strip():
+                    continue
+                url = url.strip()
+                model = item.get("model") or global_model
+                label = item.get("label") or ""
+                stream_configs.append({
+                    "url": url,
+                    "model": model,
+                    "label": label
+                })
+            return stream_configs
+        
+        if "rtsp_streams" in self.config and isinstance(self.config["rtsp_streams"], list):
+            stream_configs = []
+            for url in self.config["rtsp_streams"]:
+                if not isinstance(url, str) or not url.strip():
+                    continue
+                stream_configs.append({
+                    "url": url.strip(),
+                    "model": global_model,
+                    "label": ""
+                })
+            return stream_configs
+
+        return []
+
