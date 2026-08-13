@@ -59,6 +59,9 @@ class VideoHandler:
             if not ret:
                 # 無縫倒帶循環播放
                 cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                self.update_detections([])
+                if 0 in web_ui.LATEST_DETECTIONS:
+                    web_ui.LATEST_DETECTIONS[0] = {}
                 ret, frame = cap.read()
                 if not ret:
                     time.sleep(0.1)
@@ -72,22 +75,8 @@ class VideoHandler:
                     pass
             self.frame_queue.put(frame.copy())
 
-            # 繪製最新 Bounding Box 疊加層
-            display_frame = frame.copy()
-            dets = self.get_latest_detections()
-            for det in dets:
-                xyxy = det.get("xyxy", [])
-                if isinstance(xyxy, list) and len(xyxy) > 0 and isinstance(xyxy[0], (list, tuple)):
-                    coords = xyxy[0]
-                else:
-                    coords = xyxy
-                x1, y1, x2, y2 = map(int, coords)
-                cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                label = f"Class {det['cls']} ({det['conf']:.2f})"
-                cv2.putText(display_frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-            # 編碼成 JPG 供 Web UI MJPEG 串流
-            ret_enc, buffer = cv2.imencode('.jpg', display_frame)
+            # 直接編碼原始 Clean 畫面供 Web UI MJPEG 串流
+            ret_enc, buffer = cv2.imencode('.jpg', frame)
             if ret_enc:
                 web_ui.LATEST_FRAME = buffer.tobytes()
 

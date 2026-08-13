@@ -27,6 +27,7 @@
 | [ADR-009](ADR-009-sse-over-websocket-detection-channel.md) | 偵測結果通道採 SSE 而非 WebSocket | 已接受 | 2026-08-13 |
 | [ADR-010](ADR-010-client-side-canvas-detection-overlay.md) | 偵測框由前端 Canvas 繪製而非伺服器端圖像標注 | 已接受 | 2026-08-13 |
 | [ADR-011](ADR-011-per-stream-video-endpoint.md) | 單路全螢幕模式採獨立 /video_feed/<stream_id> 端點 | 已接受 | 2026-08-13 |
+| [ADR-012](ADR-012-decoupled-stream-fps-and-inference-sampling.md) | 串流畫面 FPS 與推論抽樣率解耦及過時方框 UI 提示 | 已接受 | 2026-08-13 |
 
 ## 新增 ADR
 

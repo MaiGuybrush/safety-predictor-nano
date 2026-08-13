@@ -64,7 +64,7 @@ class StreamHandler:
                 except queue.Empty:
                     pass
             self.frame_queue.put(frame)
-            time.sleep(1.0 / self.fps_limit)
+            time.sleep(0.001)
         
         cap.release()
 
