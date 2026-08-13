@@ -141,6 +141,28 @@
         .cam-feed {
             width: 100%;
             display: block;
+            cursor: pointer;
+        }
+        .stream-selector-bar {
+            display: flex;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            border-top: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+        .stream-btn {
+            background: transparent;
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 0.3rem 0.6rem;
+            font-family: inherit;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .stream-btn:hover {
+            background: var(--text);
+            color: var(--bg);
         }
         .model-status-bar {
             display: flex;
@@ -156,6 +178,65 @@
         .status-label { color: var(--text-dim); }
         .status-value { color: var(--text); font-weight: bold; }
         .status-sep   { color: var(--border); }
+
+        /* Fullscreen Modal Styles */
+        .fullscreen-modal {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: rgba(5, 5, 5, 0.95);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(6px);
+        }
+        .modal-header {
+            position: absolute;
+            top: 1rem; left: 1.5rem; right: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+            color: var(--text);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            z-index: 10000;
+        }
+        .modal-close-btn {
+            background: transparent;
+            color: var(--text);
+            border: 1px solid var(--text);
+            padding: 0.4rem 0.8rem;
+            cursor: pointer;
+            font-family: inherit;
+            letter-spacing: 1px;
+            transition: all 0.2s;
+        }
+        .modal-close-btn:hover {
+            background: var(--text);
+            color: var(--bg);
+        }
+        .modal-body {
+            position: relative;
+            max-width: 95vw;
+            max-height: 85vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #fullscreen-img {
+            max-width: 95vw;
+            max-height: 85vh;
+            object-fit: contain;
+            display: block;
+            border: 1px solid var(--border);
+        }
+        #fullscreen-canvas {
+            position: absolute;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -181,6 +262,7 @@
     <main class="sys-core" id="sys-core">
         <form method="POST" class="panel" id="config-panel" data-title="SYS_CONFIG_PARAMETERS">
             <div class="form-grid">
+                <div class="field">
                     <label>運作模式 (MODE)</label>
                     <select name="mode">
                         <option value="rtsp" {% if config.get('mode', 'rtsp') == 'rtsp' %}selected{% endif %}>RTSP 多路模式</option>
@@ -234,9 +316,30 @@
                 <span>SIGNAL: DETECT_LINK_OK</span>
                 <span class="live">● LIVE_INFERENCE</span>
             </div>
-            <img src="/video_feed" class="cam-feed" alt="Video Feed">
+            <img src="/video_feed" class="cam-feed" alt="Video Feed" onclick="openFullscreen(0)">
+            <div class="stream-selector-bar">
+                {% for idx in range(config.get('rtsp_streams', [])|length) %}
+                    <button type="button" class="stream-btn" onclick="openFullscreen({{ idx }})">[ STREAM #{{ idx }} ]</button>
+                {% endfor %}
+            </div>
         </aside>
     </main>
+
+    <!-- Fullscreen Modal Overlay -->
+    <div id="fullscreen-modal" class="fullscreen-modal" style="display:none;" onclick="closeFullscreenOnBackdrop(event)">
+        <div class="modal-header">
+            <div style="display: flex; align-items: center;">
+                <div class="blink"></div>
+                <span id="modal-title">FULLSCREEN_STREAM // STREAM #0</span>
+            </div>
+            <button type="button" class="modal-close-btn" onclick="closeFullscreen()">[ EXIT_FULLSCREEN ✕ ]</button>
+        </div>
+        <div class="modal-body" onclick="event.stopPropagation()">
+            <img id="fullscreen-img" alt="Stream Feed">
+            <canvas id="fullscreen-canvas"></canvas>
+        </div>
+    </div>
+
     <script>
         function refreshModelInfo() {
             fetch('/model_info')
@@ -250,6 +353,128 @@
         }
         refreshModelInfo();
         setInterval(refreshModelInfo, 5000);
+
+        let activeStreamIndex = null;
+        let eventSource = null;
+        let latestDetectionsMap = {};
+
+        function startSSE() {
+            if (eventSource) return;
+            eventSource = new EventSource('/detections_feed');
+            eventSource.onmessage = function(e) {
+                try {
+                    latestDetectionsMap = JSON.parse(e.data);
+                    if (activeStreamIndex !== null) {
+                        drawCanvas();
+                    }
+                } catch(err) {
+                    console.error('Error parsing SSE detections:', err);
+                }
+            };
+            eventSource.onerror = function(err) {
+                console.error('SSE connection error:', err);
+            };
+        }
+
+        function openFullscreen(streamId) {
+            activeStreamIndex = streamId;
+            const modal = document.getElementById('fullscreen-modal');
+            const img = document.getElementById('fullscreen-img');
+            const title = document.getElementById('modal-title');
+
+            title.textContent = `FULLSCREEN_STREAM // STREAM #${streamId}`;
+            img.src = `/video_feed/${streamId}?t=` + Date.now();
+            modal.style.display = 'flex';
+
+            startSSE();
+
+            img.onload = function() {
+                syncCanvasSize();
+                drawCanvas();
+            };
+        }
+
+        function closeFullscreen() {
+            activeStreamIndex = null;
+            const modal = document.getElementById('fullscreen-modal');
+            const img = document.getElementById('fullscreen-img');
+            modal.style.display = 'none';
+            img.src = '';
+            const canvas = document.getElementById('fullscreen-canvas');
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+
+        function closeFullscreenOnBackdrop(event) {
+            closeFullscreen();
+        }
+
+        function syncCanvasSize() {
+            const img = document.getElementById('fullscreen-img');
+            const canvas = document.getElementById('fullscreen-canvas');
+            if (!img || !canvas) return;
+
+            canvas.width = img.clientWidth;
+            canvas.height = img.clientHeight;
+            canvas.style.width = img.clientWidth + 'px';
+            canvas.style.height = img.clientHeight + 'px';
+            canvas.style.left = img.offsetLeft + 'px';
+            canvas.style.top = img.offsetTop + 'px';
+        }
+
+        function drawCanvas() {
+            if (activeStreamIndex === null) return;
+            const img = document.getElementById('fullscreen-img');
+            const canvas = document.getElementById('fullscreen-canvas');
+            if (!img || !canvas) return;
+
+            syncCanvasSize();
+
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const detObj = latestDetectionsMap[activeStreamIndex] || latestDetectionsMap[String(activeStreamIndex)];
+            if (!detObj || !detObj.detections || !detObj.frame_w || !detObj.frame_h) return;
+
+            const scaleX = canvas.width / detObj.frame_w;
+            const scaleY = canvas.height / detObj.frame_h;
+
+            detObj.detections.forEach(det => {
+                const coords = det.xyxy || [];
+                if (coords.length >= 4) {
+                    const x1 = coords[0] * scaleX;
+                    const y1 = coords[1] * scaleY;
+                    const w = (coords[2] - coords[0]) * scaleX;
+                    const h = (coords[3] - coords[1]) * scaleY;
+
+                    // Draw bounding box
+                    ctx.strokeStyle = '#00ff41';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(x1, y1, w, h);
+
+                    // Draw label
+                    const labelText = `Class ${det.cls} (${(det.conf * 100).toFixed(0)}%)`;
+                    ctx.font = '13px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace';
+                    const textWidth = ctx.measureText(labelText).width;
+                    
+                    ctx.fillStyle = 'rgba(0, 59, 0, 0.85)';
+                    ctx.fillRect(x1, Math.max(y1 - 20, 0), textWidth + 8, 20);
+
+                    ctx.fillStyle = '#00ff41';
+                    ctx.fillText(labelText, x1 + 4, Math.max(y1 - 5, 14));
+                }
+            });
+        }
+
+        window.addEventListener('resize', () => {
+            if (activeStreamIndex !== null) {
+                syncCanvasSize();
+                drawCanvas();
+            }
+        });
     </script>
 </body>
 </html>
+

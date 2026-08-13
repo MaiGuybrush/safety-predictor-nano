@@ -10,6 +10,7 @@ class StreamHandler:
         self.frame_queue = queue.Queue(maxsize=1)
         self.running = False
         self.thread = None
+        self.last_frame = None
 
     def start(self):
         self.running = True
@@ -69,6 +70,8 @@ class StreamHandler:
 
     def get_latest_frame(self):
         try:
-            return self.frame_queue.get_nowait()
+            frame = self.frame_queue.get_nowait()
+            self.last_frame = frame
+            return frame
         except queue.Empty:
-            return None
+            return self.last_frame

@@ -33,7 +33,8 @@ def index():
     config = load_config()
     return render_template("index.html", config=config)
 
-LATEST_FRAME = None
+STREAM_UNITS = []
+LATEST_DETECTIONS = {}
 MODEL_INFO = {
     "type": "Unknown",
     "path": "",
@@ -42,6 +43,7 @@ MODEL_INFO = {
 
 import cv2
 import numpy as np
+import json
 
 
 def _create_no_signal_frame():
@@ -67,7 +69,45 @@ def gen_frames():
         if frame:
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+        if app.config.get('TESTING'):
+            break
         time.sleep(0.03)
+
+def gen_single_stream_frames(stream_id):
+    import time
+    while True:
+        frame_bytes = None
+        if 0 <= stream_id < len(STREAM_UNITS):
+            unit = STREAM_UNITS[stream_id]
+            raw_frame = unit.get("latest_raw_frame")
+            if raw_frame is None and "handler" in unit:
+                raw_frame = unit["handler"].get_latest_frame()
+                
+            if raw_frame is not None:
+                if isinstance(raw_frame, bytes):
+                    frame_bytes = raw_frame
+                elif isinstance(raw_frame, np.ndarray):
+                    ret, buf = cv2.imencode('.jpg', raw_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+                    if ret:
+                        frame_bytes = buf.tobytes()
+        
+        if frame_bytes is None:
+            frame_bytes = NO_SIGNAL_FRAME
+
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        if app.config.get('TESTING'):
+            break
+        time.sleep(0.03)
+
+def gen_detections_feed():
+    import time
+    while True:
+        data_str = json.dumps(LATEST_DETECTIONS)
+        yield f"data: {data_str}\n\n"
+        if app.config.get('TESTING'):
+            break
+        time.sleep(0.05)
 
 
 from flask import Response, jsonify
@@ -80,6 +120,15 @@ def model_info():
 def video_feed():
     return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
+@app.route('/video_feed/<int:stream_id>')
+def video_feed_stream(stream_id):
+    return Response(gen_single_stream_frames(stream_id), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/detections_feed')
+def detections_feed():
+    return Response(gen_detections_feed(), mimetype='text/event-stream')
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8188)
+
 
