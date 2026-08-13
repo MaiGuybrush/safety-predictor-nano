@@ -62,3 +62,12 @@ The system utilizes a multi-threaded Python architecture to decouple frame captu
 ## Testing & QA
 - **Frameworks**: None.
 - **Status**: The repository currently lacks automated testing frameworks, test scripts, or a dedicated `tests/` directory. Testing is presumed to be manual via the Web UI and log verification.
+
+## Agent skills
+
+### Issue tracker
+Gitea Issues via `tea` CLI (`http://tnvcimweb1.cminl.oa/git-server/guy.mai/safty-predictor-nano`). See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+Single-context (`AGENTS.md` + `docs/adr/`). See `docs/agents/domain.md`.
+
