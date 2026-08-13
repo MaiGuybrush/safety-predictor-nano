@@ -21,10 +21,11 @@ def run_web_ui():
 
 def _inference_worker(context):
     """
-    背景推論執行緒，Round-Robin 對各 RTSP 串流執行 YOLO 推論，
+    背景推論執行緒，Round-Robin 對各 RTSP 串流根據 fps_limit 獨立時間點抽樣執行 YOLO 推論，
     寫入 web_ui.LATEST_DETECTIONS。
     """
     rr_index = 0
+    last_infer_times = {}
     while context.get("running", True):
         mode = context.get("mode", "rtsp")
         stream_units = context.get("stream_units", [])
@@ -43,44 +44,50 @@ def _inference_worker(context):
         url = unit.get("url", "")
         label = unit.get("label", "")
 
-        frame = unit.get("latest_raw_frame")
-        if frame is None and handler is not None:
-            frame = handler.get_latest_frame()
+        fps_limit = config.get("fps_limit", 5)
+        interval = 1.0 / fps_limit if fps_limit > 0 else 0
+        now = time.time()
 
-        if frame is not None and engine is not None:
-            conf_thresh = config.get("conf_threshold", 0.25)
-            detections, inf_time = engine.infer(frame, conf_thresh)
-            if logger:
-                logger.add_inference_time(inf_time)
-                if detections:
-                    logger.log_detection(url, detections)
+        if now - last_infer_times.get(unit_idx, 0) >= interval:
+            frame = unit.get("latest_raw_frame")
+            if frame is None and handler is not None:
+                frame = handler.get_latest_frame()
 
-            formatted_detections = []
-            for det in detections:
-                xyxy = det.get("xyxy", [])
-                if isinstance(xyxy, list) and len(xyxy) > 0 and isinstance(xyxy[0], (list, tuple)):
-                    coords = [float(x) for x in xyxy[0]]
-                elif isinstance(xyxy, np.ndarray):
-                    coords = [float(x) for x in xyxy.tolist()]
-                else:
-                    coords = [float(x) for x in xyxy]
+            if frame is not None and engine is not None:
+                conf_thresh = config.get("conf_threshold", 0.25)
+                detections, inf_time = engine.infer(frame, conf_thresh)
+                if logger:
+                    logger.add_inference_time(inf_time)
+                    if detections:
+                        logger.log_detection(url, detections)
 
-                formatted_detections.append({
-                    "xyxy": coords,
-                    "cls": int(det["cls"]),
-                    "conf": float(det["conf"])
-                })
+                formatted_detections = []
+                for det in detections:
+                    xyxy = det.get("xyxy", [])
+                    if isinstance(xyxy, list) and len(xyxy) > 0 and isinstance(xyxy[0], (list, tuple)):
+                        coords = [float(x) for x in xyxy[0]]
+                    elif isinstance(xyxy, np.ndarray):
+                        coords = [float(x) for x in xyxy.tolist()]
+                    else:
+                        coords = [float(x) for x in xyxy]
 
-            h, w = frame.shape[:2]
-            web_ui.LATEST_DETECTIONS[unit_idx] = {
-                "stream_url": url,
-                "stream_index": unit_idx,
-                "label": label if label else url,
-                "detections": formatted_detections,
-                "frame_w": w,
-                "frame_h": h,
-                "ts": time.time()
-            }
+                    formatted_detections.append({
+                        "xyxy": coords,
+                        "cls": int(det["cls"]),
+                        "conf": float(det["conf"])
+                    })
+
+                h, w = frame.shape[:2]
+                web_ui.LATEST_DETECTIONS[unit_idx] = {
+                    "stream_url": url,
+                    "stream_index": unit_idx,
+                    "label": label if label else url,
+                    "detections": formatted_detections,
+                    "frame_w": w,
+                    "frame_h": h,
+                    "ts": now
+                }
+                last_infer_times[unit_idx] = now
 
         rr_index = (rr_index + 1) % len(stream_units)
         time.sleep(0.01)
@@ -186,6 +193,7 @@ def main():
         }
 
     last_log_time = time.time()
+    last_video_infer_time = 0
     log_interval = config.get("log_interval_seconds", 60)
     
     latest_frames = {}
@@ -283,22 +291,49 @@ def main():
                 if frame is not None:
                     if web_ui.STREAM_UNITS:
                         web_ui.STREAM_UNITS[0]["latest_raw_frame"] = frame
-                    detections, inf_time = video_engine.infer(frame, config.get("conf_threshold", 0.25))
-                    logger.add_inference_time(inf_time)
-                    video_handler.update_detections(detections)
-                    if detections:
-                        logger.log_detection(config.get("video_path", ""), detections)
-                
-                fps_lim = config.get("fps_limit", 30)
-                if fps_lim > 0:
-                    time.sleep(1.0 / fps_lim)
+                    
+                    fps_lim = config.get("fps_limit", 30)
+                    interval = 1.0 / fps_lim if fps_lim > 0 else 0
+                    now = time.time()
+
+                    if now - last_video_infer_time >= interval:
+                        detections, inf_time = video_engine.infer(frame, config.get("conf_threshold", 0.25))
+                        logger.add_inference_time(inf_time)
+                        video_handler.update_detections(detections)
+                        if detections:
+                            logger.log_detection(config.get("video_path", ""), detections)
+                        
+                        formatted_detections = []
+                        for det in detections:
+                            xyxy = det.get("xyxy", [])
+                            if isinstance(xyxy, list) and len(xyxy) > 0 and isinstance(xyxy[0], (list, tuple)):
+                                coords = [float(x) for x in xyxy[0]]
+                            elif isinstance(xyxy, np.ndarray):
+                                coords = [float(x) for x in xyxy.tolist()]
+                            else:
+                                coords = [float(x) for x in xyxy]
+                            formatted_detections.append({
+                                "xyxy": coords,
+                                "cls": int(det["cls"]),
+                                "conf": float(det["conf"])
+                            })
+                        h, w = frame.shape[:2]
+                        web_ui.LATEST_DETECTIONS[0] = {
+                            "stream_url": config.get("video_path", ""),
+                            "stream_index": 0,
+                            "label": "Video Stream",
+                            "detections": formatted_detections,
+                            "frame_w": w,
+                            "frame_h": h,
+                            "ts": now
+                        }
+                        last_video_infer_time = now
 
             if time.time() - last_log_time > log_interval:
                 logger.log_stats()
                 last_log_time = time.time()
             
-            if mode == 'rtsp':
-                time.sleep(0.01)
+            time.sleep(0.01)
 
     except KeyboardInterrupt:
         context["running"] = False
