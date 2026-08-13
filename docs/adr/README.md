@@ -24,8 +24,12 @@
 | [ADR-006](ADR-006-per-stream-model-assignment.md) | 每路 RTSP 串流綁定獨立模型（Per-Stream Model Assignment） | 已接受 | 2026-08-12 |
 | [ADR-007](ADR-007-engine-instance-cache.md) | 相同模型路徑共用 InferenceEngine 實例（Engine Instance Cache） | 已接受 | 2026-08-12 |
 | [ADR-008](ADR-008-round-robin-inference-scheduling.md) | 多路 RTSP 串流採 Round-Robin 推論排程 | 已接受 | 2026-08-12 |
+| [ADR-009](ADR-009-sse-over-websocket-detection-channel.md) | 偵測結果通道採 SSE 而非 WebSocket | 已接受 | 2026-08-13 |
+| [ADR-010](ADR-010-client-side-canvas-detection-overlay.md) | 偵測框由前端 Canvas 繪製而非伺服器端圖像標注 | 已接受 | 2026-08-13 |
+| [ADR-011](ADR-011-per-stream-video-endpoint.md) | 單路全螢幕模式採獨立 /video_feed/<stream_id> 端點 | 已接受 | 2026-08-13 |
 
 ## 新增 ADR
+
 
 1. 複製任意現有 ADR 作為模板
 2. 命名規則：`ADR-NNN-短描述.md`（連字號分隔，英文）
