@@ -357,6 +357,7 @@
         let activeStreamIndex = null;
         let eventSource = null;
         let latestDetectionsMap = {};
+        let canvasAnimTimer = null;
 
         function startSSE() {
             if (eventSource) return;
@@ -392,10 +393,21 @@
                 syncCanvasSize();
                 drawCanvas();
             };
+
+            if (canvasAnimTimer) clearInterval(canvasAnimTimer);
+            canvasAnimTimer = setInterval(() => {
+                if (activeStreamIndex !== null) {
+                    drawCanvas();
+                }
+            }, 100);
         }
 
         function closeFullscreen() {
             activeStreamIndex = null;
+            if (canvasAnimTimer) {
+                clearInterval(canvasAnimTimer);
+                canvasAnimTimer = null;
+            }
             const modal = document.getElementById('fullscreen-modal');
             const img = document.getElementById('fullscreen-img');
             modal.style.display = 'none';
@@ -438,6 +450,11 @@
             const detObj = latestDetectionsMap[activeStreamIndex] || latestDetectionsMap[String(activeStreamIndex)];
             if (!detObj || !detObj.detections || !detObj.frame_w || !detObj.frame_h) return;
 
+            const nowSec = Date.now() / 1000.0;
+            const detTs = detObj.ts || 0;
+            const age = nowSec - detTs;
+            const isStale = (age > 0.15);
+
             const scaleX = canvas.width / detObj.frame_w;
             const scaleY = canvas.height / detObj.frame_h;
 
@@ -449,20 +466,29 @@
                     const w = (coords[2] - coords[0]) * scaleX;
                     const h = (coords[3] - coords[1]) * scaleY;
 
-                    // Draw bounding box
-                    ctx.strokeStyle = '#00ff41';
+                    // Set line style for stale / sampled indicator
+                    if (isStale) {
+                        ctx.setLineDash([5, 5]);
+                        ctx.strokeStyle = 'rgba(0, 255, 65, 0.75)';
+                    } else {
+                        ctx.setLineDash([]);
+                        ctx.strokeStyle = '#00ff41';
+                    }
                     ctx.lineWidth = 2;
                     ctx.strokeRect(x1, y1, w, h);
 
+                    ctx.setLineDash([]);
+
                     // Draw label
-                    const labelText = `Class ${det.cls} (${(det.conf * 100).toFixed(0)}%)`;
+                    const tag = isStale ? ' [SAMPLED]' : '';
+                    const labelText = `Class ${det.cls} (${(det.conf * 100).toFixed(0)}%)${tag}`;
                     ctx.font = '13px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace';
                     const textWidth = ctx.measureText(labelText).width;
                     
-                    ctx.fillStyle = 'rgba(0, 59, 0, 0.85)';
+                    ctx.fillStyle = isStale ? 'rgba(0, 40, 0, 0.9)' : 'rgba(0, 59, 0, 0.85)';
                     ctx.fillRect(x1, Math.max(y1 - 20, 0), textWidth + 8, 20);
 
-                    ctx.fillStyle = '#00ff41';
+                    ctx.fillStyle = isStale ? '#85ffaa' : '#00ff41';
                     ctx.fillText(labelText, x1 + 4, Math.max(y1 - 5, 14));
                 }
             });
