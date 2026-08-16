@@ -66,7 +66,10 @@ The system utilizes a multi-threaded Python architecture to decouple frame captu
 ## Agent skills
 
 ### Issue tracker
-Gitea Issues via `tea` CLI (`http://tnvcimweb1.cminl.oa/git-server/guy.mai/safty-predictor-nano`). See `docs/agents/issue-tracker.md`.
+Local markdown files under `.scratch/<feature-slug>/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+Default five canonical roles (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 Single-context (`AGENTS.md` + `docs/adr/`). See `docs/agents/domain.md`.

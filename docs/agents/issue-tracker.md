@@ -1,20 +1,30 @@
-# Issue Tracker Configuration: Gitea Issues (via tea CLI)
+# Issue tracker: Local Markdown
 
-Issues for this repository are tracked in **Gitea Issues** via the official `tea` CLI.
+Issues and specs for this repo live as markdown files in `.scratch/`.
 
-## Instance Information
-- **Gitea Base URL**: `http://tnvcimweb1.cminl.oa/git-server`
-- **Repository**: `guy.mai/safty-predictor-nano`
-- **CLI Tool**: `tea` (already authenticated as `guy.mai`)
+## Conventions
 
-## Workflow & Operations
+- One feature per directory: `.scratch/<feature-slug>/`
+- The spec is `.scratch/<feature-slug>/spec.md`
+- Implementation issues are one file per ticket at `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01` — never a single combined tickets file
+- Triage state is recorded as a `Status:` line near the top of each issue file (see `triage-labels.md` for the role strings)
+- Comments and conversation history append to the bottom of the file under a `## Comments` heading
 
-### Creating Issues (`/to-tickets`)
-1. Publish tickets directly to Gitea using `tea issue create --title "<title>" --body "<body>" --labels "ready-for-agent"`.
-2. Reference blocking dependencies in the issue description using `#<issue_number>`.
+## When a skill says "publish to the issue tracker"
 
-### Working Issues (`/implement`)
-1. Query active tickets via `tea issue list --state open`.
-2. Pick issues with label `ready-for-agent` whose blockers are cleared.
-3. Implement and test against acceptance criteria.
-4. Close the issue on Gitea via `tea issue close <index>` upon completion.
+Create a new file under `.scratch/<feature-slug>/` (creating the directory if needed).
+
+## When a skill says "fetch the relevant ticket"
+
+Read the file at the referenced path. The user will normally pass the path or the issue number directly.
+
+## Wayfinding operations
+
+Used by `/wayfinder`. The **map** is a file with one **child** file per ticket.
+
+- **Map**: `.scratch/<effort>/map.md` — the Notes / Decisions-so-far / Fog body.
+- **Child ticket**: `.scratch/<effort>/issues/NN-<slug>.md`, numbered from `01`, with the question in the body. A `Type:` line records the ticket type (`research`/`prototype`/`grilling`/`task`); a `Status:` line records `claimed`/`resolved`.
+- **Blocking**: a `Blocked by: NN, NN` line near the top. A ticket is unblocked when every file it lists is `resolved`.
+- **Frontier**: scan `.scratch/<effort>/issues/` for files that are open, unblocked, and unclaimed; first by number wins.
+- **Claim**: set `Status: claimed` and save before any work.
+- **Resolve**: append the answer under an `## Answer` heading, set `Status: resolved`, then append a context pointer (gist + link) to the map's Decisions-so-far in `map.md`.
