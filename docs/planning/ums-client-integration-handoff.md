@@ -4,19 +4,19 @@
 
 ## 已完成的事（上一個 session，發生在別的目錄）
 
-- 在 `D:\projects\innolux\AIVision_GUI\src\controllers\model_manager.py` 找到既有的 UMS API 呼叫邏輯（`UmsApiClient`），它本身不依賴 Qt。
-- 把它抽成獨立、零依賴、無 Qt 的新 repo：`D:\projects\innolux\ums-client`。已安裝測試（6/6 通過），已確認 import 不會拉入 PySide6。
+- 在 `c:\projects\innolux\AIVision_GUI\src\controllers\model_manager.py` 找到既有的 UMS API 呼叫邏輯（`UmsApiClient`），它本身不依賴 Qt。
+- 把它抽成獨立、零依賴、無 Qt 的新 repo：`c:\projects\innolux\ums-client`。已安裝測試（6/6 通過），已確認 import 不會拉入 PySide6。
 - `AIVision_GUI` 與 `safety-predictor-nano` 兩個現有專案本身都**沒有**被修改。
 
 不重複貼細節，需要時直接看：
-- 這次的規劃書（含所有設計決策與取捨理由）：`C:\Users\guybr\.claude\plans\snappy-seeking-glacier.md`
-- 新套件文件：`D:\projects\innolux\ums-client\README.md`
-- 新套件實作：`D:\projects\innolux\ums-client\src\ums_client\client.py`
-- 原始 UMS API 規格文件：`D:\projects\innolux\AIVision_GUI\src\controllers\Client-EdgeApp-MyModels-API-Reference.md`
+- 這次的規劃書（含所有設計決策與取捨理由）：`c:\Users\guybr\.claude\plans\snappy-seeking-glacier.md`
+- 新套件文件：`c:\projects\innolux\ums-client\README.md`
+- 新套件實作：`c:\projects\innolux\ums-client\src\ums_client\client.py`
+- 原始 UMS API 規格文件：`c:\projects\innolux\AIVision_GUI\src\controllers\Client-EdgeApp-MyModels-API-Reference.md`
 
 ## ums-client 套件速覽（只列下一步用得到的事實）
 
-- 安裝：`pip install -e D:\projects\innolux\ums-client`（目前只有本機路徑，尚未建遠端 repo）
+- 安裝：`pip install -e c:\projects\innolux\ums-client`（目前只有本機路徑，尚未建遠端 repo）
 - 用法：`UmsApiClient.from_env()`（讀 `UMS_BASE_URL` / `UMS_API_KEY`）→ `fetch_my_models()` → `download_version(version_id, dest_dir, progress_cb=None)`
 - **刻意不含**：本機資料夾命名規則、`memo.txt`、CCD 部署等 AIVision_GUI 專屬慣例——這是跟使用者確認過的範圍排除（見規劃書「範圍確認」段落），因為 safety-predictor-nano 的模型載入方式跟 AIVision_GUI 完全不同（見下）。
 

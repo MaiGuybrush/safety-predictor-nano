@@ -257,6 +257,9 @@
         <span class="status-sep">//</span>
         <span class="status-label">CPU_CORES</span>
         <span class="status-value" id="model-cores">---</span>
+        <span class="status-sep">//</span>
+        <button type="button" class="stream-btn" onclick="syncModels()">[ SYNC_MODELS ]</button>
+        <span class="status-value" id="sync-status">---</span>
     </div>
 
     <main class="sys-core" id="sys-core">
@@ -353,6 +356,33 @@
         }
         refreshModelInfo();
         setInterval(refreshModelInfo, 5000);
+
+        function refreshSyncStatus() {
+            fetch('/sync_status')
+                .then(r => r.json())
+                .then(data => {
+                    const el = document.getElementById('sync-status');
+                    if (!data.timestamp) { el.textContent = '---'; return; }
+                    el.textContent = `OK:${data.success.length} FAIL:${data.failed.length}`;
+                })
+                .catch(err => console.error('Error fetching sync status:', err));
+        }
+        refreshSyncStatus();
+        setInterval(refreshSyncStatus, 5000);
+
+        function syncModels() {
+            const el = document.getElementById('sync-status');
+            el.textContent = 'SYNCING...';
+            fetch('/sync_models', {method: 'POST'})
+                .then(r => r.json())
+                .then(data => {
+                    el.textContent = `OK:${data.success.length} FAIL:${data.failed.length}`;
+                })
+                .catch(err => {
+                    el.textContent = 'ERROR';
+                    console.error('Error syncing models:', err);
+                });
+        }
 
         let activeStreamIndex = null;
         let eventSource = null;

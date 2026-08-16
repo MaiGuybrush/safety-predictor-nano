@@ -2,6 +2,9 @@ from flask import Flask, render_template, request
 import yaml
 import os
 
+import model_sync
+from config_manager import ConfigManager
+
 app = Flask(__name__)
 CONFIG_FILE = "config.yaml"
 
@@ -115,6 +118,15 @@ from flask import Response, jsonify
 @app.route('/model_info')
 def model_info():
     return jsonify(MODEL_INFO)
+
+@app.route('/sync_models', methods=['POST'])
+def sync_models():
+    report = model_sync.sync_all(ConfigManager(CONFIG_FILE))
+    return jsonify(report)
+
+@app.route('/sync_status')
+def sync_status():
+    return jsonify(model_sync.get_last_report())
 
 @app.route('/video_feed')
 def video_feed():

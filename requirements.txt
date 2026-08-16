@@ -5,4 +5,5 @@ psutil
 flask
 ncnn
 -e C:\projects\innolux\argus-eventlog
+-e C:\projects\innolux\ums-client
 
