@@ -28,6 +28,7 @@
 | [ADR-010](ADR-010-client-side-canvas-detection-overlay.md) | 偵測框由前端 Canvas 繪製而非伺服器端圖像標注 | 已接受 | 2026-08-13 |
 | [ADR-011](ADR-011-per-stream-video-endpoint.md) | 單路全螢幕模式採獨立 /video_feed/<stream_id> 端點 | 已接受 | 2026-08-13 |
 | [ADR-012](ADR-012-decoupled-stream-fps-and-inference-sampling.md) | 串流畫面 FPS 與推論抽樣率解耦及過時方框 UI 提示 | 已接受 | 2026-08-13 |
+| [ADR-014](ADR-014-argus-eventlog-integration.md) | 導入 argus-eventlog 輸出 ARGUS JSONL 事件（Argus Eventlog Integration） | 已接受 | 2026-08-16 |
 
 ## 新增 ADR
 

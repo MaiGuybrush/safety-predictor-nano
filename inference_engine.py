@@ -36,10 +36,12 @@ class InferenceEngine:
         detections = []
         for r in results:
             for box in r.boxes:
+                cls_id = int(box.cls)
                 detections.append({
-                    "cls": int(box.cls),
+                    "cls": cls_id,
                     "conf": float(box.conf),
-                    "xyxy": box.xyxy.tolist()
+                    "xyxy": box.xyxy.tolist(),
+                    "label": r.names.get(cls_id, str(cls_id))
                 })
 
         return detections, inference_time

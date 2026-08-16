@@ -27,14 +27,14 @@ class TestConfigManager(unittest.TestCase):
         mgr = ConfigManager(self.tmp_path)
         configs = mgr.get_stream_configs()
         self.assertEqual(len(configs), 2)
-        self.assertEqual(configs[0], {"url": "rtsp://cam1", "model": "global.pt", "label": ""})
-        self.assertEqual(configs[1], {"url": "rtsp://cam2", "model": "global.pt", "label": ""})
+        self.assertEqual(configs[0], {"url": "rtsp://cam1", "model": "global.pt", "label": "", "camera_id": ""})
+        self.assertEqual(configs[1], {"url": "rtsp://cam2", "model": "global.pt", "label": "", "camera_id": ""})
 
     def test_new_streams_schema(self):
         data = {
             "model_path": "global.pt",
             "streams": [
-                {"url": "rtsp://cam1", "model": "custom.pt", "label": "Cam 1"},
+                {"url": "rtsp://cam1", "model": "custom.pt", "label": "Cam 1", "camera_id": "CCD1"},
                 {"url": "rtsp://cam2", "label": "Cam 2"},
                 {"url": ""},
             ]
@@ -43,8 +43,8 @@ class TestConfigManager(unittest.TestCase):
         mgr = ConfigManager(self.tmp_path)
         configs = mgr.get_stream_configs()
         self.assertEqual(len(configs), 2)
-        self.assertEqual(configs[0], {"url": "rtsp://cam1", "model": "custom.pt", "label": "Cam 1"})
-        self.assertEqual(configs[1], {"url": "rtsp://cam2", "model": "global.pt", "label": "Cam 2"})
+        self.assertEqual(configs[0], {"url": "rtsp://cam1", "model": "custom.pt", "label": "Cam 1", "camera_id": "CCD1"})
+        self.assertEqual(configs[1], {"url": "rtsp://cam2", "model": "global.pt", "label": "Cam 2", "camera_id": ""})
 
     def test_streams_precedence_over_rtsp_streams(self):
         data = {

@@ -15,6 +15,37 @@ from video_handler import VideoHandler
 from inference_engine import InferenceEngine
 from stats_logger import StatsLogger
 from grid_composer import annotate_frame, compose_grid
+import model_sync
+
+import argus_eventlog
+from argus_eventlog import EventWriterService
+import event_producer
+
+argus_eventlog.writer.DEFAULT_PROG = "SafetyNano"
+
+
+def format_detections(raw_detections):
+    """把 InferenceEngine.infer() 回傳的原始 detections 轉成扁平格式，
+    供 Web UI 顯示與 event_producer 共用（取代先前 RTSP/video 兩路各自重複一份的格式化程式碼）。
+    """
+    formatted = []
+    for det in raw_detections:
+        xyxy = det.get("xyxy", [])
+        if isinstance(xyxy, list) and len(xyxy) > 0 and isinstance(xyxy[0], (list, tuple)):
+            coords = [float(x) for x in xyxy[0]]
+        elif isinstance(xyxy, np.ndarray):
+            coords = [float(x) for x in xyxy.tolist()]
+        else:
+            coords = [float(x) for x in xyxy]
+
+        formatted.append({
+            "xyxy": coords,
+            "cls": int(det["cls"]),
+            "conf": float(det["conf"]),
+            "label": det.get("label", str(int(det["cls"])))
+        })
+    return formatted
+
 
 def run_web_ui():
     app.run(host="0.0.0.0", port=8188, use_reloader=False)
@@ -61,23 +92,15 @@ def _inference_worker(context):
                     if detections:
                         logger.log_detection(url, detections)
 
-                formatted_detections = []
-                for det in detections:
-                    xyxy = det.get("xyxy", [])
-                    if isinstance(xyxy, list) and len(xyxy) > 0 and isinstance(xyxy[0], (list, tuple)):
-                        coords = [float(x) for x in xyxy[0]]
-                    elif isinstance(xyxy, np.ndarray):
-                        coords = [float(x) for x in xyxy.tolist()]
-                    else:
-                        coords = [float(x) for x in xyxy]
-
-                    formatted_detections.append({
-                        "xyxy": coords,
-                        "cls": int(det["cls"]),
-                        "conf": float(det["conf"])
-                    })
+                formatted_detections = format_detections(detections)
 
                 h, w = frame.shape[:2]
+                event_producer.process_detections(
+                    unit_idx, unit.get("camera_id", "unknown"),
+                    formatted_detections, w, h,
+                    config.get("event_severity", {}),
+                    config.get("event_absence_tolerance", 2),
+                )
                 web_ui.LATEST_DETECTIONS[unit_idx] = {
                     "stream_url": url,
                     "stream_index": unit_idx,
@@ -100,11 +123,12 @@ def build_stream_units(stream_configs, cpu_cores=4, fps_limit=5, existing_engine
     new_engine_cache = {}
     stream_units = []
     
-    for cfg in stream_configs:
+    for idx, cfg in enumerate(stream_configs):
         url = cfg["url"]
         model_path = cfg["model"]
         label = cfg["label"]
-        
+        camera_id = cfg.get("camera_id") or label or f"stream{idx}"
+
         if model_path in new_engine_cache:
             engine = new_engine_cache[model_path]
         elif model_path in existing_engine_cache and getattr(existing_engine_cache[model_path], 'num_threads', None) == cpu_cores:
@@ -123,47 +147,38 @@ def build_stream_units(stream_configs, cpu_cores=4, fps_limit=5, existing_engine
             "url": url,
             "model_path": model_path,
             "label": label,
+            "camera_id": camera_id,
             "latest_raw_frame": None
         })
         
     return stream_units, new_engine_cache
 
-def main():
-    # 啟動 Web UI
-    threading.Thread(target=run_web_ui, daemon=True).start()
-    
-    config_mgr = ConfigManager()
+def initialize_runtime(config_mgr):
+    """開機時執行一次 UMS 模型同步（失敗不中止，沿用舊 model_path/streams[].model），
+    再依（可能已被同步寫回更新的）config 建立初始執行環境。"""
+    sync_report = model_sync.sync_all(config_mgr)
+    if sync_report["success"] or sync_report["failed"]:
+        print(f"[ModelSync] 開機同步完成：成功 {len(sync_report['success'])}，失敗 {len(sync_report['failed'])}")
     config = config_mgr.config
-    
+
     logger = StatsLogger(
         log_file=config.get("log_file", "performance.log"),
         detection_log_file=config.get("detection_log_file", "detections.log")
     )
-    
+
     mode = config.get("mode", "rtsp")
     cpu_cores = config.get("cpu_cores", 4)
     fps_limit = config.get("fps_limit", 5)
-    
+
     engine_cache = {}
     stream_units = []
     video_handler = None
     video_engine = None
-    
-    context = {
-        "stream_units": [],
-        "config": config,
-        "logger": logger,
-        "mode": mode,
-        "running": True
-    }
-    
-    threading.Thread(target=_inference_worker, args=(context,), daemon=True).start()
-    
+
     if mode == 'rtsp':
         stream_configs = config_mgr.get_stream_configs()
         stream_units, engine_cache = build_stream_units(stream_configs, cpu_cores, fps_limit)
         web_ui.STREAM_UNITS = stream_units
-        context["stream_units"] = stream_units
         if stream_units:
             first_engine = stream_units[0]["engine"]
             web_ui.MODEL_INFO = {
@@ -191,6 +206,51 @@ def main():
             "path": video_engine.model_path,
             "cpu_cores": cpu_cores
         }
+
+    return {
+        "config": config,
+        "logger": logger,
+        "mode": mode,
+        "cpu_cores": cpu_cores,
+        "fps_limit": fps_limit,
+        "engine_cache": engine_cache,
+        "stream_units": stream_units,
+        "video_handler": video_handler,
+        "video_engine": video_engine,
+    }
+
+
+def main():
+    # 啟動 Web UI
+    threading.Thread(target=run_web_ui, daemon=True).start()
+
+    # 整個 process 只開一個 EventWriterService（見 ADR-014 決策 5：多鏡頭共用一個
+    # 全域 event_queue，寫入路徑改依 record 自己的 camera_id 路由，不用每鏡頭各開一個實例）
+    event_writer = EventWriterService()
+    event_writer.start()
+
+    config_mgr = ConfigManager()
+    state = initialize_runtime(config_mgr)
+
+    config = state["config"]
+    logger = state["logger"]
+    mode = state["mode"]
+    cpu_cores = state["cpu_cores"]
+    fps_limit = state["fps_limit"]
+    engine_cache = state["engine_cache"]
+    stream_units = state["stream_units"]
+    video_handler = state["video_handler"]
+    video_engine = state["video_engine"]
+
+    context = {
+        "stream_units": stream_units,
+        "config": config,
+        "logger": logger,
+        "mode": mode,
+        "running": True
+    }
+
+    threading.Thread(target=_inference_worker, args=(context,), daemon=True).start()
 
     last_log_time = time.time()
     last_video_infer_time = 0
@@ -303,21 +363,15 @@ def main():
                         if detections:
                             logger.log_detection(config.get("video_path", ""), detections)
                         
-                        formatted_detections = []
-                        for det in detections:
-                            xyxy = det.get("xyxy", [])
-                            if isinstance(xyxy, list) and len(xyxy) > 0 and isinstance(xyxy[0], (list, tuple)):
-                                coords = [float(x) for x in xyxy[0]]
-                            elif isinstance(xyxy, np.ndarray):
-                                coords = [float(x) for x in xyxy.tolist()]
-                            else:
-                                coords = [float(x) for x in xyxy]
-                            formatted_detections.append({
-                                "xyxy": coords,
-                                "cls": int(det["cls"]),
-                                "conf": float(det["conf"])
-                            })
+                        formatted_detections = format_detections(detections)
                         h, w = frame.shape[:2]
+                        video_camera_id = config.get("camera_id") or "video"
+                        event_producer.process_detections(
+                            "video", video_camera_id,
+                            formatted_detections, w, h,
+                            config.get("event_severity", {}),
+                            config.get("event_absence_tolerance", 2),
+                        )
                         web_ui.LATEST_DETECTIONS[0] = {
                             "stream_url": config.get("video_path", ""),
                             "stream_index": 0,
@@ -341,6 +395,7 @@ def main():
             unit["handler"].stop()
         if video_handler:
             video_handler.stop()
+        event_writer.stop()
 
 if __name__ == "__main__":
     main()

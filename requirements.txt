@@ -4,4 +4,5 @@ pyyaml
 psutil
 flask
 ncnn
+-e C:\projects\innolux\argus-eventlog
 

@@ -43,13 +43,15 @@ class ConfigManager:
                 url = url.strip()
                 model = item.get("model") or global_model
                 label = item.get("label") or ""
+                camera_id = item.get("camera_id") or ""
                 stream_configs.append({
                     "url": url,
                     "model": model,
-                    "label": label
+                    "label": label,
+                    "camera_id": camera_id
                 })
             return stream_configs
-        
+
         if "rtsp_streams" in self.config and isinstance(self.config["rtsp_streams"], list):
             stream_configs = []
             for url in self.config["rtsp_streams"]:
@@ -58,7 +60,8 @@ class ConfigManager:
                 stream_configs.append({
                     "url": url.strip(),
                     "model": global_model,
-                    "label": ""
+                    "label": "",
+                    "camera_id": ""
                 })
             return stream_configs
 
