@@ -94,12 +94,16 @@ def _inference_worker(context):
 
                 formatted_detections = format_detections(detections)
 
+                zones_cfg = config.get("zones") if isinstance(config.get("zones"), dict) else {}
+                stream_zone = zones_cfg.get(url)
+
                 h, w = frame.shape[:2]
                 event_producer.process_detections(
                     unit_idx, unit.get("camera_id", "unknown"),
                     formatted_detections, w, h,
                     config.get("event_severity", {}),
                     config.get("event_absence_tolerance", 2),
+                    zone=stream_zone,
                 )
                 web_ui.LATEST_DETECTIONS[unit_idx] = {
                     "stream_url": url,
@@ -108,7 +112,8 @@ def _inference_worker(context):
                     "detections": formatted_detections,
                     "frame_w": w,
                     "frame_h": h,
-                    "ts": now
+                    "ts": now,
+                    "zone": stream_zone,
                 }
                 last_infer_times[unit_idx] = now
 
@@ -366,20 +371,26 @@ def main():
                         formatted_detections = format_detections(detections)
                         h, w = frame.shape[:2]
                         video_camera_id = config.get("camera_id") or "video"
+                        video_url = config.get("video_path", "")
+                        zones_cfg = config.get("zones") if isinstance(config.get("zones"), dict) else {}
+                        video_zone = zones_cfg.get(video_url)
+
                         event_producer.process_detections(
                             "video", video_camera_id,
                             formatted_detections, w, h,
                             config.get("event_severity", {}),
                             config.get("event_absence_tolerance", 2),
+                            zone=video_zone,
                         )
                         web_ui.LATEST_DETECTIONS[0] = {
-                            "stream_url": config.get("video_path", ""),
+                            "stream_url": video_url,
                             "stream_index": 0,
                             "label": "Video Stream",
                             "detections": formatted_detections,
                             "frame_w": w,
                             "frame_h": h,
-                            "ts": now
+                            "ts": now,
+                            "zone": video_zone,
                         }
                         last_video_infer_time = now
 

@@ -130,3 +130,42 @@ class ConfigManager:
 
         self.config = raw
         self.last_mtime = os.path.getmtime(self.config_path)
+
+    def get_zones(self):
+        zones = self.config.get("zones")
+        if isinstance(zones, dict):
+            return zones
+        return {}
+
+    def get_zone(self, stream_url):
+        if not stream_url:
+            return None
+        return self.get_zones().get(stream_url)
+
+    def save_zone(self, stream_url, polygon, zone_name=None):
+        if not stream_url:
+            return
+
+        with open(self.config_path, "r", encoding="utf-8") as f:
+            raw = yaml.safe_load(f) or {}
+
+        if "zones" not in raw or not isinstance(raw["zones"], dict):
+            raw["zones"] = {}
+
+        if polygon and len(polygon) >= 3:
+            zone_data = {"polygon": polygon}
+            if zone_name:
+                zone_data["zone_name"] = zone_name
+            raw["zones"][stream_url] = zone_data
+        else:
+            raw["zones"].pop(stream_url, None)
+
+        with open(self.config_path, "w", encoding="utf-8") as f:
+            yaml.dump(raw, f, allow_unicode=True)
+
+        self.config = raw
+        self.last_mtime = os.path.getmtime(self.config_path)
+
+    def delete_zone(self, stream_url):
+        self.save_zone(stream_url, [])
+

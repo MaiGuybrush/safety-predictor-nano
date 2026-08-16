@@ -51,5 +51,30 @@ class TestSseDetections(unittest.TestCase):
         self.assertIn("0", parsed)
         self.assertEqual(parsed["0"]["stream_url"], "rtsp://cam1")
 
+    def test_sse_endpoint_includes_zone_if_present(self):
+        web_ui.LATEST_DETECTIONS = {
+            0: {
+                "stream_url": "rtsp://cam1",
+                "stream_index": 0,
+                "label": "Cam 1",
+                "detections": [],
+                "frame_w": 1280,
+                "frame_h": 720,
+                "ts": 1700000000.0,
+                "zone": {
+                    "polygon": [[0.1, 0.1], [0.5, 0.5], [0.1, 0.5]],
+                    "zone_name": "Danger Zone"
+                }
+            }
+        }
+        response = self.client.get('/detections_feed')
+        data = response.get_data(as_text=True)
+        json_part = data.replace("data: ", "").strip()
+        parsed = json.loads(json_part)
+        self.assertEqual(parsed["0"]["zone"]["zone_name"], "Danger Zone")
+        self.assertEqual(len(parsed["0"]["zone"]["polygon"]), 3)
+
+
 if __name__ == "__main__":
     unittest.main()
+

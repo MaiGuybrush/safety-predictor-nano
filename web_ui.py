@@ -19,7 +19,9 @@ def save_config(config):
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
+        current = load_config() or {}
         new_config = {
+            **current,
             "model_path": request.form["model_path"],
             "rtsp_streams": [s.strip() for s in request.form["rtsp_streams"].replace("\r", "").split("\n") if s.strip()],
             "fps_limit": int(request.form["fps_limit"]),
@@ -35,6 +37,7 @@ def index():
     
     config = load_config()
     return render_template("index.html", config=config)
+
 
 STREAM_UNITS = []
 LATEST_DETECTIONS = {}
@@ -119,6 +122,27 @@ from flask import Response, jsonify
 def model_info():
     return jsonify(MODEL_INFO)
 
+@app.route('/zone/<path:stream_url>', methods=['GET'])
+def get_zone(stream_url):
+    mgr = ConfigManager(CONFIG_FILE)
+    zone = mgr.get_zone(stream_url)
+    if zone is None:
+        return jsonify({"polygon": None, "zone_name": None})
+    return jsonify(zone)
+
+@app.route('/zone/<path:stream_url>', methods=['POST'])
+def post_zone(stream_url):
+    mgr = ConfigManager(CONFIG_FILE)
+    data = request.get_json(force=True, silent=True) or {}
+    polygon = data.get("polygon", [])
+    zone_name = data.get("zone_name")
+    mgr.save_zone(stream_url, polygon, zone_name)
+    return jsonify({
+        "status": "ok",
+        "stream_url": stream_url,
+        "zone": mgr.get_zone(stream_url)
+    })
+
 @app.route('/sync_models', methods=['POST'])
 def sync_models():
     report = model_sync.sync_all(ConfigManager(CONFIG_FILE))
@@ -142,5 +166,6 @@ def detections_feed():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8188)
+
 
 

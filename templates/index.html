@@ -331,11 +331,24 @@
     <!-- Fullscreen Modal Overlay -->
     <div id="fullscreen-modal" class="fullscreen-modal" style="display:none;" onclick="closeFullscreenOnBackdrop(event)">
         <div class="modal-header">
-            <div style="display: flex; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap;">
                 <div class="blink"></div>
                 <span id="modal-title">FULLSCREEN_STREAM // STREAM #0</span>
+                <span id="zone-status-badge" style="color: #888888; font-size: 0.75rem;">[ ZONE: INACTIVE ]</span>
             </div>
-            <button type="button" class="modal-close-btn" onclick="closeFullscreen()">[ EXIT_FULLSCREEN ✕ ]</button>
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <div id="zone-view-controls">
+                    <button type="button" class="stream-btn" id="btn-edit-zone" onclick="enterZoneEditMode()">[ 編輯區域 EDIT_ZONE ]</button>
+                </div>
+                <div id="zone-edit-controls" style="display: none; align-items: center; gap: 0.5rem;">
+                    <input type="text" id="zone-name-input" placeholder="ZONE_NAME" style="width: 130px; padding: 0.3rem 0.5rem; font-size: 0.75rem; border: 1px solid #00e5ff; color: #00e5ff; background: rgba(0,0,0,0.5);">
+                    <button type="button" class="stream-btn" onclick="closeZonePolygon()" style="border-color: #00e5ff; color: #00e5ff;">[ 封閉 CLOSE ]</button>
+                    <button type="button" class="stream-btn" onclick="clearZonePoints()" style="border-color: #ffaa00; color: #ffaa00;">[ 清除 CLEAR ]</button>
+                    <button type="button" class="stream-btn" onclick="saveZone()" style="border-color: #00ff41; color: #00ff41;">[ 儲存 SAVE ]</button>
+                    <button type="button" class="stream-btn" onclick="cancelZoneEdit()" style="border-color: #ff3333; color: #ff3333;">[ 取消 CANCEL ]</button>
+                </div>
+                <button type="button" class="modal-close-btn" onclick="closeFullscreen()">[ EXIT_FULLSCREEN ✕ ]</button>
+            </div>
         </div>
         <div class="modal-body" onclick="event.stopPropagation()">
             <img id="fullscreen-img" alt="Stream Feed">
@@ -344,6 +357,10 @@
     </div>
 
     <script>
+        const CONFIG_MODE = {{ config.get('mode', 'rtsp') | tojson }};
+        const CONFIG_STREAMS = {{ config.get('rtsp_streams', []) | tojson }};
+        const CONFIG_VIDEO_PATH = {{ config.get('video_path', '') | tojson }};
+
         function refreshModelInfo() {
             fetch('/model_info')
                 .then(r => r.json())
@@ -385,9 +402,65 @@
         }
 
         let activeStreamIndex = null;
+        let activeStreamUrl = null;
         let eventSource = null;
         let latestDetectionsMap = {};
         let canvasAnimTimer = null;
+
+        let isEditingZone = false;
+        let editingPolygon = [];
+        let isPolygonClosed = false;
+        let currentSavedZone = null;
+        let mousePos = null;
+
+        function getStreamUrlByIndex(idx) {
+            if (latestDetectionsMap[idx] && latestDetectionsMap[idx].stream_url) {
+                return latestDetectionsMap[idx].stream_url;
+            }
+            if (latestDetectionsMap[String(idx)] && latestDetectionsMap[String(idx)].stream_url) {
+                return latestDetectionsMap[String(idx)].stream_url;
+            }
+            if (CONFIG_MODE === 'video') {
+                return CONFIG_VIDEO_PATH;
+            }
+            if (Array.isArray(CONFIG_STREAMS) && idx >= 0 && idx < CONFIG_STREAMS.length) {
+                return CONFIG_STREAMS[idx];
+            }
+            return '';
+        }
+
+        function updateZoneBadge() {
+            const badge = document.getElementById('zone-status-badge');
+            if (!badge) return;
+            if (currentSavedZone && currentSavedZone.polygon && currentSavedZone.polygon.length >= 3) {
+                const name = currentSavedZone.zone_name ? ` (${currentSavedZone.zone_name})` : '';
+                badge.textContent = `[ ZONE: ACTIVE${name} ]`;
+                badge.style.color = '#00e5ff';
+            } else {
+                badge.textContent = '[ ZONE: INACTIVE ]';
+                badge.style.color = '#888888';
+            }
+        }
+
+        function loadStreamZone(url) {
+            currentSavedZone = null;
+            updateZoneBadge();
+            if (!url) return;
+            fetch('/zone/' + encodeURIComponent(url))
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.polygon && data.polygon.length >= 3) {
+                        currentSavedZone = data;
+                    } else {
+                        currentSavedZone = null;
+                    }
+                    updateZoneBadge();
+                    drawCanvas();
+                })
+                .catch(err => {
+                    console.error('Error fetching zone:', err);
+                });
+        }
 
         function startSSE() {
             if (eventSource) return;
@@ -396,6 +469,12 @@
                 try {
                     latestDetectionsMap = JSON.parse(e.data);
                     if (activeStreamIndex !== null) {
+                        if (!activeStreamUrl) {
+                            activeStreamUrl = getStreamUrlByIndex(activeStreamIndex);
+                            if (activeStreamUrl && !currentSavedZone && !isEditingZone) {
+                                loadStreamZone(activeStreamUrl);
+                            }
+                        }
                         drawCanvas();
                     }
                 } catch(err) {
@@ -409,6 +488,8 @@
 
         function openFullscreen(streamId) {
             activeStreamIndex = streamId;
+            activeStreamUrl = getStreamUrlByIndex(streamId);
+
             const modal = document.getElementById('fullscreen-modal');
             const img = document.getElementById('fullscreen-img');
             const title = document.getElementById('modal-title');
@@ -417,6 +498,7 @@
             img.src = `/video_feed/${streamId}?t=` + Date.now();
             modal.style.display = 'flex';
 
+            loadStreamZone(activeStreamUrl);
             startSSE();
 
             img.onload = function() {
@@ -433,7 +515,13 @@
         }
 
         function closeFullscreen() {
+            if (isEditingZone) {
+                exitZoneEditMode();
+            }
             activeStreamIndex = null;
+            activeStreamUrl = null;
+            currentSavedZone = null;
+
             if (canvasAnimTimer) {
                 clearInterval(canvasAnimTimer);
                 canvasAnimTimer = null;
@@ -450,6 +538,7 @@
         }
 
         function closeFullscreenOnBackdrop(event) {
+            if (isEditingZone) return;
             closeFullscreen();
         }
 
@@ -466,6 +555,173 @@
             canvas.style.top = img.offsetTop + 'px';
         }
 
+        function enterZoneEditMode() {
+            isEditingZone = true;
+            isPolygonClosed = !!(currentSavedZone && currentSavedZone.polygon && currentSavedZone.polygon.length >= 3);
+            editingPolygon = (currentSavedZone && currentSavedZone.polygon) ? JSON.parse(JSON.stringify(currentSavedZone.polygon)) : [];
+            document.getElementById('zone-name-input').value = (currentSavedZone && currentSavedZone.zone_name) || '';
+            document.getElementById('zone-view-controls').style.display = 'none';
+            document.getElementById('zone-edit-controls').style.display = 'flex';
+            const canvas = document.getElementById('fullscreen-canvas');
+            if (canvas) {
+                canvas.style.pointerEvents = 'auto';
+                canvas.style.cursor = 'crosshair';
+            }
+            drawCanvas();
+        }
+
+        function closeZonePolygon() {
+            if (editingPolygon.length >= 3) {
+                isPolygonClosed = true;
+                mousePos = null;
+                drawCanvas();
+            }
+        }
+
+        function clearZonePoints() {
+            editingPolygon = [];
+            isPolygonClosed = false;
+            mousePos = null;
+            drawCanvas();
+        }
+
+        function saveZone() {
+            const url = activeStreamUrl || getStreamUrlByIndex(activeStreamIndex);
+            if (!url) {
+                alert('No active stream URL found');
+                return;
+            }
+            const name = document.getElementById('zone-name-input').value.trim();
+            const polyToSend = (editingPolygon.length >= 3) ? editingPolygon : [];
+            fetch('/zone/' + encodeURIComponent(url), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    polygon: polyToSend,
+                    zone_name: polyToSend.length >= 3 ? (name || null) : null
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                currentSavedZone = (data && data.zone && data.zone.polygon && data.zone.polygon.length >= 3) ? data.zone : null;
+                exitZoneEditMode();
+            })
+            .catch(err => {
+                console.error('Error saving zone:', err);
+                alert('Failed to save zone');
+            });
+        }
+
+        function cancelZoneEdit() {
+            exitZoneEditMode();
+        }
+
+        function exitZoneEditMode() {
+            isEditingZone = false;
+            editingPolygon = [];
+            mousePos = null;
+            document.getElementById('zone-view-controls').style.display = 'block';
+            document.getElementById('zone-edit-controls').style.display = 'none';
+            const canvas = document.getElementById('fullscreen-canvas');
+            if (canvas) {
+                canvas.style.pointerEvents = 'none';
+                canvas.style.cursor = 'default';
+            }
+            updateZoneBadge();
+            drawCanvas();
+        }
+
+        const fsCanvas = document.getElementById('fullscreen-canvas');
+        fsCanvas.addEventListener('click', (e) => {
+            if (!isEditingZone) return;
+            const rect = fsCanvas.getBoundingClientRect();
+            const normX = (e.clientX - rect.left) / fsCanvas.width;
+            const normY = (e.clientY - rect.top) / fsCanvas.height;
+            const clampedX = Math.max(0, Math.min(1, normX));
+            const clampedY = Math.max(0, Math.min(1, normY));
+
+            if (editingPolygon.length >= 3 && !isPolygonClosed) {
+                const firstPt = editingPolygon[0];
+                const dx = (clampedX - firstPt[0]) * fsCanvas.width;
+                const dy = (clampedY - firstPt[1]) * fsCanvas.height;
+                if (Math.hypot(dx, dy) < 18) {
+                    closeZonePolygon();
+                    return;
+                }
+            }
+
+            if (!isPolygonClosed) {
+                editingPolygon.push([clampedX, clampedY]);
+                drawCanvas();
+            }
+        });
+
+        fsCanvas.addEventListener('mousemove', (e) => {
+            if (!isEditingZone || isPolygonClosed || editingPolygon.length === 0) return;
+            const rect = fsCanvas.getBoundingClientRect();
+            const normX = (e.clientX - rect.left) / fsCanvas.width;
+            const normY = (e.clientY - rect.top) / fsCanvas.height;
+            mousePos = [Math.max(0, Math.min(1, normX)), Math.max(0, Math.min(1, normY))];
+            drawCanvas();
+        });
+
+        function drawPolygon(ctx, poly, isClosed, isEdit, zoneName) {
+            if (!poly || poly.length === 0) return;
+            const w = ctx.canvas.width;
+            const h = ctx.canvas.height;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(poly[0][0] * w, poly[0][1] * h);
+            for (let i = 1; i < poly.length; i++) {
+                ctx.lineTo(poly[i][0] * w, poly[i][1] * h);
+            }
+            if (isClosed) {
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(0, 229, 255, 0.15)';
+                ctx.fill();
+                ctx.strokeStyle = '#00e5ff';
+                ctx.setLineDash([]);
+            } else {
+                ctx.strokeStyle = '#00e5ff';
+                ctx.setLineDash([6, 4]);
+            }
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Draw vertex dots
+            ctx.setLineDash([]);
+            poly.forEach((pt, idx) => {
+                ctx.beginPath();
+                ctx.arc(pt[0] * w, pt[1] * h, isEdit ? 5 : 3, 0, 2 * Math.PI);
+                ctx.fillStyle = (isEdit && idx === 0 && !isClosed) ? '#ff0055' : '#00e5ff';
+                ctx.fill();
+                ctx.strokeStyle = '#050505';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            });
+
+            // Draw Zone label tag
+            if (isClosed && poly.length >= 3) {
+                const label = zoneName ? `[ ROI: ${zoneName} ]` : '[ ROI: ACTIVE ]';
+                ctx.font = '12px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace';
+                const textWidth = ctx.measureText(label).width;
+                const tagX = poly[0][0] * w;
+                const tagY = Math.max(poly[0][1] * h - 10, 16);
+
+                ctx.fillStyle = 'rgba(0, 30, 40, 0.85)';
+                ctx.fillRect(tagX, tagY - 14, textWidth + 8, 18);
+                ctx.strokeStyle = '#00e5ff';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(tagX, tagY - 14, textWidth + 8, 18);
+
+                ctx.fillStyle = '#00e5ff';
+                ctx.fillText(label, tagX + 4, tagY);
+            }
+
+            ctx.restore();
+        }
+
         function drawCanvas() {
             if (activeStreamIndex === null) return;
             const img = document.getElementById('fullscreen-img');
@@ -476,6 +732,25 @@
 
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw zone (either in edit mode or saved zone)
+            if (isEditingZone) {
+                drawPolygon(ctx, editingPolygon, isPolygonClosed, true, document.getElementById('zone-name-input').value.trim());
+                if (!isPolygonClosed && mousePos && editingPolygon.length > 0) {
+                    const lastPt = editingPolygon[editingPolygon.length - 1];
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.moveTo(lastPt[0] * canvas.width, lastPt[1] * canvas.height);
+                    ctx.lineTo(mousePos[0] * canvas.width, mousePos[1] * canvas.height);
+                    ctx.strokeStyle = 'rgba(0, 229, 255, 0.6)';
+                    ctx.setLineDash([4, 4]);
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            } else if (currentSavedZone && currentSavedZone.polygon && currentSavedZone.polygon.length >= 3) {
+                drawPolygon(ctx, currentSavedZone.polygon, true, false, currentSavedZone.zone_name);
+            }
 
             const detObj = latestDetectionsMap[activeStreamIndex] || latestDetectionsMap[String(activeStreamIndex)];
             if (!detObj || !detObj.detections || !detObj.frame_w || !detObj.frame_h) return;
@@ -533,4 +808,5 @@
     </script>
 </body>
 </html>
+
 

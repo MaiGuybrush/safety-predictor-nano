@@ -117,5 +117,68 @@ class TestConfigManager(unittest.TestCase):
         self.assertEqual(mgr.config["model_path"], "models/global-model/v2/global-model.pt")
         self.assertGreaterEqual(mgr.last_mtime, before_mtime)
 
+    def test_get_zones_empty_by_default(self):
+        data = {"model_path": "global.pt"}
+        self.write_yaml(data)
+        mgr = ConfigManager(self.tmp_path)
+        self.assertEqual(mgr.get_zones(), {})
+        self.assertIsNone(mgr.get_zone("rtsp://cam1"))
+
+    def test_save_and_get_zone(self):
+        data = {
+            "model_path": "global.pt",
+            "cpu_cores": 4,
+        }
+        self.write_yaml(data)
+        mgr = ConfigManager(self.tmp_path)
+        poly = [[0.1, 0.2], [0.5, 0.2], [0.5, 0.8], [0.1, 0.8]]
+        mgr.save_zone("rtsp://cam1", poly, "機台危險區")
+
+        # In-memory check
+        self.assertEqual(mgr.get_zone("rtsp://cam1"), {
+            "polygon": poly,
+            "zone_name": "機台危險區"
+        })
+
+        # On-disk check
+        with open(self.tmp_path, "r", encoding="utf-8") as f:
+            on_disk = yaml.safe_load(f)
+        self.assertEqual(on_disk["zones"]["rtsp://cam1"]["polygon"], poly)
+        self.assertEqual(on_disk["zones"]["rtsp://cam1"]["zone_name"], "機台危險區")
+        self.assertEqual(on_disk["cpu_cores"], 4)
+
+    def test_delete_zone(self):
+        data = {
+            "zones": {
+                "rtsp://cam1": {
+                    "polygon": [[0.1, 0.1], [0.5, 0.5], [0.1, 0.5]],
+                    "zone_name": "Zone A"
+                }
+            }
+        }
+        self.write_yaml(data)
+        mgr = ConfigManager(self.tmp_path)
+        mgr.delete_zone("rtsp://cam1")
+        self.assertIsNone(mgr.get_zone("rtsp://cam1"))
+
+        with open(self.tmp_path, "r", encoding="utf-8") as f:
+            on_disk = yaml.safe_load(f)
+        self.assertNotIn("rtsp://cam1", on_disk.get("zones", {}))
+
+    def test_save_zone_empty_polygon_clears_zone(self):
+        data = {
+            "zones": {
+                "rtsp://cam1": {
+                    "polygon": [[0.1, 0.1], [0.5, 0.5], [0.1, 0.5]],
+                }
+            }
+        }
+        self.write_yaml(data)
+        mgr = ConfigManager(self.tmp_path)
+        mgr.save_zone("rtsp://cam1", [])
+        self.assertIsNone(mgr.get_zone("rtsp://cam1"))
+
+
 if __name__ == "__main__":
     unittest.main()
+

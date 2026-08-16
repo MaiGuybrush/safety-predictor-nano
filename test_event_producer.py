@@ -101,6 +101,52 @@ class TestEventProducer(unittest.TestCase):
         self.assertAlmostEqual(box.w, 0.2)
         self.assertAlmostEqual(box.h, 0.2)
 
+    def test_zone_filtering_drops_detections_outside_polygon(self):
+        zone = {
+            "polygon": [[0.2, 0.2], [0.8, 0.2], [0.8, 0.8], [0.2, 0.8]],
+            "zone_name": "Danger Zone"
+        }
+        # Center is (7.5, 7.5) -> (0.075, 0.075), outside [0.2, 0.8]
+        event_producer.process_detections("s0", "CCD1", [_det("person", xyxy=(5, 5, 10, 10))], 100, 100, zone=zone)
+        self.assertEqual(self._actions(), [])
+        self.assertEqual(len(event_producer._state), 0)
+
+    def test_zone_filtering_allows_detections_inside_polygon_and_sets_meta(self):
+        zone = {
+            "polygon": [[0.2, 0.2], [0.8, 0.2], [0.8, 0.8], [0.2, 0.8]],
+            "zone_name": "機台危險區"
+        }
+        # Center is (50, 50) -> (0.5, 0.5), inside
+        event_producer.process_detections("s0", "CCD1", [_det("no_helmet", xyxy=(40, 40, 60, 60))], 100, 100, zone=zone)
+        actions = self._actions()
+        self.assertEqual(len(actions), 2)
+        start = actions[0]
+        self.assertEqual(type(start).__name__, "EventStart")
+        self.assertEqual(start.category, "no_helmet")
+        self.assertEqual(start.meta.roi, zone["polygon"])
+        self.assertEqual(start.meta.zone_name, "機台危險區")
+
+    def test_zone_none_or_empty_preserves_full_frame_roi(self):
+        event_producer.process_detections("s0", "CCD1", [_det("fall", xyxy=(5, 5, 10, 10))], 100, 100, zone=None)
+        actions = self._actions()
+        start = actions[0]
+        self.assertEqual(start.meta.roi, event_producer._FULL_FRAME_ROI)
+        self.assertIsNone(start.meta.zone_name)
+
+    def test_zone_filtering_mixed_detections(self):
+        zone = {
+            "polygon": [[0.2, 0.2], [0.8, 0.2], [0.8, 0.8], [0.2, 0.8]]
+        }
+        # det1 inside, det2 outside
+        det_inside = _det("no_helmet", xyxy=(40, 40, 60, 60))
+        det_outside = _det("no_vest", xyxy=(5, 5, 10, 10))
+        event_producer.process_detections("s0", "CCD1", [det_inside, det_outside], 100, 100, zone=zone)
+        actions = self._actions()
+        starts = [a for a in actions if type(a).__name__ == "EventStart"]
+        self.assertEqual(len(starts), 1)
+        self.assertEqual(starts[0].category, "no_helmet")
+
 
 if __name__ == "__main__":
     unittest.main()
+
