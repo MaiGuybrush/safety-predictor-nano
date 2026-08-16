@@ -2,6 +2,8 @@ import re
 import yaml
 import os
 
+from argus_eventlog import parse_camera_id
+
 _STREAM_MODEL_KEY_RE = re.compile(r"^streams\[(\d+)\]\.model$")
 
 
@@ -38,7 +40,7 @@ class ConfigManager:
 
         if "streams" in self.config and isinstance(self.config["streams"], list):
             stream_configs = []
-            for item in self.config["streams"]:
+            for idx, item in enumerate(self.config["streams"]):
                 if not isinstance(item, dict):
                     continue
                 url = item.get("url", "")
@@ -47,7 +49,8 @@ class ConfigManager:
                 url = url.strip()
                 model = item.get("model") or global_model
                 label = item.get("label") or ""
-                camera_id = item.get("camera_id") or ""
+                parsed_cam = parse_camera_id(url)
+                camera_id = item.get("camera_id") or parsed_cam or label or f"stream{idx}"
                 stream_configs.append({
                     "url": url,
                     "model": model,
@@ -58,14 +61,17 @@ class ConfigManager:
 
         if "rtsp_streams" in self.config and isinstance(self.config["rtsp_streams"], list):
             stream_configs = []
-            for url in self.config["rtsp_streams"]:
+            for idx, url in enumerate(self.config["rtsp_streams"]):
                 if not isinstance(url, str) or not url.strip():
                     continue
+                url = url.strip()
+                parsed_cam = parse_camera_id(url)
+                camera_id = parsed_cam or f"stream{idx}"
                 stream_configs.append({
-                    "url": url.strip(),
+                    "url": url,
                     "model": global_model,
                     "label": "",
-                    "camera_id": ""
+                    "camera_id": camera_id
                 })
             return stream_configs
 

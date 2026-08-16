@@ -21,14 +21,14 @@ class TestConfigManager(unittest.TestCase):
     def test_legacy_rtsp_streams(self):
         data = {
             "model_path": "global.pt",
-            "rtsp_streams": ["rtsp://cam1", "  ", "rtsp://cam2"]
+            "rtsp_streams": ["rtsp://cam1", "  ", "rtsp://127.0.0.1:8554/cam-0eb40kwvs74z"]
         }
         self.write_yaml(data)
         mgr = ConfigManager(self.tmp_path)
         configs = mgr.get_stream_configs()
         self.assertEqual(len(configs), 2)
-        self.assertEqual(configs[0], {"url": "rtsp://cam1", "model": "global.pt", "label": "", "camera_id": ""})
-        self.assertEqual(configs[1], {"url": "rtsp://cam2", "model": "global.pt", "label": "", "camera_id": ""})
+        self.assertEqual(configs[0], {"url": "rtsp://cam1", "model": "global.pt", "label": "", "camera_id": "stream0"})
+        self.assertEqual(configs[1], {"url": "rtsp://127.0.0.1:8554/cam-0eb40kwvs74z", "model": "global.pt", "label": "", "camera_id": "cam-0eb40kwvs74z"})
 
     def test_new_streams_schema(self):
         data = {
@@ -36,15 +36,50 @@ class TestConfigManager(unittest.TestCase):
             "streams": [
                 {"url": "rtsp://cam1", "model": "custom.pt", "label": "Cam 1", "camera_id": "CCD1"},
                 {"url": "rtsp://cam2", "label": "Cam 2"},
+                {"url": "http://10.54.10.140:8080/api/stream?src=cam-999"},
                 {"url": ""},
             ]
         }
         self.write_yaml(data)
         mgr = ConfigManager(self.tmp_path)
         configs = mgr.get_stream_configs()
-        self.assertEqual(len(configs), 2)
+        self.assertEqual(len(configs), 3)
         self.assertEqual(configs[0], {"url": "rtsp://cam1", "model": "custom.pt", "label": "Cam 1", "camera_id": "CCD1"})
-        self.assertEqual(configs[1], {"url": "rtsp://cam2", "model": "global.pt", "label": "Cam 2", "camera_id": ""})
+        self.assertEqual(configs[1], {"url": "rtsp://cam2", "model": "global.pt", "label": "Cam 2", "camera_id": "Cam 2"})
+        self.assertEqual(configs[2], {"url": "http://10.54.10.140:8080/api/stream?src=cam-999", "model": "global.pt", "label": "", "camera_id": "cam-999"})
+
+    def test_camera_id_resolution_priority(self):
+        # 1. Explicit camera_id wins even if URL has cam-
+        data1 = {
+            "streams": [{"url": "rtsp://127.0.0.1/cam-from-url", "camera_id": "explicit_cam", "label": "my_label"}]
+        }
+        self.write_yaml(data1)
+        mgr1 = ConfigManager(self.tmp_path)
+        self.assertEqual(mgr1.get_stream_configs()[0]["camera_id"], "explicit_cam")
+
+        # 2. URL cam- wins over label if no explicit camera_id
+        data2 = {
+            "streams": [{"url": "rtsp://127.0.0.1/cam-from-url", "label": "my_label"}]
+        }
+        self.write_yaml(data2)
+        mgr2 = ConfigManager(self.tmp_path)
+        self.assertEqual(mgr2.get_stream_configs()[0]["camera_id"], "cam-from-url")
+
+        # 3. Label wins over stream{idx} if URL has no cam-
+        data3 = {
+            "streams": [{"url": "rtsp://127.0.0.1/normal_stream", "label": "my_label"}]
+        }
+        self.write_yaml(data3)
+        mgr3 = ConfigManager(self.tmp_path)
+        self.assertEqual(mgr3.get_stream_configs()[0]["camera_id"], "my_label")
+
+        # 4. Fallback to stream{idx}
+        data4 = {
+            "streams": [{"url": "rtsp://127.0.0.1/normal_stream"}]
+        }
+        self.write_yaml(data4)
+        mgr4 = ConfigManager(self.tmp_path)
+        self.assertEqual(mgr4.get_stream_configs()[0]["camera_id"], "stream0")
 
     def test_streams_precedence_over_rtsp_streams(self):
         data = {

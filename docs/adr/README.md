@@ -30,6 +30,7 @@
 | [ADR-012](ADR-012-decoupled-stream-fps-and-inference-sampling.md) | 串流畫面 FPS 與推論抽樣率解耦及過時方框 UI 提示 | 已接受 | 2026-08-13 |
 | [ADR-013](ADR-013-ums-client-model-sync.md) | 採用 ums-client 從 UMS 平台同步模型（UMS Client Model Sync） | 已接受 | 2026-08-16 |
 | [ADR-014](ADR-014-argus-eventlog-integration.md) | 導入 argus-eventlog 輸出 ARGUS JSONL 事件（Argus Eventlog Integration） | 已接受 | 2026-08-16 |
+| [ADR-015](ADR-015-argus-agent-heartbeat-and-camera-id-parsing.md) | 導入 argus-agent Heartbeat 登錄與 RTSP URL Camera ID 自動解析 | 已接受 | 2026-08-16 |
 
 ## 新增 ADR
 

@@ -18,10 +18,73 @@ from grid_composer import annotate_frame, compose_grid
 import model_sync
 
 import argus_eventlog
-from argus_eventlog import EventWriterService
+from argus_eventlog import EventWriterService, HeartbeatService, get_event_output_path, parse_camera_id
 import event_producer
 
 argus_eventlog.writer.DEFAULT_PROG = "SafetyNano"
+
+
+def start_heartbeat_services(config, stream_units, mode="rtsp", video_camera_id="video"):
+    """根據 config 與當前串流單元為各 stream / video 啟動 HeartbeatService 實例列表。"""
+    hb_cfg = config.get("heartbeat", {})
+    if not isinstance(hb_cfg, dict):
+        hb_cfg = {}
+
+    if not hb_cfg.get("enabled", True):
+        return []
+
+    ap_name = hb_cfg.get("ap_name", "SafetyNano")
+    interval = hb_cfg.get("interval_seconds", 60)
+    version = hb_cfg.get("version", "0.1.0")
+    agent_port = hb_cfg.get("agent_port", None)
+
+    services = []
+    if mode == "rtsp":
+        for unit in stream_units:
+            cam_id = unit.get("camera_id", "unknown")
+            events_dir, _ = get_event_output_path(unit.get("url", ""))
+            if f"/{cam_id}/events" not in events_dir.replace("\\", "/"):
+                import sys
+                exe_dir = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.path.dirname(os.path.abspath(sys.argv[0]))
+                events_dir = os.path.normpath(os.path.join(exe_dir, "recordings", cam_id, "events"))
+
+            svc = HeartbeatService(
+                ap_name=ap_name,
+                instance=cam_id,
+                version=version,
+                event_output_path=events_dir,
+                camera_id=cam_id,
+                interval_seconds=interval,
+                agent_port=agent_port,
+            )
+            svc.start()
+            services.append(svc)
+    elif mode == "video":
+        import sys
+        exe_dir = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.path.dirname(os.path.abspath(sys.argv[0]))
+        events_dir = os.path.normpath(os.path.join(exe_dir, "recordings", video_camera_id, "events"))
+        svc = HeartbeatService(
+            ap_name=ap_name,
+            instance=video_camera_id,
+            version=version,
+            event_output_path=events_dir,
+            camera_id=video_camera_id,
+            interval_seconds=interval,
+            agent_port=agent_port,
+        )
+        svc.start()
+        services.append(svc)
+
+    return services
+
+
+def stop_heartbeat_services(services):
+    """停止所有 Heartbeat 服務實例。"""
+    for svc in services:
+        try:
+            svc.stop()
+        except Exception as e:
+            print(f"[Heartbeat] Stop error: {e}")
 
 
 def format_detections(raw_detections):
@@ -132,7 +195,7 @@ def build_stream_units(stream_configs, cpu_cores=4, fps_limit=5, existing_engine
         url = cfg["url"]
         model_path = cfg["model"]
         label = cfg["label"]
-        camera_id = cfg.get("camera_id") or label or f"stream{idx}"
+        camera_id = cfg.get("camera_id") or parse_camera_id(url) or label or f"stream{idx}"
 
         if model_path in new_engine_cache:
             engine = new_engine_cache[model_path]
@@ -247,6 +310,9 @@ def main():
     video_handler = state["video_handler"]
     video_engine = state["video_engine"]
 
+    video_camera_id = config.get("camera_id") or parse_camera_id(config.get("video_path", "")) or "video"
+    heartbeat_services = start_heartbeat_services(config, stream_units, mode=mode, video_camera_id=video_camera_id)
+
     context = {
         "stream_units": stream_units,
         "config": config,
@@ -287,6 +353,9 @@ def main():
                     video_handler.stop()
                     video_handler = None
                 
+                stop_heartbeat_services(heartbeat_services)
+                heartbeat_services = []
+
                 latest_frames = {}
                 
                 mode = new_mode
@@ -326,6 +395,9 @@ def main():
                         "cpu_cores": cpu_cores
                     }
                     
+                video_camera_id = new_config.get("camera_id") or parse_camera_id(new_config.get("video_path", "")) or "video"
+                heartbeat_services = start_heartbeat_services(new_config, stream_units, mode=mode, video_camera_id=video_camera_id)
+
                 log_interval = new_config.get("log_interval_seconds", 60)
                 config = new_config
                 
@@ -406,8 +478,10 @@ def main():
             unit["handler"].stop()
         if video_handler:
             video_handler.stop()
+        stop_heartbeat_services(heartbeat_services)
         event_writer.stop()
 
 if __name__ == "__main__":
     main()
+
 
