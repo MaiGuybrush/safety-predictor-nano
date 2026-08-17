@@ -97,22 +97,23 @@
         .panel {
             border: 1px solid var(--border);
             background: var(--panel);
-            padding: 1rem 0.8rem 1rem 0.8rem;
+            padding: 0.8rem;
             position: relative;
             height: 100%;
             overflow-y: auto;
             overflow-x: hidden;
             min-height: 0;
         }
-        .panel::before {
-            content: attr(data-title);
-            position: absolute;
-            top: -0.55rem; left: 0.8rem;
-            background: var(--bg);
-            padding: 0 0.4rem;
+        .panel-frame-title {
             font-size: 0.75rem;
+            font-weight: bold;
             color: var(--text-dim);
-            letter-spacing: 1px;
+            letter-spacing: 1.5px;
+            margin-bottom: 0.8rem;
+            padding-bottom: 0.4rem;
+            border-bottom: 1px dashed var(--border);
+            display: flex;
+            align-items: center;
         }
         .panel::-webkit-scrollbar { width: 4px; }
         .panel::-webkit-scrollbar-track { background: rgba(0, 20, 0, 0.4); }
@@ -418,16 +419,6 @@
             position: relative;
             overflow-y: auto;
         }
-        .detail-inspector::before {
-            content: attr(data-title);
-            position: absolute;
-            top: -0.55rem; left: 1rem;
-            background: var(--bg);
-            padding: 0 0.4rem;
-            font-size: 0.75rem;
-            color: var(--cyan);
-            letter-spacing: 1px;
-        }
         .detail-inspector::-webkit-scrollbar { width: 4px; }
         .detail-inspector::-webkit-scrollbar-thumb { background: var(--border-cyan); }
         .detail-header {
@@ -553,7 +544,8 @@
         {% endif %}
 
         <!-- LEFT MASTER PANEL: Global & Master Stream List -->
-        <form method="POST" class="panel" id="config-panel" data-title="SYS_CONFIG_PARAMETERS" onsubmit="return prepareSubmit()">
+        <form method="POST" class="panel" id="config-panel" onsubmit="return prepareSubmit()">
+            <div class="panel-frame-title">[ SYS_CONFIG_PARAMETERS ]</div>
             <input type="hidden" name="streams_json" id="streams_json">
             <input type="hidden" name="ums_model_name" id="ums_model_name">
             <input type="hidden" name="ums_model_version" id="ums_model_version">
@@ -773,10 +765,11 @@
             </div>
 
             <!-- Bottom-Right Stream Detail Inspector -->
-            <div class="detail-inspector" id="stream-detail-inspector" data-title="STREAM_DETAIL_INSPECTOR">
+            <div class="detail-inspector" id="stream-detail-inspector">
                 <div class="detail-header">
-                    <div style="display: flex; align-items: center; gap: 0.6rem;">
-                        <span id="detail-stream-badge" style="font-weight: bold; color: var(--cyan); font-size: 0.82rem;">STREAM #0 // SPEC_&_SETTINGS</span>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                        <span style="font-weight: bold; color: var(--cyan); font-size: 0.78rem; letter-spacing: 1px;">[ STREAM_DETAIL_INSPECTOR ]</span>
+                        <span id="detail-stream-badge" style="color: var(--text); font-size: 0.75rem; font-weight: bold;">// STREAM #0</span>
                         <span id="detail-zone-status" style="color: #888; font-size: 0.72rem;">[ ROI: INACTIVE ]</span>
                     </div>
                     <button type="button" class="stream-btn cyan" onclick="openDetailFullscreen()">[ 全螢幕 / 編輯 ROI 區域 ]</button>
@@ -1171,7 +1164,7 @@
             previewImg.src = `/video_feed/${idx}?t=` + Date.now();
 
             // Update Bottom-Right Detail Inspector
-            document.getElementById('detail-stream-badge').textContent = `STREAM #${idx} // SPEC_&_SETTINGS`;
+            document.getElementById('detail-stream-badge').textContent = `// STREAM #${idx}`;
             document.getElementById('detail-input-url').value = currentItem.url || '';
             document.getElementById('detail-input-label').value = currentItem.label || '';
             document.getElementById('detail-input-camid').value = currentItem.camera_id || '';
