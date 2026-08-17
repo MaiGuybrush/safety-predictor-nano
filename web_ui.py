@@ -127,7 +127,10 @@ def index():
         save_config(new_config)
 
         # 7. Background sync trigger if ums_model changed
-        if ums_changed and new_config.get("ums_model"):
+        has_any_ums = bool(new_config.get("ums_model")) or any(
+            isinstance(s, dict) and bool(s.get("ums_model")) for s in updated_streams
+        )
+        if ums_changed and has_any_ums:
             threading.Thread(
                 target=model_sync.sync_all,
                 args=(ConfigManager(CONFIG_FILE),),

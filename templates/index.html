@@ -798,8 +798,47 @@
                             <input type="checkbox" id="detail-override-toggle" onchange="onDetailOverrideToggle(this.checked)" style="width:auto;">
                             自訂獨立模型 (OVERRIDE_MODEL)
                         </label>
-                        <div id="detail-override-box" style="display: none; margin-top: 0.3rem;">
-                            <input type="text" id="detail-input-model" placeholder="custom_model.onnx / custom.pt" oninput="onDetailFieldChange('model', this.value)">
+                        <div id="detail-override-box" style="display: none; margin-top: 0.4rem; padding: 0.6rem; border: 1px dashed var(--border-cyan); background: rgba(0, 20, 30, 0.4);">
+                            <div class="radio-switch-group" style="margin-bottom: 0.5rem;">
+                                <label class="radio-switch-item active" id="detail-label-source-local" onclick="selectDetailModelSource('local')">
+                                    <input type="radio" name="detail_model_source" value="local" id="detail-radio-source-local" checked>
+                                    [ 本地檔案 LOCAL ]
+                                </label>
+                                <label class="radio-switch-item" id="detail-label-source-ums" onclick="selectDetailModelSource('ums')">
+                                    <input type="radio" name="detail_model_source" value="ums" id="detail-radio-source-ums">
+                                    [ UMS 雲端同步 UMS_SYNC ]
+                                </label>
+                            </div>
+
+                            <div id="detail-local-model-box">
+                                <div class="field">
+                                    <label>獨立模型路徑 (MODEL_PATH)</label>
+                                    <input type="text" id="detail-input-model" placeholder="custom_model.onnx / custom.pt" oninput="onDetailLocalModelChange(this.value)">
+                                </div>
+                            </div>
+
+                            <div id="detail-ums-model-box" style="display: none;">
+                                <div class="form-grid">
+                                    <div class="field">
+                                        <label>UMS 專案 (PROJECT)</label>
+                                        <select id="detail-ums-project-select" onchange="onDetailUmsProjectChange()">
+                                            <option value="">載入中 / 選擇專案...</option>
+                                        </select>
+                                    </div>
+                                    <div class="field">
+                                        <label>UMS 模型 (MODEL)</label>
+                                        <select id="detail-ums-model-select" onchange="onDetailUmsModelChange()">
+                                            <option value="">請先選擇專案...</option>
+                                        </select>
+                                    </div>
+                                    <div class="field">
+                                        <label>模型版本 (VERSION)</label>
+                                        <select id="detail-ums-version-select" onchange="onDetailUmsVersionChange()">
+                                            <option value="latest">latest (最新 Active 版本)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -966,6 +1005,13 @@
                     }
                     umsProjectsData = data.projects || [];
                     populateUmsProjects(targetModelName || (CONFIG_INITIAL_UMS_MODEL && CONFIG_INITIAL_UMS_MODEL.name), targetVersion || (CONFIG_INITIAL_UMS_MODEL && CONFIG_INITIAL_UMS_MODEL.version));
+                    
+                    const currentStream = streamsList[selectedStreamIndex];
+                    if (currentStream && currentStream.ums_model) {
+                        populateDetailUmsProjects(currentStream.ums_model.name, currentStream.ums_model.version);
+                    } else if (document.getElementById('detail-ums-project-select')) {
+                        populateDetailUmsProjects();
+                    }
                 })
                 .catch(err => {
                     projSelect.innerHTML = '<option value="">連線錯誤，無法載入 UMS 模型</option>';
@@ -1172,10 +1218,25 @@
             document.getElementById('detail-input-label').value = currentItem.label || '';
             document.getElementById('detail-input-camid').value = currentItem.camera_id || '';
 
-            const hasCustomModel = !!(currentItem.model && currentItem.model.trim());
-            document.getElementById('detail-override-toggle').checked = hasCustomModel;
-            document.getElementById('detail-override-box').style.display = hasCustomModel ? 'block' : 'none';
-            document.getElementById('detail-input-model').value = currentItem.model || '';
+            const hasUmsModel = !!(currentItem.ums_model && currentItem.ums_model.name);
+            const hasLocalModel = !!(currentItem.model && currentItem.model.trim());
+
+            if (hasUmsModel) {
+                document.getElementById('detail-override-toggle').checked = true;
+                document.getElementById('detail-override-box').style.display = 'block';
+                selectDetailModelSource('ums');
+                populateDetailUmsProjects(currentItem.ums_model.name, currentItem.ums_model.version);
+            } else if (hasLocalModel) {
+                document.getElementById('detail-override-toggle').checked = true;
+                document.getElementById('detail-override-box').style.display = 'block';
+                selectDetailModelSource('local');
+                document.getElementById('detail-input-model').value = currentItem.model;
+            } else {
+                document.getElementById('detail-override-toggle').checked = false;
+                document.getElementById('detail-override-box').style.display = 'none';
+                selectDetailModelSource('local');
+                document.getElementById('detail-input-model').value = '';
+            }
 
             // Update ROI status badge for this stream
             loadDetailStreamZone(currentItem.url);
@@ -1204,14 +1265,178 @@
             }
         }
 
+        function selectDetailModelSource(src) {
+            const localRadio = document.getElementById('detail-radio-source-local');
+            const umsRadio = document.getElementById('detail-radio-source-ums');
+            const localBox = document.getElementById('detail-local-model-box');
+            const umsBox = document.getElementById('detail-ums-model-box');
+            const localLabel = document.getElementById('detail-label-source-local');
+            const umsLabel = document.getElementById('detail-label-source-ums');
+
+            if (!streamsList[selectedStreamIndex]) return;
+
+            if (src === 'ums') {
+                umsRadio.checked = true;
+                localRadio.checked = false;
+                localBox.style.display = 'none';
+                umsBox.style.display = 'block';
+                localLabel.className = 'radio-switch-item';
+                umsLabel.className = 'radio-switch-item active-cyan';
+
+                delete streamsList[selectedStreamIndex].model;
+                if (umsProjectsData.length === 0) {
+                    loadUmsModels();
+                } else {
+                    const currentStream = streamsList[selectedStreamIndex];
+                    const targetName = currentStream && currentStream.ums_model ? currentStream.ums_model.name : '';
+                    const targetVer = currentStream && currentStream.ums_model ? currentStream.ums_model.version : 'latest';
+                    populateDetailUmsProjects(targetName, targetVer);
+                }
+                onDetailUmsVersionChange();
+            } else {
+                localRadio.checked = true;
+                umsRadio.checked = false;
+                localBox.style.display = 'block';
+                umsBox.style.display = 'none';
+                localLabel.className = 'radio-switch-item active';
+                umsLabel.className = 'radio-switch-item';
+
+                delete streamsList[selectedStreamIndex].ums_model;
+                const val = document.getElementById('detail-input-model').value.trim();
+                if (val) {
+                    streamsList[selectedStreamIndex].model = val;
+                }
+            }
+        }
+
+        function onDetailLocalModelChange(val) {
+            if (!streamsList[selectedStreamIndex]) return;
+            const trimmed = val.trim();
+            delete streamsList[selectedStreamIndex].ums_model;
+            if (trimmed) {
+                streamsList[selectedStreamIndex].model = trimmed;
+            } else {
+                delete streamsList[selectedStreamIndex].model;
+            }
+        }
+
+        function populateDetailUmsProjects(targetModelName, targetVersion) {
+            const projSelect = document.getElementById('detail-ums-project-select');
+            if (!projSelect) return;
+            projSelect.innerHTML = '<option value="">-- 請選擇 UMS 專案 --</option>';
+
+            let matchedProjectId = null;
+            umsProjectsData.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.project_id;
+                opt.textContent = `${p.project_name} (${p.models.length} 模型)`;
+                projSelect.appendChild(opt);
+
+                if (targetModelName && p.models.some(m => m.model_name === targetModelName)) {
+                    matchedProjectId = p.project_id;
+                }
+            });
+
+            if (matchedProjectId) {
+                projSelect.value = matchedProjectId;
+                onDetailUmsProjectChange(targetModelName, targetVersion);
+            } else if (umsProjectsData.length > 0) {
+                projSelect.value = umsProjectsData[0].project_id;
+                onDetailUmsProjectChange();
+            }
+        }
+
+        function onDetailUmsProjectChange(targetModelName, targetVersion) {
+            const projSelect = document.getElementById('detail-ums-project-select');
+            const modelSelect = document.getElementById('detail-ums-model-select');
+            if (!projSelect || !modelSelect) return;
+
+            const pid = parseInt(projSelect.value, 10);
+            const project = umsProjectsData.find(p => p.project_id === pid);
+
+            modelSelect.innerHTML = '<option value="">-- 請選擇模型 --</option>';
+            if (!project) {
+                onDetailUmsModelChange();
+                return;
+            }
+
+            let matchedModel = null;
+            project.models.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.model_name;
+                opt.textContent = `${m.model_name} [${m.architecture_name || 'YOLO'}] (${m.versions.length} 版本)`;
+                modelSelect.appendChild(opt);
+
+                if (targetModelName && m.model_name === targetModelName) {
+                    matchedModel = m;
+                }
+            });
+
+            if (matchedModel) {
+                modelSelect.value = matchedModel.model_name;
+                onDetailUmsModelChange(targetVersion);
+            } else if (project.models.length > 0) {
+                modelSelect.value = project.models[0].model_name;
+                onDetailUmsModelChange();
+            }
+        }
+
+        function onDetailUmsModelChange(targetVersion) {
+            const projSelect = document.getElementById('detail-ums-project-select');
+            const modelSelect = document.getElementById('detail-ums-model-select');
+            const verSelect = document.getElementById('detail-ums-version-select');
+            if (!projSelect || !modelSelect || !verSelect) return;
+
+            const pid = parseInt(projSelect.value, 10);
+            const modelName = modelSelect.value;
+            const project = umsProjectsData.find(p => p.project_id === pid);
+            const model = project ? project.models.find(m => m.model_name === modelName) : null;
+
+            verSelect.innerHTML = '<option value="latest">latest (最新 Active 版本)</option>';
+            if (model && model.versions) {
+                model.versions.forEach(v => {
+                    const opt = document.createElement('option');
+                    opt.value = v.version_number;
+                    const statusTag = v.status ? ` [${v.status}]` : '';
+                    const commentTag = v.comment ? ` - ${v.comment}` : '';
+                    opt.textContent = `v${v.version_number}${statusTag}${commentTag}`;
+                    verSelect.appendChild(opt);
+                });
+            }
+
+            if (targetVersion) {
+                verSelect.value = targetVersion;
+            }
+            onDetailUmsVersionChange();
+        }
+
+        function onDetailUmsVersionChange() {
+            const modelSelect = document.getElementById('detail-ums-model-select');
+            const verSelect = document.getElementById('detail-ums-version-select');
+            if (!streamsList[selectedStreamIndex] || !modelSelect || !verSelect) return;
+
+            delete streamsList[selectedStreamIndex].model;
+            if (modelSelect.value) {
+                streamsList[selectedStreamIndex].ums_model = {
+                    name: modelSelect.value,
+                    version: verSelect.value || 'latest'
+                };
+            }
+        }
+
         function onDetailOverrideToggle(checked) {
             document.getElementById('detail-override-box').style.display = checked ? 'block' : 'none';
             if (!checked) {
-                onDetailFieldChange('model', '');
+                delete streamsList[selectedStreamIndex].model;
+                delete streamsList[selectedStreamIndex].ums_model;
                 document.getElementById('detail-input-model').value = '';
             } else {
-                const val = document.getElementById('detail-input-model').value.trim();
-                onDetailFieldChange('model', val);
+                const isUms = document.getElementById('detail-radio-source-ums').checked;
+                if (isUms) {
+                    selectDetailModelSource('ums');
+                } else {
+                    selectDetailModelSource('local');
+                }
             }
         }
 

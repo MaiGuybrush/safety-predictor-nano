@@ -168,6 +168,8 @@ class TestWebUiConfigSave(unittest.TestCase):
         self.assertIn("master-stream-list", html)
         self.assertIn("stream-detail-inspector", html)
         self.assertIn("ums-project-select", html)
+        self.assertIn("detail-ums-project-select", html)
+        self.assertIn("detail-label-source-ums", html)
 
 
 if __name__ == "__main__":
