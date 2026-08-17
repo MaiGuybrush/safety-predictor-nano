@@ -209,7 +209,9 @@ def build_stream_units(stream_configs, cpu_cores=4, fps_limit=5, existing_engine
             print(f"[EngineCache] Loading InferenceEngine for model: {model_path} (threads: {cpu_cores})")
             engine = InferenceEngine(model_path=model_path, num_threads=cpu_cores, model_format=model_format)
             new_engine_cache[cache_key] = engine
-            
+
+        print(f"[Stream] Stream #{idx} ({camera_id}) -> Config: {model_path} ({model_format}) -> Resolved: {getattr(engine, 'actual_model_path', model_path)} [{getattr(engine, 'model_type', 'Unknown')}]")
+
         handler = StreamHandler(url, fps_limit)
         handler.start()
         stream_units.append({
@@ -217,6 +219,7 @@ def build_stream_units(stream_configs, cpu_cores=4, fps_limit=5, existing_engine
             "engine": engine,
             "url": url,
             "model_path": model_path,
+            "model_format": model_format,
             "label": label,
             "camera_id": camera_id,
             "latest_raw_frame": None
@@ -225,15 +228,29 @@ def build_stream_units(stream_configs, cpu_cores=4, fps_limit=5, existing_engine
     return stream_units, new_engine_cache
 
 def update_rtsp_model_info(stream_units, engine_cache, cpu_cores):
-    """更新 Web UI 的全域 MODEL_INFO，支援 tuple cache key (model_path, model_format) 解構。"""
+    """更新 Web UI 的全域 MODEL_INFO，支援 tuple cache key (model_path, model_format) 解構並附帶各串流解析資訊。"""
     if not stream_units:
         return
     first_engine = stream_units[0]["engine"]
     model_paths = [k[0] if isinstance(k, tuple) else k for k in engine_cache.keys()]
+    streams_info = []
+    for idx, unit in enumerate(stream_units):
+        engine = unit.get("engine")
+        streams_info.append({
+            "stream_index": idx,
+            "camera_id": unit.get("camera_id", ""),
+            "url": unit.get("url", ""),
+            "label": unit.get("label", ""),
+            "configured_model": unit.get("model_path", ""),
+            "model_format": unit.get("model_format", "auto"),
+            "resolved_model_path": getattr(engine, "actual_model_path", unit.get("model_path", "")),
+            "model_type": getattr(engine, "model_type", "PyTorch"),
+        })
     web_ui.MODEL_INFO = {
-        "type": first_engine.model_type,
+        "type": first_engine.model_type if first_engine else "Unknown",
         "path": ", ".join(list(dict.fromkeys(model_paths))),
-        "cpu_cores": cpu_cores
+        "cpu_cores": cpu_cores,
+        "streams": streams_info
     }
 
 def initialize_runtime(config_mgr):
@@ -268,11 +285,15 @@ def initialize_runtime(config_mgr):
         if video_path:
             video_handler = VideoHandler(video_path)
             video_handler.start()
+        video_model_path = config.get("model_path", "yolov8n.pt")
+        video_model_format = config.get("model_format", "auto")
         video_engine = InferenceEngine(
-            model_path=config.get("model_path", "yolov8n.pt"),
+            model_path=video_model_path,
             num_threads=cpu_cores,
-            model_format=config.get("model_format", "auto")
+            model_format=video_model_format
         )
+        video_camera_id = config.get("camera_id") or parse_camera_id(video_path) or "video"
+        print(f"[Stream] Video Stream ({video_camera_id}) -> Config: {video_model_path} ({video_model_format}) -> Resolved: {getattr(video_engine, 'actual_model_path', video_model_path)} [{video_engine.model_type}]")
         web_ui.STREAM_UNITS = [{
             "handler": video_handler,
             "url": video_path,
@@ -281,8 +302,18 @@ def initialize_runtime(config_mgr):
         }]
         web_ui.MODEL_INFO = {
             "type": video_engine.model_type,
-            "path": video_engine.model_path,
-            "cpu_cores": cpu_cores
+            "path": getattr(video_engine, "actual_model_path", video_engine.model_path),
+            "cpu_cores": cpu_cores,
+            "streams": [{
+                "stream_index": 0,
+                "camera_id": video_camera_id,
+                "url": video_path,
+                "label": "Video Stream",
+                "configured_model": video_model_path,
+                "model_format": video_model_format,
+                "resolved_model_path": getattr(video_engine, "actual_model_path", video_model_path),
+                "model_type": video_engine.model_type,
+            }]
         }
 
     return {
@@ -388,6 +419,8 @@ def main():
                     model_path = new_config.get("model_path", "yolov8n.pt")
                     model_format = new_config.get("model_format", "auto")
                     video_engine = InferenceEngine(model_path=model_path, num_threads=cpu_cores, model_format=model_format)
+                    video_camera_id = new_config.get("camera_id") or parse_camera_id(new_config.get("video_path", "")) or "video"
+                    print(f"[Stream] Video Stream ({video_camera_id}) -> Config: {model_path} ({model_format}) -> Resolved: {getattr(video_engine, 'actual_model_path', model_path)} [{video_engine.model_type}]")
                     web_ui.STREAM_UNITS = [{
                         "handler": video_handler,
                         "url": video_path,
@@ -396,8 +429,18 @@ def main():
                     }]
                     web_ui.MODEL_INFO = {
                         "type": video_engine.model_type,
-                        "path": video_engine.model_path,
-                        "cpu_cores": cpu_cores
+                        "path": getattr(video_engine, "actual_model_path", video_engine.model_path),
+                        "cpu_cores": cpu_cores,
+                        "streams": [{
+                            "stream_index": 0,
+                            "camera_id": video_camera_id,
+                            "url": video_path,
+                            "label": "Video Stream",
+                            "configured_model": model_path,
+                            "model_format": model_format,
+                            "resolved_model_path": getattr(video_engine, "actual_model_path", model_path),
+                            "model_type": video_engine.model_type,
+                        }]
                     }
                     
                 video_camera_id = new_config.get("camera_id") or parse_camera_id(new_config.get("video_path", "")) or "video"

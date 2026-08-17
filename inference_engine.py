@@ -60,6 +60,7 @@ class InferenceEngine:
         else:
             self.model_type = "PyTorch"
 
+        self.actual_model_path = actual_model_path
         self.model = YOLO(actual_model_path)
 
     def infer(self, frame, conf_threshold=0.25):

@@ -149,7 +149,8 @@ LATEST_DETECTIONS = {}
 MODEL_INFO = {
     "type": "Unknown",
     "path": "",
-    "cpu_cores": 4
+    "cpu_cores": 4,
+    "streams": []
 }
 
 import cv2
