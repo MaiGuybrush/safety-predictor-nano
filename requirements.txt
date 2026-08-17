@@ -4,6 +4,6 @@ pyyaml
 psutil
 flask
 ncnn
--e C:\projects\innolux\argus-eventlog
--e C:\projects\innolux\ums-client
+git+http://tncimweb.cminl.oa/git-server/guy.mai/argus-eventlog.git@master
+git+http://tncimweb.cminl.oa/git-server/guy.mai/ums-client.git@master
 

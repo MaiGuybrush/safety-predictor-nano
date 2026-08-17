@@ -50,6 +50,11 @@ python main.py
 
 3. 裝完後，回到開發電腦按 `Ctrl + C` 關閉 Proxy 即可。
 
+6. 專案內部套件依賴 (Git URL)：
+   - `argus-eventlog`: `git+http://tncimweb.cminl.oa/git-server/guy.mai/argus-eventlog.git@master`
+   - `ums-client`: `git+http://tncimweb.cminl.oa/git-server/guy.mai/ums-client.git@master`
+   *(已包含在 `requirements.txt` 中，安裝時樹莓派需能存取內部 Git 伺服器)*
+
 ### 方案 B：硬要打包成單一執行檔
 如果你一定要產出單一 `argus_predictor` 檔案，請**在樹莓派本機上**執行打包：
 
@@ -67,11 +72,13 @@ pyinstaller --onefile \
             --add-data "config.yaml:." \
             --collect-all ultralytics \
             --collect-all flask \
+            --collect-all argus_eventlog \
+            --collect-all ums_client \
             --name argus_predictor \
             main.py
 ```
 
-*注意：`--collect-all` 用於確保 `ultralytics` 與 `flask` 等大型相依套件能正確被打包。*
+*注意：`--collect-all` 用於確保 `ultralytics`、`flask`、`argus_eventlog` 與 `ums_client` 等相依套件能正確被打包。*
 
 ### 3. 部署至樹莓派
 封裝完成後，在 `dist/` 資料夾下會產生 `argus_predictor` 檔案。

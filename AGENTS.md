@@ -33,6 +33,8 @@ The system utilizes a multi-threaded Python architecture to decouple frame captu
               --add-data "config.yaml:." \
               --collect-all ultralytics \
               --collect-all flask \
+              --collect-all argus_eventlog \
+              --collect-all ums_client \
               --name argus_predictor \
               main.py
   ```
