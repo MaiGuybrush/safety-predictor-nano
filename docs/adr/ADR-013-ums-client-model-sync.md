@@ -62,5 +62,5 @@ streams:
 ## 取捨與風險
 
 - **開機同步為阻塞式呼叫**：若 UMS 平台無回應，需在合理 timeout 內失敗並讓開機流程繼續（`UmsApiClient` 建構子預設 `timeout=30` 秒）。
-- **Artifact 格式判斷規則未經真實憑證驗證**：`ums_client.download_version()` 回傳資料夾或單一檔案的落地規則（見 `model_sync.py`）目前僅依 `ums-client/README.md` 文件描述推導，尚未用真實 `UMS_API_KEY` 驗證（見 `.scratch/ums-client-integration/issues/02-real-ums-api-verification-spike.md`，狀態 `ready-for-human`）。因判斷邏輯集中在單一模組，未來若與實際回傳形態不符，調整不會擴散到其他模組。
+- **Artifact 格式判斷規則已由真實憑證驗證**：已實測確認 UMS 回傳 Zip 壓縮包解壓後包含 `best.pt`、`result.json`、`result.CSV` 等檔案。`model_sync.py` 的落地規則更新為依 `ONNX > PyTorch > NCNN` 智慧優先級深度尋找具體模型檔案路徑並寫回 `config.yaml`，同時 `InferenceEngine` 加入目錄解析容錯。
 - **`ums-client` 尚未發布成遠端 repo**：目前仍是 `pip install -e <本機路徑>`，PyInstaller 打包時本機依賴能否正確收進單一執行檔尚待部署階段驗證，非本 ADR 範圍。
