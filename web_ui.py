@@ -20,10 +20,26 @@ def save_config(config):
 def index():
     if request.method == "POST":
         current = load_config() or {}
+        raw_streams_input = request.form.get("streams", "")
+        stream_urls = [s.strip() for s in raw_streams_input.replace("\r", "").split("\n") if s.strip()]
+
+        existing_streams_by_url = {}
+        if "streams" in current and isinstance(current["streams"], list):
+            for s in current["streams"]:
+                if isinstance(s, dict) and "url" in s:
+                    existing_streams_by_url[s["url"]] = s
+
+        updated_streams = []
+        for u in stream_urls:
+            if u in existing_streams_by_url:
+                updated_streams.append(existing_streams_by_url[u])
+            else:
+                updated_streams.append({"url": u})
+
         new_config = {
             **current,
             "model_path": request.form["model_path"],
-            "rtsp_streams": [s.strip() for s in request.form["rtsp_streams"].replace("\r", "").split("\n") if s.strip()],
+            "streams": updated_streams,
             "fps_limit": int(request.form["fps_limit"]),
             "cpu_cores": int(request.form["cpu_cores"]),
             "log_interval_seconds": int(request.form["log_interval_seconds"]),

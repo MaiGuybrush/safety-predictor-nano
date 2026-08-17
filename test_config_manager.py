@@ -18,10 +18,10 @@ class TestConfigManager(unittest.TestCase):
             yaml.dump(data, f)
 
 
-    def test_legacy_rtsp_streams(self):
+    def test_streams_with_str_urls(self):
         data = {
             "model_path": "global.pt",
-            "rtsp_streams": ["rtsp://cam1", "  ", "rtsp://127.0.0.1:8554/cam-0eb40kwvs74z"]
+            "streams": ["rtsp://cam1", "  ", "rtsp://127.0.0.1:8554/cam-0eb40kwvs74z"]
         }
         self.write_yaml(data)
         mgr = ConfigManager(self.tmp_path)
@@ -81,23 +81,10 @@ class TestConfigManager(unittest.TestCase):
         mgr4 = ConfigManager(self.tmp_path)
         self.assertEqual(mgr4.get_stream_configs()[0]["camera_id"], "stream0")
 
-    def test_streams_precedence_over_rtsp_streams(self):
+    def test_streams_no_ums_targets(self):
         data = {
             "model_path": "global.pt",
-            "streams": [{"url": "rtsp://new_cam"}],
-            "rtsp_streams": ["rtsp://old_cam"]
-        }
-        self.write_yaml(data)
-        mgr = ConfigManager(self.tmp_path)
-
-        configs = mgr.get_stream_configs()
-        self.assertEqual(len(configs), 1)
-        self.assertEqual(configs[0]["url"], "rtsp://new_cam")
-
-    def test_legacy_rtsp_streams_no_ums_targets(self):
-        data = {
-            "model_path": "global.pt",
-            "rtsp_streams": ["rtsp://cam1"]
+            "streams": ["rtsp://cam1"]
         }
         self.write_yaml(data)
         mgr = ConfigManager(self.tmp_path)

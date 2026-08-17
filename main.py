@@ -150,6 +150,7 @@ def _inference_worker(context):
             if frame is not None and engine is not None:
                 conf_thresh = config.get("conf_threshold", 0.25)
                 detections, inf_time = engine.infer(frame, conf_thresh)
+                infer_done_ts = time.time()
                 if logger:
                     logger.add_inference_time(inf_time)
                     if detections:
@@ -175,10 +176,10 @@ def _inference_worker(context):
                     "detections": formatted_detections,
                     "frame_w": w,
                     "frame_h": h,
-                    "ts": now,
+                    "ts": infer_done_ts,
                     "zone": stream_zone,
                 }
-                last_infer_times[unit_idx] = now
+                last_infer_times[unit_idx] = infer_done_ts
 
         rr_index = (rr_index + 1) % len(stream_units)
         time.sleep(0.01)
@@ -435,6 +436,7 @@ def main():
 
                     if now - last_video_infer_time >= interval:
                         detections, inf_time = video_engine.infer(frame, config.get("conf_threshold", 0.25))
+                        infer_done_ts = time.time()
                         logger.add_inference_time(inf_time)
                         video_handler.update_detections(detections)
                         if detections:
@@ -461,10 +463,10 @@ def main():
                             "detections": formatted_detections,
                             "frame_w": w,
                             "frame_h": h,
-                            "ts": now,
+                            "ts": infer_done_ts,
                             "zone": video_zone,
                         }
-                        last_video_infer_time = now
+                        last_video_infer_time = infer_done_ts
 
             if time.time() - last_log_time > log_interval:
                 logger.log_stats()

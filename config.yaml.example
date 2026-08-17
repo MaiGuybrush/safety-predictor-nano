@@ -1,0 +1,64 @@
+# ==============================================================================
+# Argus Safety Predictor Nano - 系統組態設定檔範例 (config.yaml.example)
+# ==============================================================================
+
+# 1. 系統運行模式與全域模型設定
+mode: "rtsp"                     # 運作模式: "rtsp" (RTSP 串流) 或 "video" (本地影片測試)
+model_path: "best.onnx"          # 全域 YOLO 模型檔案路徑 (例如 .onnx, .pt, NCNN param/bin)
+video_path: "test.mp4"           # 當 mode 為 "video" 時使用的本地影片檔路徑
+camera_id: "cam-main"            # (選填) video 模式下的鏡頭識別碼
+
+# 2. 核心效能與推論參數
+conf_threshold: 0.25             # YOLO 偵測信心度閾值 (Confidence Threshold, 0.0 ~ 1.0)
+cpu_cores: 4                     # CPU 推論時使用的核心 / 執行緒數量
+fps_limit: 5                     # 影像處理與推論的最大 FPS 限制
+
+# 3. RTSP 輸入串流設定 (支援多串流與個別模型配置)
+streams:
+  - url: "rtsp://127.0.0.1:8554/cam01"
+    label: "大門入口"             # (選填) 畫面顯示與識別標籤
+    camera_id: "cam-01"          # (選填) 鏡頭識別碼 (未填時自動從 URL 或 label 解析)
+    model: "best.onnx"           # (選填) 該串流專用的模型路徑 (未填時繼承全域 model_path)
+    ums_model:                   # (選填) 該串流專屬的 UMS 自動模型同步設定
+      name: "Gate-YOLOv8"
+      version: "latest"
+
+  - url: "rtsp://127.0.0.1:8554/cam02"
+    label: "後門走廊"
+    camera_id: "cam-02"
+
+# 4. UMS 模型自動下載與同步宣告 (全域設定)
+ums_model:
+  name: "Safety-YOLOv8"          # UMS 伺服器上的模型名稱
+  version: "latest"              # 模型版本號或 "latest"
+
+# 5. ROI 警戒區域設定 (Zones / Polygons)
+zones:
+  "rtsp://127.0.0.1:8554/cam01":
+    zone_name: "禁入危險區"
+    polygon:
+      - [0.1, 0.1]
+      - [0.9, 0.1]
+      - [0.9, 0.9]
+      - [0.1, 0.9]
+
+# 6. 安全事件警報與嚴重度設定 (Event Severity & Absence Tolerance)
+event_severity:
+  person: "HIGH"                 # 將標籤為 person 的物件設為 HIGH 嚴重度
+  car: "MEDIUM"                  # 將標籤為 car 的物件設為 MEDIUM 嚴重度
+  dog: "LOW"
+
+event_absence_tolerance: 2       # 物件消失的容忍影格數
+
+# 7. 心跳機制設定 (Heartbeat Agent)
+heartbeat:
+  enabled: true                  # 是否開啟心跳回報服務 (true/false)
+  ap_name: "SafetyNano"          # 應用程式名稱識別碼
+  interval_seconds: 60           # 心跳送出間隔 (秒)
+  version: "0.1.0"               # 軟體版本號
+  agent_port: 8080               # (選填) 心跳 Agent 的指定通訊埠
+
+# 8. 日誌與效能記錄設定 (Logging)
+log_file: "performance.log"       # CPU/RAM/推論速度效能日誌路徑
+detection_log_file: "detections.log" # 物件偵測事件 Log 路徑
+log_interval_seconds: 60         # 效能統計寫入間隔 (秒)

@@ -35,14 +35,10 @@ class ConfigManager:
     def get(self, key, default=None):
         return self.config.get(key, default)
 
-    def get_stream_configs(self):
-        global_model = self.config.get("model_path", "yolov8n.pt")
-
-        if "streams" in self.config and isinstance(self.config["streams"], list):
-            stream_configs = []
-            for idx, item in enumerate(self.config["streams"]):
-                if not isinstance(item, dict):
-                    continue
+    def _parse_stream_list(self, raw_list, global_model):
+        stream_configs = []
+        for idx, item in enumerate(raw_list):
+            if isinstance(item, dict):
                 url = item.get("url", "")
                 if not url or not isinstance(url, str) or not url.strip():
                     continue
@@ -57,14 +53,10 @@ class ConfigManager:
                     "label": label,
                     "camera_id": camera_id
                 })
-            return stream_configs
-
-        if "rtsp_streams" in self.config and isinstance(self.config["rtsp_streams"], list):
-            stream_configs = []
-            for idx, url in enumerate(self.config["rtsp_streams"]):
-                if not isinstance(url, str) or not url.strip():
+            elif isinstance(item, str):
+                url = item.strip()
+                if not url:
                     continue
-                url = url.strip()
                 parsed_cam = parse_camera_id(url)
                 camera_id = parsed_cam or f"stream{idx}"
                 stream_configs.append({
@@ -73,7 +65,13 @@ class ConfigManager:
                     "label": "",
                     "camera_id": camera_id
                 })
-            return stream_configs
+        return stream_configs
+
+    def get_stream_configs(self):
+        global_model = self.config.get("model_path", "yolov8n.pt")
+
+        if "streams" in self.config and isinstance(self.config["streams"], list):
+            return self._parse_stream_list(self.config["streams"], global_model)
 
         return []
 

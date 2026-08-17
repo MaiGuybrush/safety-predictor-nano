@@ -82,6 +82,24 @@ class TestZoneEndpoint(unittest.TestCase):
         )
 
 
+    @patch("web_ui.load_config")
+    def test_index_page_rendering_with_dict_streams(self, mock_load_config):
+        mock_load_config.return_value = {
+            "model_path": "best.onnx",
+            "cpu_cores": 4,
+            "fps_limit": 2,
+            "log_interval_seconds": 60,
+            "log_file": "performance.log",
+            "detection_log_file": "detections.log",
+            "streams": [
+                {"url": "rtsp://127.0.0.1:8554/test_stream1", "label": "大門入口", "camera_id": "cam-01", "model": "best.onnx"}
+            ]
+        }
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"rtsp://127.0.0.1:8554/test_stream1", response.data)
+
+
 if __name__ == "__main__":
     unittest.main()
 

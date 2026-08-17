@@ -71,8 +71,14 @@ def _sync_all_locked(config_manager, client):
 
     if client is None:
         try:
+            import os
             from ums_client import UmsApiClient
-            client = UmsApiClient.from_env()
+            base_url = os.environ.get("UMS_BASE_URL") or config_manager.get("ums_base_url") or "http://tncimweb.cminl.oa/umsapiproxy/fab4ums"
+            api_key = os.environ.get("UMS_API_KEY") or config_manager.get("ums_api_key")
+            if api_key:
+                client = UmsApiClient(api_key=api_key, base_url=base_url)
+            else:
+                client = UmsApiClient.from_env()
         except Exception as e:
             for t in targets:
                 report["failed"].append({"key": t["key"], "name": t["name"], "version": t["version"], "error": str(e)})

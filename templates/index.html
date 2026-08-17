@@ -263,6 +263,18 @@
     </div>
 
     <main class="sys-core" id="sys-core">
+        {% set raw_streams = config.get('streams', []) %}
+        {% set urls = [] %}
+        {% if raw_streams %}
+            {% for s in raw_streams %}
+                {% if s is mapping %}
+                    {% if s.get('url') %}{% set _ = urls.append(s.get('url')) %}{% endif %}
+                {% elif s is string and s.strip() %}
+                    {% set _ = urls.append(s.strip()) %}
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+
         <form method="POST" class="panel" id="config-panel" data-title="SYS_CONFIG_PARAMETERS">
             <div class="form-grid">
                 <div class="field">
@@ -286,7 +298,7 @@
                 </div>
                 <div class="field">
                     <label>RTSP 串流 (STREAMS)</label>
-                    <textarea name="rtsp_streams">{{ '\n'.join(config.rtsp_streams) }}</textarea>
+                    <textarea name="streams">{{ '\n'.join(urls) }}</textarea>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                     <div class="field">
@@ -321,7 +333,7 @@
             </div>
             <img src="/video_feed" class="cam-feed" alt="Video Feed" onclick="openFullscreen(0)">
             <div class="stream-selector-bar">
-                {% for idx in range(config.get('rtsp_streams', [])|length) %}
+                {% for idx in range(urls|length) %}
                     <button type="button" class="stream-btn" onclick="openFullscreen({{ idx }})">[ STREAM #{{ idx }} ]</button>
                 {% endfor %}
             </div>
@@ -358,7 +370,7 @@
 
     <script>
         const CONFIG_MODE = {{ config.get('mode', 'rtsp') | tojson }};
-        const CONFIG_STREAMS = {{ config.get('rtsp_streams', []) | tojson }};
+        const CONFIG_STREAMS = {{ urls | tojson }};
         const CONFIG_VIDEO_PATH = {{ config.get('video_path', '') | tojson }};
 
         function refreshModelInfo() {

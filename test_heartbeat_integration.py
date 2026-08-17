@@ -14,7 +14,7 @@ class TestHeartbeatIntegration(unittest.TestCase):
         services = start_heartbeat_services(config, [{"camera_id": "cam1", "url": "rtsp://cam1"}])
         self.assertEqual(services, [])
 
-    def test_start_heartbeat_rtsp_streams(self):
+    def test_start_heartbeat_streams(self):
         config = {
             "heartbeat": {
                 "enabled": True,

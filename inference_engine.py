@@ -16,6 +16,8 @@ class InferenceEngine:
         # 判斷後端類型（供 /model_info 使用）
         if os.path.isdir(model_path):
             self.model_type = "NCNN"
+        elif model_path.lower().endswith(".onnx"):
+            self.model_type = "ONNX"
         else:
             self.model_type = "PyTorch"
 

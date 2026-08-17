@@ -14,6 +14,11 @@ venv/
 # Model weights
 *.pt
 *.pth
+*.onnx
+models/
+
+# Recordings
+recordings/
 
 # Videos/Data
 *.mp4
