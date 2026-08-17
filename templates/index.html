@@ -619,6 +619,16 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="field" style="margin-top: 0.6rem;">
+                    <label>模型格式偏好類別 (MODEL_FORMAT)</label>
+                    <select name="model_format" id="global-model-format-select">
+                        <option value="auto" {% if config.get('model_format', 'auto') == 'auto' %}selected{% endif %}>AUTO (自動推薦: ONNX > PT > NCNN)</option>
+                        <option value="onnx" {% if config.get('model_format') == 'onnx' %}selected{% endif %}>ONNX (.onnx / ONNX Runtime 加速)</option>
+                        <option value="pt" {% if config.get('model_format') == 'pt' %}selected{% endif %}>PyTorch (.pt 權重檔案)</option>
+                        <option value="ncnn" {% if config.get('model_format') == 'ncnn' %}selected{% endif %}>NCNN (ARM64 深度優化資料夾)</option>
+                    </select>
+                </div>
             </div>
 
             <!-- SECTION 3: 運作模式與串流主清單 (Master List) -->
@@ -838,6 +848,16 @@
                                         </select>
                                     </div>
                                 </div>
+                            </div>
+
+                            <div class="field" style="margin-top: 0.5rem;">
+                                <label>獨立模型格式偏好 (MODEL_FORMAT)</label>
+                                <select id="detail-model-format-select" onchange="onDetailFieldChange('model_format', this.value)">
+                                    <option value="auto">AUTO (自動推薦: ONNX > PT > NCNN)</option>
+                                    <option value="onnx">ONNX (.onnx / ONNX Runtime)</option>
+                                    <option value="pt">PyTorch (.pt 權重檔)</option>
+                                    <option value="ncnn">NCNN (ARM64 深度優化資料夾)</option>
+                                </select>
                             </div>
                         </div>
                     </div>
@@ -1238,6 +1258,11 @@
                 document.getElementById('detail-input-model').value = '';
             }
 
+            const formatSelect = document.getElementById('detail-model-format-select');
+            if (formatSelect) {
+                formatSelect.value = currentItem.model_format || 'auto';
+            }
+
             // Update ROI status badge for this stream
             loadDetailStreamZone(currentItem.url);
         }
@@ -1441,7 +1466,7 @@
         }
 
         function addMasterStream() {
-            streamsList.push({ url: '', label: '', camera_id: '', model: '' });
+            streamsList.push({ url: '', label: '', camera_id: '', model: '', model_format: 'auto' });
             renderMasterStreamList();
             selectStream(streamsList.length - 1);
 

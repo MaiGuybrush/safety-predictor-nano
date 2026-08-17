@@ -31,40 +31,51 @@ def _select_version(model_info, version):
     raise RuntimeError(f"模型 {model_info.model_name} 找不到版本 {version}")
 
 
-def _land_artifact(downloaded_path, model_name):
+def _land_artifact(downloaded_path, model_name, preferred_format="auto"):
     """依 Artifact 格式判斷規則落地成 InferenceEngine 認得的路徑。
 
-    智慧優先順序：
-    1. 若為資料夾：
-       a. 搜尋 ONNX (*.onnx, 如 best.onnx) -> 回傳具體檔案路徑 (CPU/Edge 效能最佳)
-       b. 搜尋 PyTorch (*.pt, 如 best.pt) -> 回傳具體檔案路徑
-       c. 搜尋 NCNN 目錄 (含 model.ncnn.param / *.ncnn.bin) -> 回傳資料夾路徑
-       d. 搜尋 model.bin -> 更名為 <model_name>.pt 並回傳
-       e. fallback -> 回傳資料夾路徑
-    2. 若為單一檔案：
-       a. 若副檔名為 .pt 或 .onnx -> 原樣回傳
-       b. 其他副檔名（如 model.bin）-> 更名為 <model_name>.pt 並回傳
+    格式偏好（preferred_format）：
+    - 'onnx': 優先選取 .onnx 檔案
+    - 'pt': 優先選取 .pt 檔案
+    - 'ncnn': 優先選取 NCNN 目錄
+    - 'auto': 依 ONNX > PyTorch > NCNN 智慧順序自動挑選
     """
     path = Path(downloaded_path)
+    fmt = (preferred_format or "auto").lower()
+
     if path.is_dir():
-        # 1. Check for ONNX
         onnx_files = sorted(path.glob("*.onnx"))
+        pt_files = sorted(path.glob("*.pt"))
+        has_ncnn = (path / "model.ncnn.param").exists() or list(path.glob("*.ncnn.param")) or list(path.glob("*.ncnn.bin"))
+
+        # Explicit format preferences
+        if fmt == "onnx" and onnx_files:
+            for f in onnx_files:
+                if f.name.lower() == "best.onnx":
+                    return str(f)
+            return str(onnx_files[0])
+        elif fmt == "pt" and pt_files:
+            for f in pt_files:
+                if f.name.lower() == "best.pt":
+                    return str(f)
+            return str(pt_files[0])
+        elif fmt == "ncnn" and has_ncnn:
+            return str(path)
+
+        # Auto fallback: 1. ONNX -> 2. PyTorch -> 3. NCNN
         if onnx_files:
             for f in onnx_files:
                 if f.name.lower() == "best.onnx":
                     return str(f)
             return str(onnx_files[0])
 
-        # 2. Check for PyTorch (.pt)
-        pt_files = sorted(path.glob("*.pt"))
         if pt_files:
             for f in pt_files:
                 if f.name.lower() == "best.pt":
                     return str(f)
             return str(pt_files[0])
 
-        # 3. Check for NCNN
-        if (path / "model.ncnn.param").exists() or list(path.glob("*.ncnn.param")) or list(path.glob("*.ncnn.bin")):
+        if has_ncnn:
             return str(path)
 
         # 4. Check for model.bin inside folder
@@ -129,7 +140,8 @@ def _sync_all_locked(config_manager, client):
 
     for target in targets:
         key, name, version = target["key"], target["name"], target["version"]
-        cache_key = (name, version)
+        format_pref = target.get("format", "auto")
+        cache_key = (name, version, format_pref)
         try:
             if cache_key in downloaded:
                 path = downloaded[cache_key]
@@ -147,12 +159,12 @@ def _sync_all_locked(config_manager, client):
                 version_info = _select_version(model_info, version)
                 dest_dir = Path(MODELS_DIR) / name / f"v{version_info.version_number}"
                 downloaded_path = client.download_version(version_info.version_id, dest_dir=dest_dir)
-                path = _land_artifact(downloaded_path, name)
+                path = _land_artifact(downloaded_path, name, preferred_format=format_pref)
                 downloaded[cache_key] = path
             updates[key] = path
-            report["success"].append({"key": key, "name": name, "version": version, "path": path})
+            report["success"].append({"key": key, "name": name, "version": version, "format": format_pref, "path": path})
         except Exception as e:
-            report["failed"].append({"key": key, "name": name, "version": version, "error": str(e)})
+            report["failed"].append({"key": key, "name": name, "version": version, "format": format_pref, "error": str(e)})
 
     if updates:
         config_manager.update_model_paths(updates)

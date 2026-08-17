@@ -200,6 +200,33 @@ class TestConfigManager(unittest.TestCase):
         mgr.save_zone("rtsp://cam1", [])
         self.assertIsNone(mgr.get_zone("rtsp://cam1"))
 
+    def test_stream_model_format_parsing(self):
+        data = {
+            "model_format": "onnx",
+            "streams": [
+                {"url": "rtsp://cam1", "model_format": "pt"},
+                {"url": "rtsp://cam2"},
+            ]
+        }
+        self.write_yaml(data)
+        mgr = ConfigManager(self.tmp_path)
+        configs = mgr.get_stream_configs()
+        self.assertEqual(configs[0]["model_format"], "pt")
+        self.assertEqual(configs[1]["model_format"], "onnx")
+
+    def test_ums_targets_with_format(self):
+        data = {
+            "ums_model": {"name": "global-model", "format": "onnx"},
+            "streams": [
+                {"url": "rtsp://cam1", "ums_model": {"name": "cam1-model", "format": "pt"}},
+            ]
+        }
+        self.write_yaml(data)
+        mgr = ConfigManager(self.tmp_path)
+        targets = mgr.get_ums_targets()
+        self.assertEqual(targets[0]["format"], "onnx")
+        self.assertEqual(targets[1]["format"], "pt")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -195,18 +195,20 @@ def build_stream_units(stream_configs, cpu_cores=4, fps_limit=5, existing_engine
     for idx, cfg in enumerate(stream_configs):
         url = cfg["url"]
         model_path = cfg["model"]
+        model_format = cfg.get("model_format", "auto")
         label = cfg["label"]
         camera_id = cfg.get("camera_id") or parse_camera_id(url) or label or f"stream{idx}"
 
-        if model_path in new_engine_cache:
-            engine = new_engine_cache[model_path]
-        elif model_path in existing_engine_cache and getattr(existing_engine_cache[model_path], 'num_threads', None) == cpu_cores:
-            engine = existing_engine_cache[model_path]
-            new_engine_cache[model_path] = engine
+        cache_key = (model_path, model_format)
+        if cache_key in new_engine_cache:
+            engine = new_engine_cache[cache_key]
+        elif cache_key in existing_engine_cache and getattr(existing_engine_cache[cache_key], 'num_threads', None) == cpu_cores:
+            engine = existing_engine_cache[cache_key]
+            new_engine_cache[cache_key] = engine
         else:
             print(f"[EngineCache] Loading InferenceEngine for model: {model_path} (threads: {cpu_cores})")
-            engine = InferenceEngine(model_path=model_path, num_threads=cpu_cores)
-            new_engine_cache[model_path] = engine
+            engine = InferenceEngine(model_path=model_path, num_threads=cpu_cores, model_format=model_format)
+            new_engine_cache[cache_key] = engine
             
         handler = StreamHandler(url, fps_limit)
         handler.start()
@@ -250,9 +252,10 @@ def initialize_runtime(config_mgr):
         web_ui.STREAM_UNITS = stream_units
         if stream_units:
             first_engine = stream_units[0]["engine"]
+            model_paths = [k[0] if isinstance(k, tuple) else k for k in engine_cache.keys()]
             web_ui.MODEL_INFO = {
                 "type": first_engine.model_type,
-                "path": ", ".join(list(engine_cache.keys())),
+                "path": ", ".join(list(dict.fromkeys(model_paths))),
                 "cpu_cores": cpu_cores
             }
     elif mode == 'video':
@@ -262,7 +265,8 @@ def initialize_runtime(config_mgr):
             video_handler.start()
         video_engine = InferenceEngine(
             model_path=config.get("model_path", "yolov8n.pt"),
-            num_threads=cpu_cores
+            num_threads=cpu_cores,
+            model_format=config.get("model_format", "auto")
         )
         web_ui.STREAM_UNITS = [{
             "handler": video_handler,
@@ -383,7 +387,8 @@ def main():
                         video_handler.start()
                     
                     model_path = new_config.get("model_path", "yolov8n.pt")
-                    video_engine = InferenceEngine(model_path=model_path, num_threads=cpu_cores)
+                    model_format = new_config.get("model_format", "auto")
+                    video_engine = InferenceEngine(model_path=model_path, num_threads=cpu_cores, model_format=model_format)
                     web_ui.STREAM_UNITS = [{
                         "handler": video_handler,
                         "url": video_path,

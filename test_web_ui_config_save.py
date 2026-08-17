@@ -170,6 +170,8 @@ class TestWebUiConfigSave(unittest.TestCase):
         self.assertIn("ums-project-select", html)
         self.assertIn("detail-ums-project-select", html)
         self.assertIn("detail-label-source-ums", html)
+        self.assertIn("global-model-format-select", html)
+        self.assertIn("detail-model-format-select", html)
 
 
 if __name__ == "__main__":

@@ -60,6 +60,7 @@ def index():
             "streams": updated_streams,
             "mode": request.form.get("mode", current.get("mode", "rtsp")),
             "model_path": request.form.get("model_path", current.get("model_path", "best.onnx")),
+            "model_format": request.form.get("model_format", current.get("model_format", "auto")),
             "video_path": request.form.get("video_path", current.get("video_path", "")),
             "fps_limit": int(request.form.get("fps_limit", current.get("fps_limit", 2))),
             "cpu_cores": int(request.form.get("cpu_cores", current.get("cpu_cores", 4))),

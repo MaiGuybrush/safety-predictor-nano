@@ -47,24 +47,32 @@ class ConfigManager:
                 label = item.get("label") or ""
                 parsed_cam = parse_camera_id(url)
                 camera_id = item.get("camera_id") or parsed_cam or label or f"stream{idx}"
-                stream_configs.append({
+                cfg = {
                     "url": url,
                     "model": model,
                     "label": label,
                     "camera_id": camera_id
-                })
+                }
+                if "model_format" in item:
+                    cfg["model_format"] = item["model_format"]
+                elif "model_format" in self.config:
+                    cfg["model_format"] = self.config["model_format"]
+                stream_configs.append(cfg)
             elif isinstance(item, str):
                 url = item.strip()
                 if not url:
                     continue
                 parsed_cam = parse_camera_id(url)
                 camera_id = parsed_cam or f"stream{idx}"
-                stream_configs.append({
+                cfg = {
                     "url": url,
                     "model": global_model,
                     "label": "",
                     "camera_id": camera_id
-                })
+                }
+                if "model_format" in self.config:
+                    cfg["model_format"] = self.config["model_format"]
+                stream_configs.append(cfg)
         return stream_configs
 
     def get_stream_configs(self):
@@ -78,18 +86,24 @@ class ConfigManager:
     def get_ums_targets(self):
         """解析 config 中所有 ums_model 宣告（全域 + per-stream），回傳同步目標清單。
 
-        每個目標為 {"key": "model_path" | "streams[<i>].model", "name": str, "version": "latest" | int}。
+        每個目標為 {"key": "model_path" | "streams[<i>].model", "name": str, "version": "latest" | int}，
+        若有宣告 format 則額外包含 "format"。
         沒有宣告 ums_model 時回傳空清單（no-op）。
         """
         targets = []
 
         global_decl = self.config.get("ums_model")
         if isinstance(global_decl, dict) and global_decl.get("name"):
-            targets.append({
+            target = {
                 "key": "model_path",
                 "name": global_decl["name"],
                 "version": global_decl.get("version", "latest"),
-            })
+            }
+            if "format" in global_decl:
+                target["format"] = global_decl["format"]
+            elif "model_format" in self.config:
+                target["format"] = self.config["model_format"]
+            targets.append(target)
 
         streams = self.config.get("streams")
         if isinstance(streams, list):
@@ -98,11 +112,18 @@ class ConfigManager:
                     continue
                 decl = item.get("ums_model")
                 if isinstance(decl, dict) and decl.get("name"):
-                    targets.append({
+                    target = {
                         "key": f"streams[{i}].model",
                         "name": decl["name"],
                         "version": decl.get("version", "latest"),
-                    })
+                    }
+                    if "format" in decl:
+                        target["format"] = decl["format"]
+                    elif "model_format" in item:
+                        target["format"] = item["model_format"]
+                    elif "model_format" in self.config:
+                        target["format"] = self.config["model_format"]
+                    targets.append(target)
 
         return targets
 
