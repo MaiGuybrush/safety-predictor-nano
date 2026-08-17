@@ -800,8 +800,12 @@
                         </div>
                         <div class="field">
                             <label>鏡頭識別碼 (CAMERA_ID)</label>
-                            <input type="text" id="detail-input-camid" placeholder="cam-01 (選填)" oninput="onDetailFieldChange('camera_id', this.value)">
+                            <input type="text" id="detail-input-camid" placeholder="cam-01 (選填)" oninput="onDetailFieldChange('camera_id', this.value)" onblur="onDetailCameraIdBlur()">
                         </div>
+                    </div>
+                    <div id="detail-camid-warning" style="display: none; border: 1px dashed var(--warn); background: rgba(255, 170, 0, 0.08); padding: 0.4rem 0.6rem; margin-top: 0.2rem; font-size: 0.7rem; color: var(--warn); align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap;">
+                        <span>⚠ 警告：若 RTSP 來源為 Argus Agent，修改 camera_id 會導致與 Argus 系統串接異常 (預期: <span id="detail-expected-camid" style="font-weight: bold; text-decoration: underline;"></span>)</span>
+                        <button type="button" class="stream-btn" style="border-color: var(--warn); color: var(--warn); padding: 0.15rem 0.45rem; font-size: 0.68rem;" onclick="restoreArgusCameraId()">[ 還原為預設 ID ]</button>
                     </div>
                     <div class="field" style="margin-top: 0.2rem;">
                         <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer;">
@@ -1164,15 +1168,104 @@
             });
         }
 
+        // ── Argus Camera ID Parsing & Consistency Engine ──
+        function parseArgusCameraId(raw) {
+            if (!raw || typeof raw !== 'string') return null;
+            raw = raw.trim();
+            if (!raw.includes('://')) return null;
+
+            try {
+                const parsed = new URL(raw);
+                for (const [k, v] of parsed.searchParams.entries()) {
+                    if (v && v.startsWith('cam-')) {
+                        return v;
+                    }
+                }
+                const segments = parsed.pathname.split('/').filter(Boolean);
+                for (const seg of segments) {
+                    if (seg.startsWith('cam-')) {
+                        return seg;
+                    }
+                }
+            } catch (e) {
+                const queryMatch = raw.match(/[?&][^=]+=(cam-[a-zA-Z0-9_.-]+)/);
+                if (queryMatch) return queryMatch[1];
+                const pathMatch = raw.match(/\/(cam-[a-zA-Z0-9_.-]+)/);
+                if (pathMatch) return pathMatch[1];
+            }
+            return null;
+        }
+
+        function validateCameraIdConsistency() {
+            const currentStream = streamsList[selectedStreamIndex];
+            const warnEl = document.getElementById('detail-camid-warning');
+            const expectedEl = document.getElementById('detail-expected-camid');
+            const camInput = document.getElementById('detail-input-camid');
+            if (!warnEl || !expectedEl || !currentStream) return;
+
+            const url = (currentStream.url || '').trim();
+            const currentCamId = (currentStream.camera_id || '').trim();
+            const parsedCamId = parseArgusCameraId(url);
+
+            if (parsedCamId) {
+                if (currentCamId && currentCamId !== parsedCamId) {
+                    expectedEl.textContent = parsedCamId;
+                    warnEl.style.display = 'flex';
+                    if (camInput) camInput.style.borderColor = 'var(--warn)';
+                } else {
+                    warnEl.style.display = 'none';
+                    if (camInput) camInput.style.borderColor = '';
+                }
+            } else {
+                warnEl.style.display = 'none';
+                if (camInput) camInput.style.borderColor = '';
+            }
+        }
+
+        function restoreArgusCameraId() {
+            const currentStream = streamsList[selectedStreamIndex];
+            if (!currentStream) return;
+            const parsedCamId = parseArgusCameraId(currentStream.url);
+            if (parsedCamId) {
+                currentStream.camera_id = parsedCamId;
+                currentStream.auto_camera_id = parsedCamId;
+                const camInput = document.getElementById('detail-input-camid');
+                if (camInput) {
+                    camInput.value = parsedCamId;
+                }
+                validateCameraIdConsistency();
+            }
+        }
+
+        function onDetailCameraIdBlur() {
+            const currentStream = streamsList[selectedStreamIndex];
+            if (!currentStream) return;
+            const camInput = document.getElementById('detail-input-camid');
+            const val = (camInput ? camInput.value : '').trim();
+            const parsedCamId = parseArgusCameraId(currentStream.url);
+
+            if (!val && parsedCamId) {
+                currentStream.camera_id = parsedCamId;
+                currentStream.auto_camera_id = parsedCamId;
+                if (camInput) camInput.value = parsedCamId;
+            }
+            validateCameraIdConsistency();
+        }
+
         // ── Master-Detail Stream List Interaction Engine ──
         function initMasterDetailStreams() {
             if (Array.isArray(CONFIG_INITIAL_STREAMS) && CONFIG_INITIAL_STREAMS.length > 0) {
                 streamsList = CONFIG_INITIAL_STREAMS.map(s => {
-                    if (typeof s === 'string') return { url: s, label: '', camera_id: '' };
-                    return { ...s };
+                    if (typeof s === 'string') {
+                        const parsed = parseArgusCameraId(s);
+                        return { url: s, label: '', camera_id: parsed || '', auto_camera_id: parsed || '' };
+                    }
+                    const parsed = parseArgusCameraId(s.url || '');
+                    const camId = (s.camera_id !== undefined && s.camera_id !== null && s.camera_id !== '') ? s.camera_id : (parsed || '');
+                    return { ...s, camera_id: camId, auto_camera_id: parsed || '' };
                 });
             } else {
-                streamsList = [{ url: '', label: '', camera_id: '' }];
+                streamsList = [{ url: '', label: '', camera_id: '', auto_camera_id: '' }];
             }
             renderMasterStreamList();
             selectStream(0);
@@ -1217,7 +1310,7 @@
                 idx = 0;
             }
             selectedStreamIndex = idx;
-            const currentItem = streamsList[idx] || { url: '', label: '', camera_id: '' };
+            const currentItem = streamsList[idx] || { url: '', label: '', camera_id: '', auto_camera_id: '' };
 
             // Update Master List active styling
             const items = document.querySelectorAll('.master-stream-item');
@@ -1237,6 +1330,9 @@
             document.getElementById('detail-input-url').value = currentItem.url || '';
             document.getElementById('detail-input-label').value = currentItem.label || '';
             document.getElementById('detail-input-camid').value = currentItem.camera_id || '';
+
+            // Check and update Argus camera_id warning
+            validateCameraIdConsistency();
 
             const hasUmsModel = !!(currentItem.ums_model && currentItem.ums_model.name);
             const hasLocalModel = !!(currentItem.model && currentItem.model.trim());
@@ -1269,7 +1365,8 @@
 
         function onDetailFieldChange(field, val) {
             if (!streamsList[selectedStreamIndex]) return;
-            streamsList[selectedStreamIndex][field] = val;
+            const currentStream = streamsList[selectedStreamIndex];
+            currentStream[field] = val;
 
             // Update master item label text instantly
             const nameEl = document.getElementById(`master-stream-name-${selectedStreamIndex}`);
@@ -1287,6 +1384,25 @@
 
             if (field === 'url') {
                 loadDetailStreamZone(val);
+
+                // Argus camera_id auto-fill logic
+                const parsedCamId = parseArgusCameraId(val);
+                if (parsedCamId) {
+                    const currentCam = (currentStream.camera_id || '').trim();
+                    if (!currentCam || currentCam === currentStream.auto_camera_id) {
+                        currentStream.camera_id = parsedCamId;
+                        currentStream.auto_camera_id = parsedCamId;
+                        const camInput = document.getElementById('detail-input-camid');
+                        if (camInput) camInput.value = parsedCamId;
+                    }
+                } else {
+                    currentStream.auto_camera_id = '';
+                }
+                validateCameraIdConsistency();
+            }
+
+            if (field === 'camera_id') {
+                validateCameraIdConsistency();
             }
         }
 
@@ -1466,7 +1582,7 @@
         }
 
         function addMasterStream() {
-            streamsList.push({ url: '', label: '', camera_id: '', model: '', model_format: 'auto' });
+            streamsList.push({ url: '', label: '', camera_id: '', auto_camera_id: '', model: '', model_format: 'auto' });
             renderMasterStreamList();
             selectStream(streamsList.length - 1);
 
@@ -1538,7 +1654,14 @@
                     alert('請至少填寫一組有效的 RTSP 串流 URL');
                     return false;
                 }
-                document.getElementById('streams_json').value = JSON.stringify(validStreams);
+                const sanitizedStreams = validStreams.map(s => {
+                    const item = { ...s };
+                    if (typeof item.url === 'string') item.url = item.url.trim();
+                    if (typeof item.label === 'string') item.label = item.label.trim();
+                    if (typeof item.camera_id === 'string') item.camera_id = item.camera_id.trim();
+                    return item;
+                });
+                document.getElementById('streams_json').value = JSON.stringify(sanitizedStreams);
             }
 
             const isUms = document.getElementById('radio-source-ums').checked;

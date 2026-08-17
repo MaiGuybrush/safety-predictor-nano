@@ -30,6 +30,8 @@ class TestNCNNInferenceEngine(unittest.TestCase):
         """測試當 model_path 為資料夾時，model_type 正確設為 NCNN"""
         mock_yolo.return_value = MagicMock()
         with tempfile.TemporaryDirectory() as tmp_dir:
+            with open(os.path.join(tmp_dir, "model.ncnn.param"), "w") as f:
+                f.write("")
             engine = InferenceEngine(model_path=tmp_dir, num_threads=8)
             
             self.assertEqual(engine.model_type, "NCNN")

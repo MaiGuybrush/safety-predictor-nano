@@ -172,6 +172,43 @@ class TestWebUiConfigSave(unittest.TestCase):
         self.assertIn("detail-label-source-ums", html)
         self.assertIn("global-model-format-select", html)
         self.assertIn("detail-model-format-select", html)
+        self.assertIn("detail-camid-warning", html)
+        self.assertIn("parseArgusCameraId", html)
+        self.assertIn("restoreArgusCameraId", html)
+
+    def test_save_argus_stream_with_custom_camera_id(self):
+        initial = {
+            "mode": "rtsp",
+            "model_path": "best.onnx",
+            "streams": [
+                {"url": "rtsp://127.0.0.1:8554/cam-0eb40kwvs74z", "camera_id": "cam-0eb40kwvs74z"}
+            ]
+        }
+        self.write_yaml(initial)
+
+        # User modified camera_id to custom "CCD1"
+        streams_payload = [
+            {"url": "rtsp://127.0.0.1:8554/cam-0eb40kwvs74z", "label": "大門", "camera_id": "CCD1"}
+        ]
+        form_data = {
+            "mode": "rtsp",
+            "model_source": "local",
+            "model_path": "best.onnx",
+            "streams_json": json.dumps(streams_payload),
+            "fps_limit": "2",
+            "cpu_cores": "4",
+            "conf_threshold": "0.25",
+            "log_interval_seconds": "60",
+            "log_file": "perf.log",
+            "detection_log_file": "det.log"
+        }
+        response = self.client.post('/', data=form_data)
+        self.assertEqual(response.status_code, 200)
+
+        saved = self.read_yaml()
+        self.assertEqual(len(saved["streams"]), 1)
+        self.assertEqual(saved["streams"][0]["url"], "rtsp://127.0.0.1:8554/cam-0eb40kwvs74z")
+        self.assertEqual(saved["streams"][0]["camera_id"], "CCD1")
 
 
 if __name__ == "__main__":
