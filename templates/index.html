@@ -90,7 +90,7 @@
             grid-template-columns: 1fr;
         }
         .sys-core.hide-config #config-panel {
-            display: none;
+            display: none !important;
         }
 
         /* Left Master Panel (Internal Scrollable) */
@@ -349,7 +349,10 @@
             flex-direction: column;
         }
         .sys-core.hide-config #stream-detail-inspector {
-            display: none;
+            display: none !important;
+        }
+        .detail-inspector.video-mode-hidden {
+            display: none !important;
         }
         .sys-core.hide-config .preview-container {
             flex: 1;
@@ -907,11 +910,11 @@
                 videoMasterSec.style.display = 'block';
                 document.getElementById('preview-stream-title').textContent = '● VIDEO_FILE_FEED';
                 document.getElementById('preview-cam-img').src = '/video_feed?t=' + Date.now();
-                detailInspector.style.display = 'none';
+                detailInspector.classList.add('video-mode-hidden');
             } else {
                 streamsMasterSec.style.display = 'block';
                 videoMasterSec.style.display = 'none';
-                detailInspector.style.display = 'block';
+                detailInspector.classList.remove('video-mode-hidden');
                 selectStream(selectedStreamIndex);
             }
         }
