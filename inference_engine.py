@@ -18,31 +18,29 @@ class InferenceEngine:
         actual_model_path = model_path
 
         if os.path.isdir(model_path):
-            # 檢查是否為正規 NCNN 目錄
+            files = os.listdir(model_path)
+            onnx_files = [f for f in files if f.lower().endswith(".onnx")]
+            pt_files = [f for f in files if f.lower().endswith(".pt")]
             has_ncnn = (
                 os.path.exists(os.path.join(model_path, "model.ncnn.param")) or
                 os.path.exists(os.path.join(model_path, "model.ncnn.bin")) or
-                any(f.endswith(".ncnn.param") or f.endswith(".ncnn.bin") for f in os.listdir(model_path))
+                any(f.endswith(".ncnn.param") or f.endswith(".ncnn.bin") for f in files)
             )
-            if has_ncnn:
+
+            if onnx_files:
+                best_onnx = "best.onnx" if "best.onnx" in onnx_files else onnx_files[0]
+                actual_model_path = os.path.join(model_path, best_onnx)
+                self.model_type = "ONNX"
+            elif pt_files:
+                best_pt = "best.pt" if "best.pt" in pt_files else pt_files[0]
+                actual_model_path = os.path.join(model_path, best_pt)
+                self.model_type = "PyTorch"
+            elif has_ncnn:
                 self.model_type = "NCNN"
                 actual_model_path = model_path
             else:
-                files = os.listdir(model_path)
-                onnx_files = [f for f in files if f.lower().endswith(".onnx")]
-                pt_files = [f for f in files if f.lower().endswith(".pt")]
-
-                if onnx_files:
-                    best_onnx = "best.onnx" if "best.onnx" in onnx_files else onnx_files[0]
-                    actual_model_path = os.path.join(model_path, best_onnx)
-                    self.model_type = "ONNX"
-                elif pt_files:
-                    best_pt = "best.pt" if "best.pt" in pt_files else pt_files[0]
-                    actual_model_path = os.path.join(model_path, best_pt)
-                    self.model_type = "PyTorch"
-                else:
-                    self.model_type = "NCNN"
-                    actual_model_path = model_path
+                self.model_type = "PyTorch"
+                actual_model_path = model_path
         elif model_path.lower().endswith(".onnx"):
             self.model_type = "ONNX"
         else:
