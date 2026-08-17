@@ -7,7 +7,7 @@
 
 **Status:** ready-for-agent
 
-- [ ] `web_ui.py` 新增 `GET /api/ums/models` 端點，以 `UmsApiClient` 呼叫 `fetch_my_models()`，回傳依 `project_name` 聚合之階層化模型與版本 JSON 清單。
-- [ ] `GET /api/ums/models` 在發生網路逾時或 API 金鑰無效時，捕獲例外並回傳 `{"status": "error", "message": "..."}`（HTTP 狀態碼 200），不拋出 500 異常。
-- [ ] `web_ui.py` 新增 `POST /api/ums/test_connection` 端點，接收傳入的 `base_url` 與 `api_key` 測試連線，回傳成功與可用模型數，或詳細錯誤訊息。
-- [ ] 撰寫單元測試 `test_web_ui_ums_endpoints.py`，使用 Mock `UmsApiClient` 驗證成功回傳格式、失敗降級處理以及連線測試端點行為。
+- [x] `web_ui.py` 新增 `GET /api/ums/models` 端點，以 `UmsApiClient` 呼叫 `fetch_my_models()`，回傳依 `project_name` 聚合之階層化模型與版本 JSON 清單。
+- [x] `GET /api/ums/models` 在發生網路逾時或 API 金鑰無效時，捕獲例外並回傳 `{"status": "error", "message": "..."}`（HTTP 狀態碼 200），不拋出 500 異常。
+- [x] `web_ui.py` 新增 `POST /api/ums/test_connection` 端點，接收傳入的 `base_url` 與 `api_key` 測試連線，回傳成功與可用模型數，或詳細錯誤訊息。
+- [x] 撰寫單元測試 `test_web_ui_ums_endpoints.py`，使用 Mock `UmsApiClient` 驗證成功回傳格式、失敗降級處理以及連線測試端點行為。

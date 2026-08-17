@@ -7,8 +7,8 @@
 
 **Status:** ready-for-agent
 
-- [ ] `web_ui.py` 重構表單與 JSON 設定儲存處理邏輯，支援結構化 `streams` 列表（每項包含 `url`、`label`、`camera_id`、`model`、`ums_model`）。
-- [ ] 支援儲存進階系統參數（`ums_base_url`、`ums_api_key`、`heartbeat` 物件、`event_absence_tolerance` 等）。
-- [ ] 非破壞式合併：確保未出現在表單中的頂層設定與未變更串流之擴充欄位完整保留，不發生設定洗掉。
-- [ ] 若偵測到全域或個別串流之 `ums_model` 宣告有變更，在背景自動觸發 `model_sync.sync_all()` 進行非同步下載。
-- [ ] 單元測試驗證結構化設定儲存之正確性，確認 `config.yaml` 內容完整且未涉及欄位不受干擾。
+- [x] `web_ui.py` 重構表單與 JSON 設定儲存處理邏輯，支援結構化 `streams` 列表（每項包含 `url`、`label`、`camera_id`、`model`、`ums_model`）。
+- [x] 支援儲存進階系統參數（`ums_base_url`、`ums_api_key`、`heartbeat` 物件、`event_absence_tolerance` 等）。
+- [x] 非破壞式合併：確保未出現在表單中的頂層設定與未變更串流之擴充欄位完整保留，不發生設定洗掉。
+- [x] 若偵測到全域或個別串流之 `ums_model` 宣告有變更，在背景自動觸發 `model_sync.sync_all()` 進行非同步下載。
+- [x] 單元測試驗證結構化設定儲存之正確性，確認 `config.yaml` 內容完整且未涉及欄位不受干擾。
