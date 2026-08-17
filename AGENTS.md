@@ -66,7 +66,7 @@ The system utilizes a multi-threaded Python architecture to decouple frame captu
 ## Agent skills
 
 ### Issue tracker
-Local markdown files under `.scratch/<feature-slug>/`. See `docs/agents/issue-tracker.md`.
+Gitea server (`guy.mai/safty-predictor-nano` via `tea` CLI). See `docs/agents/issue-tracker.md`. Local specs and archives reside under `.scratch/<feature-slug>/`.
 
 ### Triage labels
 Default five canonical roles (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
