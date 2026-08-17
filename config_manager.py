@@ -17,10 +17,13 @@ class ConfigManager:
         try:
             current_mtime = os.path.getmtime(self.config_path)
             if current_mtime > self.last_mtime:
-                self.config = self.load_config()
-                self.last_mtime = current_mtime
-                return True
-        except FileNotFoundError:
+                with open(self.config_path, "r", encoding="utf-8") as f:
+                    loaded = yaml.safe_load(f)
+                if isinstance(loaded, dict) and loaded:
+                    self.config = loaded
+                    self.last_mtime = current_mtime
+                    return True
+        except (FileNotFoundError, PermissionError, yaml.YAMLError):
             pass
         return False
 
@@ -30,7 +33,10 @@ class ConfigManager:
 
         with open(self.config_path, "r", encoding="utf-8") as f:
             self.last_mtime = os.path.getmtime(self.config_path)
-            return yaml.safe_load(f)
+            loaded = yaml.safe_load(f)
+            if loaded is None or not isinstance(loaded, dict):
+                return self.config if hasattr(self, "config") and self.config else {}
+            return loaded
 
     def get(self, key, default=None):
         return self.config.get(key, default)
@@ -150,8 +156,10 @@ class ConfigManager:
             if isinstance(streams, list) and 0 <= idx < len(streams) and isinstance(streams[idx], dict):
                 streams[idx]["model"] = value
 
-        with open(self.config_path, "w", encoding="utf-8") as f:
+        temp_file = self.config_path + ".tmp"
+        with open(temp_file, "w", encoding="utf-8") as f:
             yaml.dump(raw, f, allow_unicode=True)
+        os.replace(temp_file, self.config_path)
 
         self.config = raw
         self.last_mtime = os.path.getmtime(self.config_path)
@@ -185,8 +193,10 @@ class ConfigManager:
         else:
             raw["zones"].pop(stream_url, None)
 
-        with open(self.config_path, "w", encoding="utf-8") as f:
+        temp_file = self.config_path + ".tmp"
+        with open(temp_file, "w", encoding="utf-8") as f:
             yaml.dump(raw, f, allow_unicode=True)
+        os.replace(temp_file, self.config_path)
 
         self.config = raw
         self.last_mtime = os.path.getmtime(self.config_path)

@@ -227,6 +227,21 @@ class TestConfigManager(unittest.TestCase):
         self.assertEqual(targets[0]["format"], "onnx")
         self.assertEqual(targets[1]["format"], "pt")
 
+    def test_check_for_updates_with_empty_file(self):
+        data = {"model_path": "global.pt"}
+        self.write_yaml(data)
+        mgr = ConfigManager(self.tmp_path)
+        
+        # Simulate empty file write (0 bytes)
+        with open(self.tmp_path, "w", encoding="utf-8") as f:
+            f.write("")
+        os.utime(self.tmp_path, (os.path.getatime(self.tmp_path) + 10, os.path.getmtime(self.tmp_path) + 10))
+        
+        updated = mgr.check_for_updates()
+        self.assertFalse(updated)
+        self.assertIsNotNone(mgr.config)
+        self.assertIsInstance(mgr.config, dict)
+
 
 if __name__ == "__main__":
     unittest.main()

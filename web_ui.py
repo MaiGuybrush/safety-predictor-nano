@@ -17,8 +17,10 @@ def load_config():
         return yaml.safe_load(f)
 
 def save_config(config):
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+    temp_file = CONFIG_FILE + ".tmp"
+    with open(temp_file, "w", encoding="utf-8") as f:
         yaml.dump(config, f, allow_unicode=True)
+    os.replace(temp_file, CONFIG_FILE)
 
 import json
 import threading

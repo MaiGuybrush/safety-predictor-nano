@@ -342,7 +342,7 @@ def main():
     try:
         while True:
             if config_mgr.check_for_updates():
-                new_config = config_mgr.config
+                new_config = config_mgr.config or {}
                 print("[Config] Settings updated dynamically!")
                 
                 logger = StatsLogger(
