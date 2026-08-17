@@ -165,7 +165,8 @@ class TestWebUiConfigSave(unittest.TestCase):
         html = response.get_data(as_text=True)
         self.assertIn("ARGUS // PREDICTOR_NANO", html)
         self.assertIn("ADVANCED_SYSTEM_PARAMETERS", html)
-        self.assertIn("streams-container", html)
+        self.assertIn("master-stream-list", html)
+        self.assertIn("stream-detail-inspector", html)
         self.assertIn("ums-project-select", html)
 
 

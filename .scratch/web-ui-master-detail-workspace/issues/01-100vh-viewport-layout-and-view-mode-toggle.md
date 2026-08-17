@@ -7,8 +7,8 @@
 
 **Status:** ready-for-agent
 
-- [ ] 設定 `html, body` 為 `height: 100vh; overflow: hidden;`，消除外層 window 捲軸。
-- [ ] 調整 `.sys-core` 容器高度為 `calc(100vh - header_height)`，採用 Grid 左右雙欄配置（左側 420px，右側 `1fr`）。
-- [ ] 左側面板設置 `height: 100%; overflow-y: auto;`，確保表單內部獨立捲動，不影響右側。
-- [ ] 右側面板分為上下兩層容器（右上預覽佔 45%，右下資訊佔 55%）。
-- [ ] 實作 `[ TOGGLE_CONFIG ]` 切換：隱藏左側時，右側即時影像平滑擴展為滿版全螢幕監控視圖（顯示底部串流選擇列）。
+- [x] 設定 `html, body` 為 `height: 100vh; overflow: hidden;`，消除外層 window 捲軸。
+- [x] 調整 `.sys-core` 容器高度為 `calc(100vh - header_height)`，採用 Grid 左右雙欄配置（左側 420px，右側 `1fr`）。
+- [x] 左側面板設置 `height: 100%; overflow-y: auto;`，確保表單內部獨立捲動，不影響右側。
+- [x] 右側面板分為上下兩層容器（右上預覽佔 45%，右下資訊佔 55%）。
+- [x] 實作 `[ TOGGLE_CONFIG ]` 切換：隱藏左側時，右側即時影像平滑擴展為滿版全螢幕監控視圖（顯示底部串流選擇列）。

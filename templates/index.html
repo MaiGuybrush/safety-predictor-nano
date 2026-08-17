@@ -18,141 +18,173 @@
             --warn: #ffaa00;
             --danger: #ff3333;
         }
-        body {
+        * {
+            box-sizing: border-box;
+        }
+        html, body {
+            height: 100vh;
+            width: 100vw;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
             background: var(--bg);
             color: var(--text);
             font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
-            margin: 0;
-            padding: clamp(1rem, 3vw, 2.5rem);
             text-transform: uppercase;
-            line-height: 1.4;
+            line-height: 1.35;
             /* Scanline effect */
             background-image: linear-gradient(rgba(0, 255, 65, 0.03) 1px, transparent 1px);
             background-size: 100% 3px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Top Header & Status Bar (Fixed Top) */
+        .top-container {
+            flex-shrink: 0;
+            padding: 0.6rem 1.2rem 0.4rem 1.2rem;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg);
         }
         .sys-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            border-bottom: 2px solid var(--border);
-            padding-bottom: 1rem;
-            margin-bottom: 1.5rem;
+            margin-bottom: 0.4rem;
         }
         .blink {
-            width: 12px; height: 12px;
+            width: 10px; height: 10px;
             background: var(--text);
-            margin-right: 15px;
+            margin-right: 12px;
             animation: blink 1.2s step-end infinite;
-            box-shadow: 0 0 10px var(--text);
+            box-shadow: 0 0 8px var(--text);
         }
         @keyframes blink { 50% { opacity: 0; } }
         h1 {
-            font-size: clamp(1.2rem, 2.5vw, 1.8rem);
+            font-size: clamp(1rem, 2vw, 1.4rem);
             margin: 0;
             letter-spacing: 2px;
         }
-        .sys-core {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 1.5rem;
-            align-items: start;
+        .model-status-bar {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-size: 0.72rem;
+            flex-wrap: wrap;
         }
-        @media (min-width: 1024px) {
-            .sys-core { grid-template-columns: 480px 1fr; }
-            .sys-core.hide-config { grid-template-columns: 1fr; }
-        }
-        .sys-core.hide-config #config-panel { display: none; }
+        .status-label { color: var(--text-dim); }
+        .status-value { color: var(--text); font-weight: bold; }
+        .status-sep { color: var(--border); }
 
+        /* Main Viewport Grid (100% Remaining Height, No Window Scroll) */
+        .sys-core {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 410px 1fr;
+            gap: 0.8rem;
+            padding: 0.6rem 1.2rem 0.8rem 1.2rem;
+            overflow: hidden;
+            min-height: 0;
+        }
+        .sys-core.hide-config {
+            grid-template-columns: 1fr;
+        }
+        .sys-core.hide-config #config-panel {
+            display: none;
+        }
+
+        /* Left Master Panel (Internal Scrollable) */
         .panel {
             border: 1px solid var(--border);
             background: var(--panel);
-            padding: 1.2rem;
+            padding: 1rem 0.8rem 1rem 0.8rem;
             position: relative;
+            height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+            min-height: 0;
         }
         .panel::before {
             content: attr(data-title);
             position: absolute;
-            top: -0.6rem; left: 1rem;
+            top: -0.55rem; left: 0.8rem;
             background: var(--bg);
-            padding: 0 0.5rem;
-            font-size: 0.8rem;
+            padding: 0 0.4rem;
+            font-size: 0.75rem;
             color: var(--text-dim);
             letter-spacing: 1px;
         }
+        .panel::-webkit-scrollbar { width: 4px; }
+        .panel::-webkit-scrollbar-track { background: rgba(0, 20, 0, 0.4); }
+        .panel::-webkit-scrollbar-thumb { background: var(--border); }
+        .panel::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
 
         /* Section Cards */
         .section-card {
             border: 1px solid var(--border);
             background: var(--panel-card);
-            padding: 1rem;
-            margin-bottom: 1.2rem;
+            padding: 0.8rem;
+            margin-bottom: 0.8rem;
             position: relative;
         }
         .section-card.cyan {
             border-color: var(--border-cyan);
         }
         .section-title {
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             font-weight: bold;
             color: var(--text);
             margin-top: 0;
-            margin-bottom: 0.8rem;
+            margin-bottom: 0.6rem;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.4rem;
             letter-spacing: 1px;
         }
-        .section-card.cyan .section-title {
-            color: var(--cyan);
-        }
+        .section-card.cyan .section-title { color: var(--cyan); }
 
         .form-grid {
             display: grid;
             grid-template-columns: 1fr;
-            gap: 0.9rem;
+            gap: 0.6rem;
         }
         .field { display: flex; flex-direction: column; }
         label {
-            font-size: 0.72rem;
+            font-size: 0.68rem;
             color: var(--text-dim);
-            margin-bottom: 0.25rem;
+            margin-bottom: 0.2rem;
             letter-spacing: 0.5px;
         }
-        .section-card.cyan label {
-            color: var(--cyan-dim);
-        }
+        .section-card.cyan label { color: var(--cyan-dim); }
         input, select, textarea {
             box-sizing: border-box;
             width: 100%;
-            background: rgba(0, 0, 0, 0.4);
+            background: rgba(0, 0, 0, 0.5);
             border: 1px solid var(--border);
             color: var(--text);
-            padding: 0.55rem;
+            padding: 0.45rem 0.5rem;
             font-family: inherit;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             transition: all 0.2s;
         }
-        select option {
-            background: #111111;
-            color: var(--text);
-        }
+        select option { background: #111; color: var(--text); }
         input:focus, select:focus, textarea:focus {
             outline: none;
             border-color: var(--text);
             background: rgba(0, 255, 65, 0.05);
-            box-shadow: 0 0 8px rgba(0, 255, 65, 0.2) inset;
+            box-shadow: 0 0 6px rgba(0, 255, 65, 0.2) inset;
         }
         .section-card.cyan input:focus, .section-card.cyan select:focus {
             border-color: var(--cyan);
             background: rgba(0, 229, 255, 0.05);
-            box-shadow: 0 0 8px rgba(0, 229, 255, 0.2) inset;
+            box-shadow: 0 0 6px rgba(0, 229, 255, 0.2) inset;
         }
-        
+
         /* Radio button switchers */
         .radio-switch-group {
             display: flex;
-            gap: 0.5rem;
-            margin-bottom: 0.8rem;
+            gap: 0.4rem;
+            margin-bottom: 0.6rem;
         }
         .radio-switch-item {
             flex: 1;
@@ -160,62 +192,78 @@
             align-items: center;
             justify-content: center;
             border: 1px solid var(--border);
-            padding: 0.5rem;
+            padding: 0.4rem 0.3rem;
             cursor: pointer;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             background: rgba(0, 0, 0, 0.3);
             transition: all 0.2s;
             user-select: none;
         }
-        .radio-switch-item input[type="radio"] {
-            display: none;
-        }
+        .radio-switch-item input[type="radio"] { display: none; }
         .radio-switch-item.active {
             border-color: var(--text);
             background: rgba(0, 255, 65, 0.15);
             color: var(--text);
-            box-shadow: 0 0 8px rgba(0, 255, 65, 0.3);
+            box-shadow: 0 0 6px rgba(0, 255, 65, 0.3);
         }
         .radio-switch-item.active-cyan {
             border-color: var(--cyan);
             background: rgba(0, 229, 255, 0.15);
             color: var(--cyan);
-            box-shadow: 0 0 8px rgba(0, 229, 255, 0.3);
+            box-shadow: 0 0 6px rgba(0, 229, 255, 0.3);
         }
 
-        /* Stream cards in list */
-        .streams-container {
+        /* Master Stream List (Left Panel) */
+        .master-stream-list {
             display: flex;
             flex-direction: column;
-            gap: 0.8rem;
-            margin-bottom: 0.8rem;
-        }
-        .stream-card {
-            border: 1px solid var(--border);
-            background: rgba(0, 0, 0, 0.5);
-            padding: 0.8rem;
-            position: relative;
-        }
-        .stream-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            gap: 0.35rem;
             margin-bottom: 0.6rem;
-            font-size: 0.75rem;
-            color: var(--text-dim);
-            border-bottom: 1px dashed var(--border);
-            padding-bottom: 0.4rem;
+            max-height: 180px;
+            overflow-y: auto;
         }
-        .btn-del-stream {
+        .master-stream-list::-webkit-scrollbar { width: 3px; }
+        .master-stream-list::-webkit-scrollbar-thumb { background: var(--border); }
+        .master-stream-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.4rem 0.5rem;
+            border: 1px solid var(--border);
+            background: rgba(0, 0, 0, 0.4);
+            cursor: pointer;
+            font-size: 0.72rem;
+            transition: all 0.15s;
+            user-select: none;
+        }
+        .master-stream-item:hover {
+            border-color: var(--text-dim);
+            background: rgba(0, 255, 65, 0.05);
+        }
+        .master-stream-item.active {
+            border-color: var(--text);
+            background: rgba(0, 255, 65, 0.15);
+            color: var(--text);
+            box-shadow: 0 0 6px rgba(0, 255, 65, 0.25) inset;
+        }
+        .master-stream-label {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .master-stream-del-btn {
             background: transparent;
             color: var(--danger);
             border: 1px solid var(--danger);
-            padding: 0.2rem 0.5rem;
-            font-size: 0.7rem;
+            padding: 0.1rem 0.35rem;
+            font-size: 0.65rem;
             cursor: pointer;
             font-family: inherit;
         }
-        .btn-del-stream:hover {
+        .master-stream-del-btn:hover {
             background: var(--danger);
             color: #000;
         }
@@ -224,8 +272,8 @@
             background: transparent;
             color: var(--cyan);
             border: 1px dashed var(--cyan);
-            padding: 0.6rem;
-            font-size: 0.75rem;
+            padding: 0.45rem;
+            font-size: 0.72rem;
             cursor: pointer;
             font-family: inherit;
             letter-spacing: 1px;
@@ -233,22 +281,22 @@
         }
         .btn-add-stream:hover {
             background: rgba(0, 229, 255, 0.1);
-            box-shadow: 0 0 8px rgba(0, 229, 255, 0.3);
+            box-shadow: 0 0 6px rgba(0, 229, 255, 0.3);
         }
 
-        /* Collapsible Accordion */
+        /* Collapsible Section */
         .collapsible-section {
             border: 1px solid var(--border);
             background: var(--panel-card);
-            margin-bottom: 1rem;
+            margin-bottom: 0.8rem;
         }
         .collapsible-header {
-            padding: 0.8rem 1rem;
+            padding: 0.6rem 0.8rem;
             cursor: pointer;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             font-weight: bold;
             color: var(--text-dim);
             user-select: none;
@@ -260,70 +308,144 @@
         }
         .collapsible-content {
             display: none;
-            padding: 1rem;
+            padding: 0.8rem;
             border-top: 1px solid var(--border);
         }
-        .collapsible-section.open .collapsible-content {
-            display: block;
-        }
-        .collapsible-section.open .collapsible-header {
-            color: var(--text);
-        }
+        .collapsible-section.open .collapsible-content { display: block; }
+        .collapsible-section.open .collapsible-header { color: var(--text); }
 
         .btn-exec {
-            margin-top: 1rem;
             width: 100%;
             background: transparent;
             color: var(--text);
             border: 1px solid var(--text);
-            padding: 0.9rem;
+            padding: 0.75rem;
             font-weight: bold;
             cursor: pointer;
             font-family: inherit;
             letter-spacing: 2px;
+            font-size: 0.82rem;
             transition: all 0.1s;
         }
         .btn-exec:hover {
             background: var(--text);
             color: var(--bg);
-            box-shadow: 0 0 15px rgba(0, 255, 65, 0.4);
+            box-shadow: 0 0 12px rgba(0, 255, 65, 0.4);
         }
         .btn-exec:active { transform: scale(0.98); }
-        
-        .feed-container {
-            border: 1px solid var(--border);
-            position: relative;
-            padding: 4px;
-            background: var(--panel);
+
+        /* Right Workspace (Fixed Layout: Top-Right Preview + Bottom-Right Inspector) */
+        .right-workspace {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+            overflow: hidden;
+            min-height: 0;
         }
-        .feed-header {
+        .sys-core.hide-config .right-workspace {
+            display: flex;
+            flex-direction: column;
+        }
+        .sys-core.hide-config #stream-detail-inspector {
+            display: none;
+        }
+        .sys-core.hide-config .preview-container {
+            flex: 1;
+            height: 100%;
+        }
+
+        /* Top-Right Preview Container */
+        .preview-container {
+            flex: 1;
+            min-height: 200px;
+            border: 1px solid var(--border);
+            background: var(--panel);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 4px;
+            position: relative;
+        }
+        .preview-header {
             display: flex;
             justify-content: space-between;
-            padding: 0.5rem;
-            font-size: 0.75rem;
+            align-items: center;
+            padding: 0.35rem 0.6rem;
+            font-size: 0.72rem;
             border-bottom: 1px solid var(--border);
             color: var(--text-dim);
+            flex-shrink: 0;
         }
-        .feed-header span.live { color: var(--text); animation: blink 2s infinite; }
-        .cam-feed {
-            width: 100%;
-            display: block;
-            cursor: pointer;
-        }
-        .stream-selector-bar {
+        .preview-header span.live { color: var(--text); animation: blink 2s infinite; }
+        .preview-img-wrapper {
+            flex: 1;
             display: flex;
-            gap: 0.5rem;
-            padding: 0.5rem;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            min-height: 0;
+        }
+        .cam-feed-preview {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+        .monitor-stream-bar {
+            display: none;
+            gap: 0.4rem;
+            padding: 0.4rem 0.6rem;
             border-top: 1px solid var(--border);
             flex-wrap: wrap;
+            flex-shrink: 0;
         }
+        .sys-core.hide-config .monitor-stream-bar {
+            display: flex;
+        }
+
+        /* Bottom-Right Stream Detail Inspector */
+        .detail-inspector {
+            flex: 1.1;
+            min-height: 220px;
+            border: 1px solid var(--border-cyan);
+            background: var(--panel);
+            padding: 0.8rem 1rem;
+            box-sizing: border-box;
+            position: relative;
+            overflow-y: auto;
+        }
+        .detail-inspector::before {
+            content: attr(data-title);
+            position: absolute;
+            top: -0.55rem; left: 1rem;
+            background: var(--bg);
+            padding: 0 0.4rem;
+            font-size: 0.75rem;
+            color: var(--cyan);
+            letter-spacing: 1px;
+        }
+        .detail-inspector::-webkit-scrollbar { width: 4px; }
+        .detail-inspector::-webkit-scrollbar-thumb { background: var(--border-cyan); }
+        .detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px dashed var(--border-cyan);
+            padding-bottom: 0.4rem;
+            margin-bottom: 0.6rem;
+        }
+
         .stream-btn {
             background: transparent;
             color: var(--text);
             border: 1px solid var(--border);
-            padding: 0.3rem 0.6rem;
+            padding: 0.25rem 0.5rem;
             font-family: inherit;
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             cursor: pointer;
             transition: all 0.2s;
         }
@@ -340,55 +462,37 @@
             background: rgba(0, 229, 255, 0.1);
         }
 
-        .model-status-bar {
-            display: flex;
-            align-items: center;
-            gap: 0.8rem;
-            padding: 0.6rem 1rem;
-            background: var(--panel);
-            border: 1px solid var(--border);
-            margin-bottom: 1.5rem;
-            font-size: 0.75rem;
-            flex-wrap: wrap;
-        }
-        .status-label { color: var(--text-dim); }
-        .status-value { color: var(--text); font-weight: bold; }
-        .status-sep { color: var(--border); }
-
         /* Fullscreen Modal */
         .fullscreen-modal {
             position: fixed;
             top: 0; left: 0;
             width: 100vw; height: 100vh;
-            background: rgba(5, 5, 5, 0.95);
+            background: rgba(5, 5, 5, 0.96);
             z-index: 9999;
             display: flex;
             flex-direction: column;
             box-sizing: border-box;
-            padding: 1rem;
+            padding: 0.8rem;
         }
         .modal-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             border-bottom: 1px solid var(--border);
-            padding-bottom: 0.5rem;
-            margin-bottom: 0.5rem;
-            font-size: 0.85rem;
+            padding-bottom: 0.4rem;
+            margin-bottom: 0.4rem;
+            font-size: 0.8rem;
         }
         .modal-close-btn {
             background: transparent;
             color: #ff3333;
             border: 1px solid #ff3333;
-            padding: 0.3rem 0.8rem;
+            padding: 0.25rem 0.6rem;
             font-family: inherit;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             cursor: pointer;
         }
-        .modal-close-btn:hover {
-            background: #ff3333;
-            color: #000;
-        }
+        .modal-close-btn:hover { background: #ff3333; color: #000; }
         .modal-body {
             flex: 1;
             display: flex;
@@ -411,26 +515,28 @@
     </style>
 </head>
 <body>
-    <header class="sys-header">
-        <div style="display: flex; align-items: center;">
-            <div class="blink"></div>
-            <h1>ARGUS // PREDICTOR_NANO</h1>
-        </div>
-        <button type="button" class="btn-exec" style="margin:0; width:auto; padding: 0.5rem 1rem;" onclick="document.getElementById('sys-core').classList.toggle('hide-config')">[ TOGGLE_CONFIG ]</button>
-    </header>
+    <div class="top-container">
+        <header class="sys-header">
+            <div style="display: flex; align-items: center;">
+                <div class="blink"></div>
+                <h1>ARGUS // PREDICTOR_NANO</h1>
+            </div>
+            <button type="button" class="btn-exec" style="margin:0; width:auto; padding: 0.4rem 0.8rem; font-size:0.75rem;" onclick="document.getElementById('sys-core').classList.toggle('hide-config')">[ TOGGLE_CONFIG ]</button>
+        </header>
 
-    <div class="model-status-bar" id="model-status-bar">
-        <span class="status-label">MODEL_BACKEND</span>
-        <span class="status-value" id="model-type">---</span>
-        <span class="status-sep">//</span>
-        <span class="status-label">PATH</span>
-        <span class="status-value" id="model-path">---</span>
-        <span class="status-sep">//</span>
-        <span class="status-label">CPU_CORES</span>
-        <span class="status-value" id="model-cores">---</span>
-        <span class="status-sep">//</span>
-        <button type="button" class="stream-btn" onclick="syncModels()">[ SYNC_MODELS ]</button>
-        <span class="status-value" id="sync-status">---</span>
+        <div class="model-status-bar" id="model-status-bar">
+            <span class="status-label">MODEL</span>
+            <span class="status-value" id="model-type">---</span>
+            <span class="status-sep">//</span>
+            <span class="status-label">PATH</span>
+            <span class="status-value" id="model-path">---</span>
+            <span class="status-sep">//</span>
+            <span class="status-label">CORES</span>
+            <span class="status-value" id="model-cores">---</span>
+            <span class="status-sep">//</span>
+            <button type="button" class="stream-btn" onclick="syncModels()">[ SYNC_MODELS ]</button>
+            <span class="status-value" id="sync-status">---</span>
+        </div>
     </div>
 
     <main class="sys-core" id="sys-core">
@@ -446,27 +552,28 @@
             {% endfor %}
         {% endif %}
 
+        <!-- LEFT MASTER PANEL: Global & Master Stream List -->
         <form method="POST" class="panel" id="config-panel" data-title="SYS_CONFIG_PARAMETERS" onsubmit="return prepareSubmit()">
             <input type="hidden" name="streams_json" id="streams_json">
             <input type="hidden" name="ums_model_name" id="ums_model_name">
             <input type="hidden" name="ums_model_version" id="ums_model_version">
 
-            <!-- SECTION 1: 全域推論效能 -->
+            <!-- SECTION 1: 推論效能 -->
             <div class="section-card">
                 <div class="section-title">
-                    <span>[ 01 // 推論效能參數 (INFERENCE_PERF) ]</span>
+                    <span>[ 01 // 推論效能參數 (PERFORMANCE) ]</span>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
                     <div class="field">
-                        <label>FPS 限制 (FPS_LIMIT)</label>
+                        <label>FPS 限制</label>
                         <input type="number" name="fps_limit" value="{{ config.get('fps_limit', 2) }}" min="1" max="60" required>
                     </div>
                     <div class="field">
-                        <label>CPU 核心數 (CPU_CORES)</label>
+                        <label>CPU 核心數</label>
                         <input type="number" name="cpu_cores" value="{{ config.get('cpu_cores', 4) }}" min="1" max="16" required>
                     </div>
                 </div>
-                <div class="field" style="margin-top: 0.8rem;">
+                <div class="field" style="margin-top: 0.5rem;">
                     <label>信心度門檻 (CONF_THRESHOLD)</label>
                     <input type="number" name="conf_threshold" value="{{ config.get('conf_threshold', 0.25) }}" step="0.01" min="0.01" max="1.0" required>
                 </div>
@@ -519,12 +626,12 @@
                 </div>
             </div>
 
-            <!-- SECTION 3: 運作模式與來源配置 -->
+            <!-- SECTION 3: 運作模式與串流主清單 (Master List) -->
             <div class="section-card">
                 <div class="section-title">
-                    <span>[ 03 // 運作模式與來源配置 (OPERATION_MODE) ]</span>
+                    <span>[ 03 // 運作模式與串流清單 (MODE_&_STREAMS) ]</span>
                 </div>
-                <div class="field" style="margin-bottom: 0.8rem;">
+                <div class="field" style="margin-bottom: 0.6rem;">
                     <label>運作模式 (MODE)</label>
                     <select name="mode" id="mode-select" onchange="onModeChange()">
                         <option value="rtsp" {% if config.get('mode', 'rtsp') == 'rtsp' %}selected{% endif %}>RTSP 多路模式 (MULTI_STREAM)</option>
@@ -532,20 +639,20 @@
                     </select>
                 </div>
 
-                <!-- RTSP Streams Section -->
-                <div id="streams-section">
-                    <label>RTSP 串流清單 (STREAMS)</label>
-                    <div class="streams-container" id="streams-container">
-                        <!-- Dynamic stream cards inserted here -->
+                <!-- RTSP Master Streams List -->
+                <div id="streams-master-section">
+                    <label>攝影機串流清單 (點選切換右側編輯)</label>
+                    <div class="master-stream-list" id="master-stream-list">
+                        <!-- Dynamic master items inserted here -->
                     </div>
-                    <button type="button" class="btn-add-stream" onclick="addStreamCard()">+ 新增串流 ADD_STREAM</button>
+                    <button type="button" class="btn-add-stream" onclick="addMasterStream()">+ 新增串流 ADD_STREAM</button>
                 </div>
 
                 <!-- Video Mode Section -->
-                <div id="video-section" style="display: none;">
+                <div id="video-master-section" style="display: none;">
                     <div class="field">
                         <label>影片檔案路徑 (VIDEO_PATH)</label>
-                        <input type="text" name="video_path" id="input_video_path" value="{{ config.get('video_path', '') }}" placeholder="D:\path\to\video.avi">
+                        <input type="text" name="video_path" id="input_video_path" value="{{ config.get('video_path', '') }}" placeholder="D:\path\to\video.avi" oninput="onVideoPathChange(this.value)">
                     </div>
                 </div>
             </div>
@@ -558,49 +665,49 @@
                 </div>
                 <div class="collapsible-content">
                     <!-- UMS API Settings -->
-                    <div style="border-bottom: 1px dashed var(--border); padding-bottom: 0.8rem; margin-bottom: 0.8rem;">
-                        <span style="font-size: 0.75rem; color: var(--cyan); font-weight: bold;">// UMS API 連線設定</span>
-                        <div class="form-grid" style="margin-top: 0.5rem;">
+                    <div style="border-bottom: 1px dashed var(--border); padding-bottom: 0.6rem; margin-bottom: 0.6rem;">
+                        <span style="font-size: 0.72rem; color: var(--cyan); font-weight: bold;">// UMS API 連線設定</span>
+                        <div class="form-grid" style="margin-top: 0.4rem;">
                             <div class="field">
                                 <label>UMS BASE URL</label>
                                 <input type="text" name="ums_base_url" id="ums_base_url" value="{{ config.get('ums_base_url', 'http://tncimweb.cminl.oa/umsapiproxy/fab4ums') }}">
                             </div>
                             <div class="field">
                                 <label>UMS API KEY</label>
-                                <div style="display: flex; gap: 0.5rem;">
+                                <div style="display: flex; gap: 0.4rem;">
                                     <input type="password" name="ums_api_key" id="ums_api_key" value="{{ config.get('ums_api_key', '') }}" placeholder="ums_xxx">
-                                    <button type="button" class="stream-btn" style="width: auto; padding: 0 0.6rem;" onclick="toggleApiKeyVisibility()">顯示</button>
+                                    <button type="button" class="stream-btn" style="width: auto; padding: 0 0.5rem;" onclick="toggleApiKeyVisibility()">顯示</button>
                                 </div>
                             </div>
-                            <div style="display: flex; align-items: center; gap: 0.8rem;">
-                                <button type="button" class="stream-btn cyan" onclick="testUmsConnection()">[ 測試連線 TEST_CONNECTION ]</button>
-                                <span id="ums-test-status" style="font-size: 0.75rem;"></span>
+                            <div style="display: flex; align-items: center; gap: 0.6rem;">
+                                <button type="button" class="stream-btn cyan" onclick="testUmsConnection()">[ 測試連線 ]</button>
+                                <span id="ums-test-status" style="font-size: 0.7rem;"></span>
                             </div>
                         </div>
                     </div>
 
                     <!-- Heartbeat Settings -->
-                    <div style="border-bottom: 1px dashed var(--border); padding-bottom: 0.8rem; margin-bottom: 0.8rem;">
+                    <div style="border-bottom: 1px dashed var(--border); padding-bottom: 0.6rem; margin-bottom: 0.6rem;">
                         {% set hb = config.get('heartbeat', {}) %}
-                        <span style="font-size: 0.75rem; color: var(--text); font-weight: bold;">// HEARTBEAT 心跳回報代理</span>
-                        <div class="form-grid" style="margin-top: 0.5rem;">
+                        <span style="font-size: 0.72rem; color: var(--text); font-weight: bold;">// HEARTBEAT 心跳回報代理</span>
+                        <div class="form-grid" style="margin-top: 0.4rem;">
                             <div class="field">
-                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer;">
                                     <input type="checkbox" name="heartbeat_enabled" value="true" style="width: auto;" {% if hb.get('enabled', true) %}checked{% endif %}>
                                     啟用心跳服務 (ENABLED)
                                 </label>
                             </div>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
                                 <div class="field">
                                     <label>AGENT PORT</label>
                                     <input type="number" name="heartbeat_agent_port" value="{{ hb.get('agent_port', 8080) }}">
                                 </div>
                                 <div class="field">
-                                    <label>間隔秒數 (INTERVAL_SEC)</label>
+                                    <label>間隔秒數 (SEC)</label>
                                     <input type="number" name="heartbeat_interval_seconds" value="{{ hb.get('interval_seconds', 60) }}">
                                 </div>
                             </div>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
                                 <div class="field">
                                     <label>AP NAME</label>
                                     <input type="text" name="heartbeat_ap_name" value="{{ hb.get('ap_name', 'SafetyNano') }}">
@@ -615,11 +722,11 @@
 
                     <!-- Events and Logging -->
                     <div>
-                        <span style="font-size: 0.75rem; color: var(--text); font-weight: bold;">// 事件與日誌記錄 (EVENTS_&_LOGS)</span>
-                        <div class="form-grid" style="margin-top: 0.5rem;">
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem;">
+                        <span style="font-size: 0.72rem; color: var(--text); font-weight: bold;">// 事件與日誌記錄</span>
+                        <div class="form-grid" style="margin-top: 0.4rem;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
                                 <div class="field">
-                                    <label>事件消失容忍幀數</label>
+                                    <label>消失容忍幀數</label>
                                     <input type="number" name="event_absence_tolerance" value="{{ config.get('event_absence_tolerance', 2) }}" min="1" max="30">
                                 </div>
                                 <div class="field">
@@ -628,11 +735,11 @@
                                 </div>
                             </div>
                             <div class="field">
-                                <label>效能日誌 (LOG_FILE)</label>
+                                <label>效能日誌檔名</label>
                                 <input type="text" name="log_file" value="{{ config.get('log_file', 'performance.log') }}">
                             </div>
                             <div class="field">
-                                <label>偵測日誌 (DETECTION_LOG)</label>
+                                <label>偵測日誌檔名</label>
                                 <input type="text" name="detection_log_file" value="{{ config.get('detection_log_file', 'detections.log') }}">
                             </div>
                         </div>
@@ -643,21 +750,68 @@
             <button type="submit" class="btn-exec">[ EXECUTE_UPDATE ]</button>
         </form>
 
-        <aside class="feed-container">
-            <div class="feed-header">
-                <span>SIGNAL: DETECT_LINK_OK</span>
-                <span class="live">● LIVE_INFERENCE</span>
+        <!-- RIGHT WORKSPACE: Top Preview + Bottom Detail Inspector -->
+        <div class="right-workspace" id="right-workspace">
+            <!-- Top-Right Preview Widget -->
+            <div class="preview-container">
+                <div class="preview-header">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span id="preview-stream-title">● STREAM #0 [大門入口]</span>
+                        <span class="live">● LIVE_FEED</span>
+                    </div>
+                    <button type="button" class="stream-btn cyan" onclick="openDetailFullscreen()">[ 全螢幕檢視 FULLSCREEN ↗ ]</button>
+                </div>
+                <div class="preview-img-wrapper" onclick="openDetailFullscreen()">
+                    <img id="preview-cam-img" src="/video_feed/0" class="cam-feed-preview" alt="Camera Feed">
+                </div>
+                <!-- Monitor Mode Stream Selector Bar (Shown only in hide-config) -->
+                <div class="monitor-stream-bar" id="monitor-stream-bar">
+                    {% for idx in range(urls|length) %}
+                        <button type="button" class="stream-btn" onclick="selectStream({{ idx }})">[ STREAM #{{ idx }} ]</button>
+                    {% endfor %}
+                </div>
             </div>
-            <img src="/video_feed" class="cam-feed" alt="Video Feed" onclick="openFullscreen(0)">
-            <div class="stream-selector-bar">
-                {% for idx in range(urls|length) %}
-                    <button type="button" class="stream-btn" onclick="openFullscreen({{ idx }})">[ STREAM #{{ idx }} ]</button>
-                {% endfor %}
+
+            <!-- Bottom-Right Stream Detail Inspector -->
+            <div class="detail-inspector" id="stream-detail-inspector" data-title="STREAM_DETAIL_INSPECTOR">
+                <div class="detail-header">
+                    <div style="display: flex; align-items: center; gap: 0.6rem;">
+                        <span id="detail-stream-badge" style="font-weight: bold; color: var(--cyan); font-size: 0.82rem;">STREAM #0 // SPEC_&_SETTINGS</span>
+                        <span id="detail-zone-status" style="color: #888; font-size: 0.72rem;">[ ROI: INACTIVE ]</span>
+                    </div>
+                    <button type="button" class="stream-btn cyan" onclick="openDetailFullscreen()">[ 全螢幕 / 編輯 ROI 區域 ]</button>
+                </div>
+
+                <div class="form-grid">
+                    <div class="field">
+                        <label>串流 URL (RTSP / HTTP / 來源)</label>
+                        <input type="text" id="detail-input-url" placeholder="rtsp://127.0.0.1:8554/stream1" oninput="onDetailFieldChange('url', this.value)" required>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
+                        <div class="field">
+                            <label>畫面標籤 (LABEL)</label>
+                            <input type="text" id="detail-input-label" placeholder="大門入口 (選填)" oninput="onDetailFieldChange('label', this.value)">
+                        </div>
+                        <div class="field">
+                            <label>鏡頭識別碼 (CAMERA_ID)</label>
+                            <input type="text" id="detail-input-camid" placeholder="cam-01 (選填)" oninput="onDetailFieldChange('camera_id', this.value)">
+                        </div>
+                    </div>
+                    <div class="field" style="margin-top: 0.2rem;">
+                        <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer;">
+                            <input type="checkbox" id="detail-override-toggle" onchange="onDetailOverrideToggle(this.checked)" style="width:auto;">
+                            自訂獨立模型 (OVERRIDE_MODEL)
+                        </label>
+                        <div id="detail-override-box" style="display: none; margin-top: 0.3rem;">
+                            <input type="text" id="detail-input-model" placeholder="custom_model.onnx / custom.pt" oninput="onDetailFieldChange('model', this.value)">
+                        </div>
+                    </div>
+                </div>
             </div>
-        </aside>
+        </div>
     </main>
 
-    <!-- Fullscreen Modal Overlay -->
+    <!-- Fullscreen Modal Overlay (Preserved ROI Canvas & SSE) -->
     <div id="fullscreen-modal" class="fullscreen-modal" style="display:none;" onclick="closeFullscreenOnBackdrop(event)">
         <div class="modal-header">
             <div style="display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap;">
@@ -693,6 +847,8 @@
         const CONFIG_VIDEO_PATH = {{ config.get('video_path', '') | tojson }};
 
         let umsProjectsData = [];
+        let streamsList = [];
+        let selectedStreamIndex = 0;
 
         function refreshModelInfo() {
             fetch('/model_info')
@@ -734,7 +890,6 @@
                 });
         }
 
-        // Accordion toggle
         function toggleAdvancedSection() {
             const sec = document.getElementById('advanced-section');
             const icon = document.getElementById('advanced-toggle-icon');
@@ -750,15 +905,26 @@
         // Mode Switching
         function onModeChange() {
             const mode = document.getElementById('mode-select').value;
-            const streamsSec = document.getElementById('streams-section');
-            const videoSec = document.getElementById('video-section');
+            const streamsMasterSec = document.getElementById('streams-master-section');
+            const videoMasterSec = document.getElementById('video-master-section');
+            const detailInspector = document.getElementById('stream-detail-inspector');
+
             if (mode === 'video') {
-                streamsSec.style.display = 'none';
-                videoSec.style.display = 'block';
+                streamsMasterSec.style.display = 'none';
+                videoMasterSec.style.display = 'block';
+                document.getElementById('preview-stream-title').textContent = '● VIDEO_FILE_FEED';
+                document.getElementById('preview-cam-img').src = '/video_feed?t=' + Date.now();
+                detailInspector.style.display = 'none';
             } else {
-                streamsSec.style.display = 'block';
-                videoSec.style.display = 'none';
+                streamsMasterSec.style.display = 'block';
+                videoMasterSec.style.display = 'none';
+                detailInspector.style.display = 'block';
+                selectStream(selectedStreamIndex);
             }
+        }
+
+        function onVideoPathChange(val) {
+            // update video mode
         }
 
         // Model Source Switching
@@ -936,96 +1102,172 @@
             });
         }
 
-        // Dynamic Stream Cards
-        function renderStreamCards() {
-            const container = document.getElementById('streams-container');
-            container.innerHTML = '';
-
-            let streamList = [];
+        // ── Master-Detail Stream List Interaction Engine ──
+        function initMasterDetailStreams() {
             if (Array.isArray(CONFIG_INITIAL_STREAMS) && CONFIG_INITIAL_STREAMS.length > 0) {
-                streamList = CONFIG_INITIAL_STREAMS;
+                streamsList = CONFIG_INITIAL_STREAMS.map(s => {
+                    if (typeof s === 'string') return { url: s, label: '', camera_id: '' };
+                    return { ...s };
+                });
             } else {
-                streamList = [{url: ''}];
+                streamsList = [{ url: '', label: '', camera_id: '' }];
             }
+            renderMasterStreamList();
+            selectStream(0);
+        }
 
-            streamList.forEach((s, idx) => {
-                addStreamCard(s);
+        function renderMasterStreamList() {
+            const listEl = document.getElementById('master-stream-list');
+            const monitorBar = document.getElementById('monitor-stream-bar');
+            listEl.innerHTML = '';
+            monitorBar.innerHTML = '';
+
+            streamsList.forEach((s, idx) => {
+                const displayName = s.label ? `${s.label}` : (s.url ? s.url.replace(/^rtsp:\/\//, '') : '未命名串流');
+                const isSelected = (idx === selectedStreamIndex);
+
+                // Master List Item (Left)
+                const item = document.createElement('div');
+                item.className = 'master-stream-item' + (isSelected ? ' active' : '');
+                item.onclick = () => selectStream(idx);
+
+                item.innerHTML = `
+                    <div class="master-stream-label" title="${escapeHtml(s.url || '')}">
+                        <span style="color: ${isSelected ? 'var(--text)' : 'var(--text-dim)'}; font-weight:bold;">#${idx}</span>
+                        <span id="master-stream-name-${idx}">${escapeHtml(displayName)}</span>
+                    </div>
+                    <button type="button" class="master-stream-del-btn" onclick="deleteMasterStream(event, ${idx})">[ ✕ ]</button>
+                `;
+                listEl.appendChild(item);
+
+                // Monitor Bar Button (Shown when config hidden)
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'stream-btn' + (isSelected ? ' cyan' : '');
+                btn.textContent = `[ STREAM #${idx} ]`;
+                btn.onclick = () => selectStream(idx);
+                monitorBar.appendChild(btn);
             });
         }
 
-        function addStreamCard(streamData) {
-            const data = (typeof streamData === 'object' && streamData !== null) ? streamData : {url: streamData || ''};
-            const container = document.getElementById('streams-container');
-            const idx = container.children.length;
+        function selectStream(idx) {
+            if (idx < 0 || idx >= streamsList.length) {
+                idx = 0;
+            }
+            selectedStreamIndex = idx;
+            const currentItem = streamsList[idx] || { url: '', label: '', camera_id: '' };
 
-            const card = document.createElement('div');
-            card.className = 'stream-card';
-            card.dataset.index = idx;
+            // Update Master List active styling
+            const items = document.querySelectorAll('.master-stream-item');
+            items.forEach((it, i) => {
+                it.className = 'master-stream-item' + (i === idx ? ' active' : '');
+            });
 
-            const url = data.url || '';
-            const label = data.label || '';
-            const camId = data.camera_id || '';
-            const customModel = data.model || '';
+            // Update Top-Right Preview Widget
+            const titleEl = document.getElementById('preview-stream-title');
+            const previewImg = document.getElementById('preview-cam-img');
+            const labelText = currentItem.label ? `[${currentItem.label}]` : '';
+            titleEl.textContent = `● STREAM #${idx} ${labelText}`;
+            previewImg.src = `/video_feed/${idx}?t=` + Date.now();
 
-            card.innerHTML = `
-                <div class="stream-card-header">
-                    <span class="stream-card-title">STREAM #${idx}</span>
-                    <button type="button" class="btn-del-stream" onclick="removeStreamCard(this)">[ ✕ 刪除 ]</button>
-                </div>
-                <div class="form-grid">
-                    <div class="field">
-                        <label>串流 URL (RTSP / HTTP)</label>
-                        <input type="text" class="stream-input-url" value="${escapeHtml(url)}" placeholder="rtsp://127.0.0.1:8554/stream1" required>
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
-                        <div class="field">
-                            <label>畫面標籤 (LABEL)</label>
-                            <input type="text" class="stream-input-label" value="${escapeHtml(label)}" placeholder="大門入口 (選填)">
-                        </div>
-                        <div class="field">
-                            <label>鏡頭代碼 (CAMERA_ID)</label>
-                            <input type="text" class="stream-input-camid" value="${escapeHtml(camId)}" placeholder="cam-01 (選填)">
-                        </div>
-                    </div>
-                    <div class="field">
-                        <label style="display:flex; align-items:center; gap:0.4rem;">
-                            <input type="checkbox" class="stream-override-toggle" onchange="toggleStreamOverride(this)" ${customModel ? 'checked' : ''} style="width:auto;">
-                            自訂獨立模型 (OVERRIDE_MODEL)
-                        </label>
-                        <div class="stream-override-box" style="display: ${customModel ? 'block' : 'none'}; margin-top: 0.3rem;">
-                            <input type="text" class="stream-input-model" value="${escapeHtml(customModel)}" placeholder="custom_model.onnx">
-                        </div>
-                    </div>
-                </div>
-            `;
-            container.appendChild(card);
-            updateStreamCardIndices();
+            // Update Bottom-Right Detail Inspector
+            document.getElementById('detail-stream-badge').textContent = `STREAM #${idx} // SPEC_&_SETTINGS`;
+            document.getElementById('detail-input-url').value = currentItem.url || '';
+            document.getElementById('detail-input-label').value = currentItem.label || '';
+            document.getElementById('detail-input-camid').value = currentItem.camera_id || '';
+
+            const hasCustomModel = !!(currentItem.model && currentItem.model.trim());
+            document.getElementById('detail-override-toggle').checked = hasCustomModel;
+            document.getElementById('detail-override-box').style.display = hasCustomModel ? 'block' : 'none';
+            document.getElementById('detail-input-model').value = currentItem.model || '';
+
+            // Update ROI status badge for this stream
+            loadDetailStreamZone(currentItem.url);
         }
 
-        function removeStreamCard(btn) {
-            const card = btn.closest('.stream-card');
-            const container = document.getElementById('streams-container');
-            if (container.children.length <= 1) {
+        function onDetailFieldChange(field, val) {
+            if (!streamsList[selectedStreamIndex]) return;
+            streamsList[selectedStreamIndex][field] = val;
+
+            // Update master item label text instantly
+            const nameEl = document.getElementById(`master-stream-name-${selectedStreamIndex}`);
+            if (nameEl) {
+                const s = streamsList[selectedStreamIndex];
+                const displayName = s.label ? `${s.label}` : (s.url ? s.url.replace(/^rtsp:\/\//, '') : '未命名串流');
+                nameEl.textContent = displayName;
+            }
+
+            if (field === 'label') {
+                const titleEl = document.getElementById('preview-stream-title');
+                const labelText = val ? `[${val}]` : '';
+                titleEl.textContent = `● STREAM #${selectedStreamIndex} ${labelText}`;
+            }
+
+            if (field === 'url') {
+                loadDetailStreamZone(val);
+            }
+        }
+
+        function onDetailOverrideToggle(checked) {
+            document.getElementById('detail-override-box').style.display = checked ? 'block' : 'none';
+            if (!checked) {
+                onDetailFieldChange('model', '');
+                document.getElementById('detail-input-model').value = '';
+            } else {
+                const val = document.getElementById('detail-input-model').value.trim();
+                onDetailFieldChange('model', val);
+            }
+        }
+
+        function addMasterStream() {
+            streamsList.push({ url: '', label: '', camera_id: '', model: '' });
+            renderMasterStreamList();
+            selectStream(streamsList.length - 1);
+            document.getElementById('detail-input-url').focus();
+        }
+
+        function deleteMasterStream(event, idx) {
+            if (event) event.stopPropagation();
+            if (streamsList.length <= 1) {
                 alert('至少需保留一組串流設定');
                 return;
             }
-            card.remove();
-            updateStreamCardIndices();
+            streamsList.splice(idx, 1);
+            if (selectedStreamIndex >= streamsList.length) {
+                selectedStreamIndex = streamsList.length - 1;
+            }
+            renderMasterStreamList();
+            selectStream(selectedStreamIndex);
         }
 
-        function toggleStreamOverride(checkbox) {
-            const card = checkbox.closest('.stream-card');
-            const box = card.querySelector('.stream-override-box');
-            box.style.display = checkbox.checked ? 'block' : 'none';
+        function openDetailFullscreen() {
+            openFullscreen(selectedStreamIndex);
         }
 
-        function updateStreamCardIndices() {
-            const container = document.getElementById('streams-container');
-            Array.from(container.children).forEach((card, i) => {
-                card.dataset.index = i;
-                const title = card.querySelector('.stream-card-title');
-                if (title) title.textContent = `STREAM #${i}`;
-            });
+        function loadDetailStreamZone(url) {
+            const badge = document.getElementById('detail-zone-status');
+            if (!badge) return;
+            if (!url) {
+                badge.textContent = '[ ROI: INACTIVE ]';
+                badge.style.color = '#888';
+                return;
+            }
+            fetch('/zone/' + encodeURIComponent(url))
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.polygon && data.polygon.length >= 3) {
+                        const name = data.zone_name ? ` (${data.zone_name})` : '';
+                        badge.textContent = `[ ROI: ACTIVE${name} ]`;
+                        badge.style.color = '#00e5ff';
+                    } else {
+                        badge.textContent = '[ ROI: INACTIVE ]';
+                        badge.style.color = '#888';
+                    }
+                })
+                .catch(() => {
+                    badge.textContent = '[ ROI: INACTIVE ]';
+                    badge.style.color = '#888';
+                });
         }
 
         function escapeHtml(str) {
@@ -1035,26 +1277,14 @@
 
         function prepareSubmit() {
             const mode = document.getElementById('mode-select').value;
-            const container = document.getElementById('streams-container');
-            const streams = [];
-
-            Array.from(container.children).forEach(card => {
-                const url = card.querySelector('.stream-input-url').value.trim();
-                const label = card.querySelector('.stream-input-label').value.trim();
-                const camId = card.querySelector('.stream-input-camid').value.trim();
-                const overrideToggle = card.querySelector('.stream-override-toggle').checked;
-                const model = overrideToggle ? card.querySelector('.stream-input-model').value.trim() : '';
-
-                if (url) {
-                    const item = {url: url};
-                    if (label) item.label = label;
-                    if (camId) item.camera_id = camId;
-                    if (model) item.model = model;
-                    streams.push(item);
+            if (mode === 'rtsp') {
+                const validStreams = streamsList.filter(s => s && s.url && s.url.trim());
+                if (validStreams.length === 0) {
+                    alert('請至少填寫一組有效的 RTSP 串流 URL');
+                    return false;
                 }
-            });
-
-            document.getElementById('streams_json').value = JSON.stringify(streams);
+                document.getElementById('streams_json').value = JSON.stringify(validStreams);
+            }
 
             const isUms = document.getElementById('radio-source-ums').checked;
             if (isUms) {
@@ -1068,9 +1298,9 @@
             return true;
         }
 
-        // Initialization
+        // Initialization on DOMContentLoaded
         window.addEventListener('DOMContentLoaded', () => {
-            renderStreamCards();
+            initMasterDetailStreams();
             onModeChange();
 
             if (CONFIG_INITIAL_UMS_MODEL && CONFIG_INITIAL_UMS_MODEL.name) {
@@ -1081,7 +1311,7 @@
             }
         });
 
-        // ── Fullscreen & ROI & SSE Logic ──
+        // ── Fullscreen ROI & Canvas Logic ──
         let activeStreamIndex = null;
         let activeStreamUrl = null;
         let eventSource = null;
@@ -1103,6 +1333,9 @@
             }
             if (CONFIG_MODE === 'video') {
                 return CONFIG_VIDEO_PATH;
+            }
+            if (Array.isArray(streamsList) && idx >= 0 && idx < streamsList.length && streamsList[idx].url) {
+                return streamsList[idx].url;
             }
             if (Array.isArray(CONFIG_STREAMS) && idx >= 0 && idx < CONFIG_STREAMS.length) {
                 return CONFIG_STREAMS[idx];
@@ -1216,6 +1449,10 @@
                 const ctx = canvas.getContext('2d');
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
             }
+            // refresh right detail inspector zone status
+            if (streamsList[selectedStreamIndex]) {
+                loadDetailStreamZone(streamsList[selectedStreamIndex].url);
+            }
         }
 
         function closeFullscreenOnBackdrop(event) {
@@ -1286,6 +1523,9 @@
             .then(data => {
                 currentSavedZone = (data && data.zone && data.zone.polygon && data.zone.polygon.length >= 3) ? data.zone : null;
                 exitZoneEditMode();
+                if (streamsList[selectedStreamIndex]) {
+                    loadDetailStreamZone(streamsList[selectedStreamIndex].url);
+                }
             })
             .catch(err => {
                 console.error('Error saving zone:', err);
@@ -1452,7 +1692,6 @@
                     const w = (coords[2] - coords[0]) * scaleX;
                     const h = (coords[3] - coords[1]) * scaleY;
 
-                    // Set line style for stale / sampled indicator
                     if (isStale) {
                         ctx.setLineDash([5, 5]);
                         ctx.strokeStyle = 'rgba(0, 255, 65, 0.75)';
@@ -1465,7 +1704,6 @@
 
                     ctx.setLineDash([]);
 
-                    // Draw label
                     const tag = isStale ? ' [SAMPLED]' : '';
                     const labelText = `Class ${det.cls} (${(det.conf * 100).toFixed(0)}%)${tag}`;
                     ctx.font = '13px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace';
