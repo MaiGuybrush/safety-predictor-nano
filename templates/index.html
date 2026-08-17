@@ -1219,7 +1219,16 @@
             streamsList.push({ url: '', label: '', camera_id: '', model: '' });
             renderMasterStreamList();
             selectStream(streamsList.length - 1);
-            document.getElementById('detail-input-url').focus();
+
+            const listEl = document.getElementById('master-stream-list');
+            if (listEl) {
+                listEl.scrollTo({ top: listEl.scrollHeight, behavior: 'smooth' });
+            }
+
+            const urlInput = document.getElementById('detail-input-url');
+            if (urlInput) {
+                urlInput.focus();
+            }
         }
 
         function deleteMasterStream(event, idx) {
