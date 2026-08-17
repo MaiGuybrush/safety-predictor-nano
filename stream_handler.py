@@ -28,8 +28,9 @@ class StreamHandler:
         加大 buffer 可防止高位元率 IDR frame（單幀可達 500KB+）截斷，
         避免 'corrupted macroblock' / 'Invalid level prefix' 解碼錯誤。
         """
+        delimiter = "&" if "?" in self.rtsp_url else "?"
         cap = cv2.VideoCapture(
-            self.rtsp_url + "?buffer_size=4194304",
+            f"{self.rtsp_url}{delimiter}buffer_size=4194304",
             cv2.CAP_FFMPEG
         )
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 3)  # OpenCV 內部幀佇列
@@ -37,36 +38,39 @@ class StreamHandler:
 
     def _capture_frames(self):
         cap = self._open_capture()
-        
         fail_count = 0
-        while self.running:
-            if not cap.isOpened():
-                time.sleep(2)
-                cap = self._open_capture()  # 重連時保持相同 buffer 設定
-                continue
-
-            ret, frame = cap.read()
-            if not ret:
-                fail_count += 1
-                if fail_count > 10:  # 失敗超過 10 次，嘗試重新連線
+        try:
+            while self.running:
+                if not cap.isOpened():
                     cap.release()
-                    time.sleep(1)
-                    fail_count = 0
-                time.sleep(0.5)
-                continue
-            
-            fail_count = 0
-            
-            # 更新 queue，只保留最新的一幀
-            if self.frame_queue.full():
-                try:
-                    self.frame_queue.get_nowait()
-                except queue.Empty:
-                    pass
-            self.frame_queue.put(frame)
-            time.sleep(0.001)
-        
-        cap.release()
+                    time.sleep(2)
+                    if not self.running:
+                        break
+                    cap = self._open_capture()  # 重連時保持相同 buffer 設定
+                    continue
+
+                ret, frame = cap.read()
+                if not ret:
+                    fail_count += 1
+                    if fail_count > 10:  # 失敗超過 10 次，嘗試重新連線
+                        cap.release()
+                        time.sleep(1)
+                        fail_count = 0
+                    time.sleep(0.5)
+                    continue
+                
+                fail_count = 0
+                
+                # 更新 queue，只保留最新的一幀
+                if self.frame_queue.full():
+                    try:
+                        self.frame_queue.get_nowait()
+                    except queue.Empty:
+                        pass
+                self.frame_queue.put(frame)
+                time.sleep(0.001)
+        finally:
+            cap.release()
 
     def get_latest_frame(self):
         try:

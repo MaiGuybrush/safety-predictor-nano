@@ -47,5 +47,30 @@ class TestEngineCache(unittest.TestCase):
         self.assertEqual(mock_engine_cls.call_count, 1) # Still 1!
         self.assertEqual(units2[0]["engine"], engine_a)
 
+    @patch("main.StreamHandler")
+    @patch("main.InferenceEngine")
+    def test_engine_cache_tuple_key_model_info_formatting(self, mock_engine_cls, mock_stream_cls):
+        import web_ui
+        from main import build_stream_units, update_rtsp_model_info
+
+        engine_a = MagicMock()
+        engine_a.model_type = "ONNX"
+        engine_a.num_threads = 4
+        mock_engine_cls.return_value = engine_a
+
+        stream_configs = [
+            {"url": "rtsp://cam1", "model": "models/model1.onnx", "model_format": "auto", "label": "Cam1"},
+            {"url": "rtsp://cam2", "model": "models/model2.pt", "model_format": "pt", "label": "Cam2"}
+        ]
+        units, cache = build_stream_units(stream_configs, cpu_cores=4, fps_limit=5)
+        self.assertIn(("models/model1.onnx", "auto"), cache)
+        self.assertIn(("models/model2.pt", "pt"), cache)
+
+        # Call production helper update_rtsp_model_info
+        update_rtsp_model_info(units, cache, cpu_cores=4)
+        self.assertEqual(web_ui.MODEL_INFO["path"], "models/model1.onnx, models/model2.pt")
+        self.assertEqual(web_ui.MODEL_INFO["type"], "ONNX")
+
+
 if __name__ == "__main__":
     unittest.main()

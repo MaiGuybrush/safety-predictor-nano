@@ -224,6 +224,18 @@ def build_stream_units(stream_configs, cpu_cores=4, fps_limit=5, existing_engine
         
     return stream_units, new_engine_cache
 
+def update_rtsp_model_info(stream_units, engine_cache, cpu_cores):
+    """更新 Web UI 的全域 MODEL_INFO，支援 tuple cache key (model_path, model_format) 解構。"""
+    if not stream_units:
+        return
+    first_engine = stream_units[0]["engine"]
+    model_paths = [k[0] if isinstance(k, tuple) else k for k in engine_cache.keys()]
+    web_ui.MODEL_INFO = {
+        "type": first_engine.model_type,
+        "path": ", ".join(list(dict.fromkeys(model_paths))),
+        "cpu_cores": cpu_cores
+    }
+
 def initialize_runtime(config_mgr):
     """開機時執行一次 UMS 模型同步（失敗不中止，沿用舊 model_path/streams[].model），
     再依（可能已被同步寫回更新的）config 建立初始執行環境。"""
@@ -250,14 +262,7 @@ def initialize_runtime(config_mgr):
         stream_configs = config_mgr.get_stream_configs()
         stream_units, engine_cache = build_stream_units(stream_configs, cpu_cores, fps_limit)
         web_ui.STREAM_UNITS = stream_units
-        if stream_units:
-            first_engine = stream_units[0]["engine"]
-            model_paths = [k[0] if isinstance(k, tuple) else k for k in engine_cache.keys()]
-            web_ui.MODEL_INFO = {
-                "type": first_engine.model_type,
-                "path": ", ".join(list(dict.fromkeys(model_paths))),
-                "cpu_cores": cpu_cores
-            }
+        update_rtsp_model_info(stream_units, engine_cache, cpu_cores)
     elif mode == 'video':
         video_path = config.get("video_path", "")
         if video_path:
@@ -373,13 +378,7 @@ def main():
                         stream_configs, cpu_cores, fps_limit, existing_engine_cache=engine_cache
                     )
                     web_ui.STREAM_UNITS = stream_units
-                    if stream_units:
-                        first_engine = stream_units[0]["engine"]
-                        web_ui.MODEL_INFO = {
-                            "type": first_engine.model_type,
-                            "path": ", ".join(list(engine_cache.keys())),
-                            "cpu_cores": cpu_cores
-                        }
+                    update_rtsp_model_info(stream_units, engine_cache, cpu_cores)
                 elif mode == 'video':
                     video_path = new_config.get("video_path", "")
                     if video_path:
