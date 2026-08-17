@@ -32,16 +32,54 @@ def _select_version(model_info, version):
 
 
 def _land_artifact(downloaded_path, model_name):
-    """依 Artifact 格式判斷規則落地成 InferenceEngine 認得的路徑。"""
+    """依 Artifact 格式判斷規則落地成 InferenceEngine 認得的路徑。
+
+    智慧優先順序：
+    1. 若為資料夾：
+       a. 搜尋 ONNX (*.onnx, 如 best.onnx) -> 回傳具體檔案路徑 (CPU/Edge 效能最佳)
+       b. 搜尋 PyTorch (*.pt, 如 best.pt) -> 回傳具體檔案路徑
+       c. 搜尋 NCNN 目錄 (含 model.ncnn.param / *.ncnn.bin) -> 回傳資料夾路徑
+       d. 搜尋 model.bin -> 更名為 <model_name>.pt 並回傳
+       e. fallback -> 回傳資料夾路徑
+    2. 若為單一檔案：
+       a. 若副檔名為 .pt 或 .onnx -> 原樣回傳
+       b. 其他副檔名（如 model.bin）-> 更名為 <model_name>.pt 並回傳
+    """
     path = Path(downloaded_path)
     if path.is_dir():
+        # 1. Check for ONNX
+        onnx_files = sorted(path.glob("*.onnx"))
+        if onnx_files:
+            for f in onnx_files:
+                if f.name.lower() == "best.onnx":
+                    return str(f)
+            return str(onnx_files[0])
+
+        # 2. Check for PyTorch (.pt)
+        pt_files = sorted(path.glob("*.pt"))
+        if pt_files:
+            for f in pt_files:
+                if f.name.lower() == "best.pt":
+                    return str(f)
+            return str(pt_files[0])
+
+        # 3. Check for NCNN
+        if (path / "model.ncnn.param").exists() or list(path.glob("*.ncnn.param")) or list(path.glob("*.ncnn.bin")):
+            return str(path)
+
+        # 4. Check for model.bin inside folder
+        bin_file = path / "model.bin"
+        if bin_file.exists():
+            renamed = path / f"{model_name}.pt"
+            bin_file.replace(renamed)
+            return str(renamed)
+
         return str(path)
-    if path.suffix == ".pt":
+
+    if path.suffix.lower() in (".pt", ".onnx"):
         return str(path)
+
     renamed = path.with_name(f"{model_name}.pt")
-    # Path.rename() raises FileExistsError on Windows if renamed already
-    # exists (e.g. a prior sync of the same model/version). replace()
-    # overwrites atomically on every platform, so re-syncing stays idempotent.
     path.replace(renamed)
     return str(renamed)
 

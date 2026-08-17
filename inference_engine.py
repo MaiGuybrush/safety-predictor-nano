@@ -5,23 +5,50 @@ from ultralytics import YOLO
 class InferenceEngine:
     """
     統一推論引擎，根據 model_path 自動選擇後端：
-    - .pt 結尾  → ultralytics PyTorch 後端
-    - 資料夾    → ultralytics NCNN 後端（支援 float32 / int8）
+    - .onnx 結尾  → ultralytics ONNX 後端
+    - .pt 結尾    → ultralytics PyTorch 後端
+    - NCNN 資料夾 → ultralytics NCNN 後端（支援 float32 / int8）
+    - 一般資料夾  → 自動尋找內部 *.onnx 或 *.pt 檔案載入
     """
 
     def __init__(self, model_path="yolov8n.pt", num_threads=4):
         self.model_path = model_path
         self.num_threads = num_threads
 
-        # 判斷後端類型（供 /model_info 使用）
+        actual_model_path = model_path
+
         if os.path.isdir(model_path):
-            self.model_type = "NCNN"
+            # 檢查是否為正規 NCNN 目錄
+            has_ncnn = (
+                os.path.exists(os.path.join(model_path, "model.ncnn.param")) or
+                os.path.exists(os.path.join(model_path, "model.ncnn.bin")) or
+                any(f.endswith(".ncnn.param") or f.endswith(".ncnn.bin") for f in os.listdir(model_path))
+            )
+            if has_ncnn:
+                self.model_type = "NCNN"
+                actual_model_path = model_path
+            else:
+                files = os.listdir(model_path)
+                onnx_files = [f for f in files if f.lower().endswith(".onnx")]
+                pt_files = [f for f in files if f.lower().endswith(".pt")]
+
+                if onnx_files:
+                    best_onnx = "best.onnx" if "best.onnx" in onnx_files else onnx_files[0]
+                    actual_model_path = os.path.join(model_path, best_onnx)
+                    self.model_type = "ONNX"
+                elif pt_files:
+                    best_pt = "best.pt" if "best.pt" in pt_files else pt_files[0]
+                    actual_model_path = os.path.join(model_path, best_pt)
+                    self.model_type = "PyTorch"
+                else:
+                    self.model_type = "NCNN"
+                    actual_model_path = model_path
         elif model_path.lower().endswith(".onnx"):
             self.model_type = "ONNX"
         else:
             self.model_type = "PyTorch"
 
-        self.model = YOLO(model_path)
+        self.model = YOLO(actual_model_path)
 
     def infer(self, frame, conf_threshold=0.25):
         start_time = time.time()

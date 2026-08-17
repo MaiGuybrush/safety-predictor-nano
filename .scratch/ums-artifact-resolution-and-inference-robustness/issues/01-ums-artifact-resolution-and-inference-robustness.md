@@ -8,10 +8,10 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] 改造 `model_sync.py::_land_artifact()`：若目標為資料夾，依序搜尋 `*.onnx` ➔ `*.pt` ➔ NCNN 目錄 ➔ `model.bin`（更名為 `.pt`），回傳精確之可用檔案/目錄字串路徑。
-- [ ] 改造 `inference_engine.py::InferenceEngine.__init__()`：若傳入目錄且非 NCNN 格式，自動定位內部之 `*.onnx` 或 `*.pt` 檔案路徑載入，並正確標註 `self.model_type`。
-- [ ] 更新 `test_model_sync.py`：新增測試案例驗證解壓目錄內含 `best.pt`、`best.onnx`、NCNN 與單一檔案時的落地路徑。
-- [ ] 更新 `test_inference_engine.py` / `test_engine_cache.py`：驗證傳入包含 `best.pt` 的資料夾時引擎能成功初始化與推論。
-- [ ] 執行全套單元測試套件（67+ 項測試），確認無任何回歸。
+- [x] 改造 `model_sync.py::_land_artifact()`：若目標為資料夾，依序搜尋 `*.onnx` ➔ `*.pt` ➔ NCNN 目錄 ➔ `model.bin`（更名為 `.pt`），回傳精確之可用檔案/目錄字串路徑。
+- [x] 改造 `inference_engine.py::InferenceEngine.__init__()`：若傳入目錄且非 NCNN 格式，自動定位內部之 `*.onnx` 或 `*.pt` 檔案路徑載入，並正確標註 `self.model_type`。
+- [x] 更新 `test_model_sync.py`：新增測試案例驗證解壓目錄內含 `best.pt`、`best.onnx`、NCNN 與單一檔案時的落地路徑。
+- [x] 更新 `test_inference_engine.py` / `test_engine_cache.py`：驗證傳入包含 `best.pt` 的資料夾時引擎能成功初始化與推論。
+- [x] 執行全套單元測試套件（75 項測試），確認無任何回歸。

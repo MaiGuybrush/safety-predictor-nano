@@ -251,8 +251,43 @@ class TestLandArtifact(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = Path(tempfile.mkdtemp())
 
-    def test_folder_used_as_is(self):
+    def test_folder_with_pt_resolves_to_pt_file(self):
+        folder = self.tmp_dir / "pt_model"
+        folder.mkdir()
+        pt_file = folder / "best.pt"
+        pt_file.write_bytes(b"fake-pt")
+        result = model_sync._land_artifact(folder, "my-model")
+        self.assertEqual(result, str(pt_file))
+
+    def test_folder_with_onnx_and_pt_resolves_to_onnx(self):
+        folder = self.tmp_dir / "dual_model"
+        folder.mkdir()
+        (folder / "best.pt").write_bytes(b"fake-pt")
+        onnx_file = folder / "best.onnx"
+        onnx_file.write_bytes(b"fake-onnx")
+        result = model_sync._land_artifact(folder, "my-model")
+        self.assertEqual(result, str(onnx_file))
+
+    def test_folder_with_ncnn_resolves_to_folder(self):
         folder = self.tmp_dir / "ncnn_model"
+        folder.mkdir()
+        (folder / "model.ncnn.param").write_bytes(b"fake-param")
+        result = model_sync._land_artifact(folder, "my-model")
+        self.assertEqual(result, str(folder))
+
+    def test_folder_with_bin_file_renames_to_pt(self):
+        folder = self.tmp_dir / "bin_model"
+        folder.mkdir()
+        bin_file = folder / "model.bin"
+        bin_file.write_bytes(b"fake-bin")
+        result = model_sync._land_artifact(folder, "my-model")
+        expected = str(folder / "my-model.pt")
+        self.assertEqual(result, expected)
+        self.assertTrue(os.path.exists(expected))
+        self.assertFalse(bin_file.exists())
+
+    def test_folder_empty_fallback_to_folder(self):
+        folder = self.tmp_dir / "empty_model"
         folder.mkdir()
         result = model_sync._land_artifact(folder, "my-model")
         self.assertEqual(result, str(folder))
@@ -262,6 +297,12 @@ class TestLandArtifact(unittest.TestCase):
         pt_file.write_bytes(b"fake")
         result = model_sync._land_artifact(pt_file, "my-model")
         self.assertEqual(result, str(pt_file))
+
+    def test_onnx_file_used_as_is(self):
+        onnx_file = self.tmp_dir / "model.onnx"
+        onnx_file.write_bytes(b"fake")
+        result = model_sync._land_artifact(onnx_file, "my-model")
+        self.assertEqual(result, str(onnx_file))
 
     def test_non_pt_file_renamed_to_model_name(self):
         bin_file = self.tmp_dir / "model.bin"

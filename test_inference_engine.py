@@ -49,6 +49,65 @@ class TestInferenceEngineLabel(unittest.TestCase):
 
         self.assertEqual(detections[0]["label"], "7")
 
+    @patch("inference_engine.YOLO")
+    def test_directory_with_pt_resolves_to_pt_file(self, mock_yolo_cls):
+        import tempfile
+        import os
+        from inference_engine import InferenceEngine
+
+        tmp_dir = tempfile.mkdtemp()
+        try:
+            pt_file = os.path.join(tmp_dir, "best.pt")
+            open(pt_file, "w").close()
+
+            engine = InferenceEngine(model_path=tmp_dir, num_threads=1)
+            self.assertEqual(engine.model_type, "PyTorch")
+            mock_yolo_cls.assert_called_with(pt_file)
+        finally:
+            if os.path.exists(tmp_dir):
+                import shutil
+                shutil.rmtree(tmp_dir)
+
+    @patch("inference_engine.YOLO")
+    def test_directory_with_onnx_resolves_to_onnx_file(self, mock_yolo_cls):
+        import tempfile
+        import os
+        from inference_engine import InferenceEngine
+
+        tmp_dir = tempfile.mkdtemp()
+        try:
+            onnx_file = os.path.join(tmp_dir, "best.onnx")
+            open(onnx_file, "w").close()
+            pt_file = os.path.join(tmp_dir, "best.pt")
+            open(pt_file, "w").close()
+
+            engine = InferenceEngine(model_path=tmp_dir, num_threads=1)
+            self.assertEqual(engine.model_type, "ONNX")
+            mock_yolo_cls.assert_called_with(onnx_file)
+        finally:
+            if os.path.exists(tmp_dir):
+                import shutil
+                shutil.rmtree(tmp_dir)
+
+    @patch("inference_engine.YOLO")
+    def test_directory_with_ncnn_resolves_to_ncnn_directory(self, mock_yolo_cls):
+        import tempfile
+        import os
+        from inference_engine import InferenceEngine
+
+        tmp_dir = tempfile.mkdtemp()
+        try:
+            param_file = os.path.join(tmp_dir, "model.ncnn.param")
+            open(param_file, "w").close()
+
+            engine = InferenceEngine(model_path=tmp_dir, num_threads=1)
+            self.assertEqual(engine.model_type, "NCNN")
+            mock_yolo_cls.assert_called_with(tmp_dir)
+        finally:
+            if os.path.exists(tmp_dir):
+                import shutil
+                shutil.rmtree(tmp_dir)
+
 
 if __name__ == "__main__":
     unittest.main()
