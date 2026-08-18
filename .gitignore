@@ -27,3 +27,8 @@ recordings/
 # IDE
 .vscode/
 .idea/
+
+# Configuration
+config.yaml
+
+/.agents/skills/
