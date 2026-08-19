@@ -507,6 +507,21 @@
             position: absolute;
             pointer-events: none;
         }
+        @keyframes alarm-pulse {
+            0% {
+                box-shadow: inset 0 0 15px rgba(255, 51, 51, 0.4);
+            }
+            50% {
+                box-shadow: inset 0 0 40px rgba(255, 51, 51, 0.85);
+            }
+            100% {
+                box-shadow: inset 0 0 15px rgba(255, 51, 51, 0.4);
+            }
+        }
+        .fullscreen-modal.alarm-active {
+            animation: alarm-pulse 1.2s infinite ease-in-out;
+            border: 1px solid rgba(255, 51, 51, 0.6);
+        }
     </style>
 </head>
 <body>
@@ -1964,16 +1979,24 @@
             return '';
         }
 
-        function updateZoneBadge() {
+        function updateZoneBadge(isAlarm = false) {
             const badge = document.getElementById('zone-status-badge');
             if (!badge) return;
             if (currentSavedZone && currentSavedZone.polygon && currentSavedZone.polygon.length >= 3) {
                 const name = currentSavedZone.zone_name ? ` (${currentSavedZone.zone_name})` : '';
-                badge.textContent = `[ ZONE: ACTIVE${name} ]`;
-                badge.style.color = '#00e5ff';
+                if (isAlarm && !isEditingZone) {
+                    badge.textContent = `[ ZONE: ALARM TRIGGERED${name} ]`;
+                    badge.style.color = '#ff3333';
+                    badge.style.fontWeight = 'bold';
+                } else {
+                    badge.textContent = `[ ZONE: ACTIVE${name} ]`;
+                    badge.style.color = '#00e5ff';
+                    badge.style.fontWeight = 'normal';
+                }
             } else {
                 badge.textContent = '[ ZONE: INACTIVE ]';
                 badge.style.color = '#888888';
+                badge.style.fontWeight = 'normal';
             }
         }
 
@@ -2049,6 +2072,21 @@
             }, 100);
         }
 
+        function isPointInPolygon(point, polygon) {
+            if (!polygon || polygon.length < 3) return false;
+            const x = point[0];
+            const y = point[1];
+            let inside = false;
+            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                const xi = polygon[i][0], yi = polygon[i][1];
+                const xj = polygon[j][0], yj = polygon[j][1];
+                const intersect = ((yi > y) !== (yj > y)) &&
+                    (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+                if (intersect) inside = !inside;
+            }
+            return inside;
+        }
+
         function closeFullscreen() {
             if (isEditingZone) {
                 exitZoneEditMode();
@@ -2063,8 +2101,13 @@
             }
             const modal = document.getElementById('fullscreen-modal');
             const img = document.getElementById('fullscreen-img');
-            modal.style.display = 'none';
-            img.src = '';
+            if (modal) {
+                modal.classList.remove('alarm-active');
+                modal.style.display = 'none';
+            }
+            if (img) {
+                img.src = '';
+            }
             const canvas = document.getElementById('fullscreen-canvas');
             if (canvas) {
                 const ctx = canvas.getContext('2d');
@@ -2169,7 +2212,7 @@
                 canvas.style.pointerEvents = 'none';
                 canvas.style.cursor = 'default';
             }
-            updateZoneBadge();
+            updateZoneBadge(false);
             drawCanvas();
         }
 
@@ -2207,10 +2250,14 @@
             drawCanvas();
         });
 
-        function drawPolygon(ctx, poly, isClosed, isEdit, zoneName) {
+        function drawPolygon(ctx, poly, isClosed, isEdit, zoneName, isAlarm = false) {
             if (!poly || poly.length === 0) return;
             const w = ctx.canvas.width;
             const h = ctx.canvas.height;
+
+            const inAlarm = isClosed && !isEdit && isAlarm;
+            const primaryColor = inAlarm ? '#ff3333' : '#00e5ff';
+            const fillColor = inAlarm ? 'rgba(255, 51, 51, 0.25)' : 'rgba(0, 229, 255, 0.15)';
 
             ctx.save();
             ctx.beginPath();
@@ -2220,15 +2267,15 @@
             }
             if (isClosed) {
                 ctx.closePath();
-                ctx.fillStyle = 'rgba(0, 229, 255, 0.15)';
+                ctx.fillStyle = fillColor;
                 ctx.fill();
-                ctx.strokeStyle = '#00e5ff';
+                ctx.strokeStyle = primaryColor;
                 ctx.setLineDash([]);
             } else {
                 ctx.strokeStyle = '#00e5ff';
                 ctx.setLineDash([6, 4]);
             }
-            ctx.lineWidth = 2;
+            ctx.lineWidth = inAlarm ? 2.5 : 2;
             ctx.stroke();
 
             // Draw vertex dots
@@ -2236,7 +2283,7 @@
             poly.forEach((pt, idx) => {
                 ctx.beginPath();
                 ctx.arc(pt[0] * w, pt[1] * h, isEdit ? 5 : 3, 0, 2 * Math.PI);
-                ctx.fillStyle = (isEdit && idx === 0 && !isClosed) ? '#ff0055' : '#00e5ff';
+                ctx.fillStyle = (isEdit && idx === 0 && !isClosed) ? '#ff0055' : primaryColor;
                 ctx.fill();
                 ctx.strokeStyle = '#050505';
                 ctx.lineWidth = 1;
@@ -2245,19 +2292,24 @@
 
             // Draw Zone label tag
             if (isClosed && poly.length >= 3) {
-                const label = zoneName ? `[ ROI: ${zoneName} ]` : '[ ROI: ACTIVE ]';
+                let label = '';
+                if (inAlarm) {
+                    label = zoneName ? `[ ROI: ${zoneName} - INTRUSION ]` : '[ ROI: ACTIVE - INTRUSION ]';
+                } else {
+                    label = zoneName ? `[ ROI: ${zoneName} ]` : '[ ROI: ACTIVE ]';
+                }
                 ctx.font = '12px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace';
                 const textWidth = ctx.measureText(label).width;
                 const tagX = poly[0][0] * w;
                 const tagY = Math.max(poly[0][1] * h - 10, 16);
 
-                ctx.fillStyle = 'rgba(0, 30, 40, 0.85)';
+                ctx.fillStyle = inAlarm ? 'rgba(40, 0, 0, 0.9)' : 'rgba(0, 30, 40, 0.85)';
                 ctx.fillRect(tagX, tagY - 14, textWidth + 8, 18);
-                ctx.strokeStyle = '#00e5ff';
+                ctx.strokeStyle = primaryColor;
                 ctx.lineWidth = 1;
                 ctx.strokeRect(tagX, tagY - 14, textWidth + 8, 18);
 
-                ctx.fillStyle = '#00e5ff';
+                ctx.fillStyle = primaryColor;
                 ctx.fillText(label, tagX + 4, tagY);
             }
 
@@ -2268,6 +2320,7 @@
             if (activeStreamIndex === null) return;
             const img = document.getElementById('fullscreen-img');
             const canvas = document.getElementById('fullscreen-canvas');
+            const modal = document.getElementById('fullscreen-modal');
             if (!img || !canvas) return;
 
             syncCanvasSize();
@@ -2275,9 +2328,45 @@
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+            const detObj = latestDetectionsMap[activeStreamIndex] || latestDetectionsMap[String(activeStreamIndex)];
+            const savedPoly = (currentSavedZone && currentSavedZone.polygon && currentSavedZone.polygon.length >= 3) ? currentSavedZone.polygon : null;
+
+            let hasAlarmInZone = false;
+            const evaluatedDetections = [];
+
+            if (detObj && detObj.detections && detObj.frame_w && detObj.frame_h) {
+                const nowSec = Date.now() / 1000.0;
+                const detTs = detObj.ts || 0;
+                const age = nowSec - detTs;
+                const isStale = (age > 0.15);
+
+                const scaleX = canvas.width / detObj.frame_w;
+                const scaleY = canvas.height / detObj.frame_h;
+
+                detObj.detections.forEach(det => {
+                    const coords = det.xyxy || [];
+                    if (coords.length >= 4) {
+                        const cx = (coords[0] + coords[2]) / (2.0 * detObj.frame_w);
+                        const cy = (coords[1] + coords[3]) / (2.0 * detObj.frame_h);
+                        const inZone = (!isEditingZone && savedPoly) ? isPointInPolygon([cx, cy], savedPoly) : false;
+                        if (inZone) {
+                            hasAlarmInZone = true;
+                        }
+                        evaluatedDetections.push({
+                            det,
+                            coords,
+                            inZone,
+                            isStale,
+                            scaleX,
+                            scaleY
+                        });
+                    }
+                });
+            }
+
             // Draw zone (either in edit mode or saved zone)
             if (isEditingZone) {
-                drawPolygon(ctx, editingPolygon, isPolygonClosed, true, document.getElementById('zone-name-input').value.trim());
+                drawPolygon(ctx, editingPolygon, isPolygonClosed, true, document.getElementById('zone-name-input').value.trim(), false);
                 if (!isPolygonClosed && mousePos && editingPolygon.length > 0) {
                     const lastPt = editingPolygon[editingPolygon.length - 1];
                     ctx.save();
@@ -2290,29 +2379,58 @@
                     ctx.stroke();
                     ctx.restore();
                 }
-            } else if (currentSavedZone && currentSavedZone.polygon && currentSavedZone.polygon.length >= 3) {
-                drawPolygon(ctx, currentSavedZone.polygon, true, false, currentSavedZone.zone_name);
+            } else if (savedPoly) {
+                drawPolygon(ctx, savedPoly, true, false, currentSavedZone.zone_name, hasAlarmInZone);
             }
 
-            const detObj = latestDetectionsMap[activeStreamIndex] || latestDetectionsMap[String(activeStreamIndex)];
-            if (!detObj || !detObj.detections || !detObj.frame_w || !detObj.frame_h) return;
+            // Update modal alarm-active CSS and badge
+            if (modal) {
+                if (hasAlarmInZone && !isEditingZone) {
+                    modal.classList.add('alarm-active');
+                } else {
+                    modal.classList.remove('alarm-active');
+                }
+            }
+            updateZoneBadge(hasAlarmInZone);
 
-            const nowSec = Date.now() / 1000.0;
-            const detTs = detObj.ts || 0;
-            const age = nowSec - detTs;
-            const isStale = (age > 0.15);
+            // Draw bounding boxes
+            evaluatedDetections.forEach(item => {
+                const { det, coords, inZone, isStale, scaleX, scaleY } = item;
+                const x1 = coords[0] * scaleX;
+                const y1 = coords[1] * scaleY;
+                const w = (coords[2] - coords[0]) * scaleX;
+                const h = (coords[3] - coords[1]) * scaleY;
 
-            const scaleX = canvas.width / detObj.frame_w;
-            const scaleY = canvas.height / detObj.frame_h;
+                ctx.save();
+                if (inZone) {
+                    // ALARM style
+                    ctx.lineWidth = 3;
+                    if (isStale) {
+                        ctx.setLineDash([5, 5]);
+                        ctx.strokeStyle = 'rgba(255, 51, 51, 0.8)';
+                    } else {
+                        ctx.setLineDash([]);
+                        ctx.strokeStyle = '#ff3333';
+                    }
+                    ctx.strokeRect(x1, y1, w, h);
+                    ctx.setLineDash([]);
 
-            detObj.detections.forEach(det => {
-                const coords = det.xyxy || [];
-                if (coords.length >= 4) {
-                    const x1 = coords[0] * scaleX;
-                    const y1 = coords[1] * scaleY;
-                    const w = (coords[2] - coords[0]) * scaleX;
-                    const h = (coords[3] - coords[1]) * scaleY;
+                    const tag = isStale ? ' [SAMPLED]' : '';
+                    const labelText = `[ALARM] Class ${det.cls} (${(det.conf * 100).toFixed(0)}%)${tag}`;
+                    ctx.font = 'bold 13px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace';
+                    const textWidth = ctx.measureText(labelText).width;
 
+                    ctx.fillStyle = isStale ? 'rgba(60, 0, 0, 0.9)' : 'rgba(80, 0, 0, 0.9)';
+                    ctx.fillRect(x1, Math.max(y1 - 20, 0), textWidth + 8, 20);
+                    ctx.strokeStyle = isStale ? 'rgba(255, 51, 51, 0.8)' : '#ff3333';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(x1, Math.max(y1 - 20, 0), textWidth + 8, 20);
+
+                    ctx.fillStyle = isStale ? '#ff9999' : '#ffffff';
+                    ctx.fillText(labelText, x1 + 4, Math.max(y1 - 5, 14));
+                } else {
+                    // Normal style
+                    ctx.lineWidth = 2;
                     if (isStale) {
                         ctx.setLineDash([5, 5]);
                         ctx.strokeStyle = 'rgba(0, 255, 65, 0.75)';
@@ -2320,22 +2438,21 @@
                         ctx.setLineDash([]);
                         ctx.strokeStyle = '#00ff41';
                     }
-                    ctx.lineWidth = 2;
                     ctx.strokeRect(x1, y1, w, h);
-
                     ctx.setLineDash([]);
 
                     const tag = isStale ? ' [SAMPLED]' : '';
                     const labelText = `Class ${det.cls} (${(det.conf * 100).toFixed(0)}%)${tag}`;
                     ctx.font = '13px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace';
                     const textWidth = ctx.measureText(labelText).width;
-                    
+
                     ctx.fillStyle = isStale ? 'rgba(0, 40, 0, 0.9)' : 'rgba(0, 59, 0, 0.85)';
                     ctx.fillRect(x1, Math.max(y1 - 20, 0), textWidth + 8, 20);
 
                     ctx.fillStyle = isStale ? '#85ffaa' : '#00ff41';
                     ctx.fillText(labelText, x1 + 4, Math.max(y1 - 5, 14));
                 }
+                ctx.restore();
             });
         }
 
