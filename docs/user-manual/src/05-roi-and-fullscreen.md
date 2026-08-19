@@ -1,4 +1,4 @@
-# 第 4 章：ROI 偵測區域編輯與全螢幕即時監控
+# 第 5 章：ROI 偵測區域編輯與全螢幕即時監控
 
 本章介紹如何在 Argus Safety Predictor Nano 中開啟全螢幕高解析度即時串流監控，並利用視覺化多邊形繪製工具為每路攝影機自訂專屬的 ROI（Region of Interest，感興趣/警戒區域）。
 

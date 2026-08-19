@@ -27,12 +27,18 @@ streams:
     label: "後門走廊"
     camera_id: "cam-02"
 
-# 4. UMS 模型自動下載與同步宣告 (全域設定)
+# 4. UMS 模型伺服器連線與多端點容錯備援 (UMS Failover Settings)
+ums_base_urls:                   # UMS 平台 API 服務端點清單 (主備自動容錯切換)
+  - "http://10.26.11.108/umsapiproxy/fab4ums"  # src1 主要端點 (Primary)
+  - "http://10.26.11.109/umsapiproxy/fab4ums"  # src2 備援端點 (Backup)
+ums_api_key: "ums_xxxxxxxxxxxxxxxx"             # UMS 平台 API 金鑰
+
+# 5. UMS 模型自動下載與同步宣告 (全域設定)
 ums_model:
   name: "Safety-YOLOv8"          # UMS 伺服器上的模型名稱
   version: "latest"              # 模型版本號或 "latest"
 
-# 5. ROI 警戒區域設定 (Zones / Polygons)
+# 6. ROI 警戒區域設定 (Zones / Polygons)
 zones:
   "rtsp://127.0.0.1:8554/cam01":
     zone_name: "禁入危險區"
@@ -42,7 +48,7 @@ zones:
       - [0.9, 0.9]
       - [0.1, 0.9]
 
-# 6. 安全事件警報與嚴重度設定 (Event Severity & Absence Tolerance)
+# 7. 安全事件警報與嚴重度設定 (Event Severity & Absence Tolerance)
 event_severity:
   person: "HIGH"                 # 將標籤為 person 的物件設為 HIGH 嚴重度
   car: "MEDIUM"                  # 將標籤為 car 的物件設為 MEDIUM 嚴重度
@@ -50,7 +56,7 @@ event_severity:
 
 event_absence_tolerance: 2       # 物件消失的容忍影格數
 
-# 7. 心跳機制設定 (Heartbeat Agent)
+# 8. 心跳機制設定 (Heartbeat Agent)
 heartbeat:
   enabled: true                  # 是否開啟心跳回報服務 (true/false)
   ap_name: "SafetyNano"          # 應用程式名稱識別碼
@@ -58,7 +64,7 @@ heartbeat:
   version: "0.1.0"               # 軟體版本號
   agent_port: 8080               # (選填) 心跳 Agent 的指定通訊埠
 
-# 8. 日誌與效能記錄設定 (Logging)
+# 9. 日誌與效能記錄設定 (Logging)
 log_file: "performance.log"       # CPU/RAM/推論速度效能日誌路徑
 detection_log_file: "detections.log" # 物件偵測事件 Log 路徑
 log_interval_seconds: 60         # 效能統計寫入間隔 (秒)

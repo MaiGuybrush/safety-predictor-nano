@@ -175,6 +175,10 @@ class TestWebUiConfigSave(unittest.TestCase):
         self.assertIn("detail-camid-warning", html)
         self.assertIn("parseArgusCameraId", html)
         self.assertIn("restoreArgusCameraId", html)
+        self.assertIn("fab-preset-select", html)
+        self.assertIn("ums-endpoints-container", html)
+        self.assertIn("applyFabPreset", html)
+        self.assertIn("renderUmsEndpointRows", html)
 
     def test_save_argus_stream_with_custom_camera_id(self):
         initial = {
@@ -210,6 +214,36 @@ class TestWebUiConfigSave(unittest.TestCase):
         self.assertEqual(saved["streams"][0]["url"], "rtsp://127.0.0.1:8554/cam-0eb40kwvs74z")
         self.assertEqual(saved["streams"][0]["camera_id"], "CCD1")
 
+    def test_save_multi_ums_base_urls(self):
+        initial = {
+            "mode": "rtsp",
+            "model_path": "best.onnx",
+            "ums_base_url": "http://old-single.ums",
+        }
+        self.write_yaml(initial)
+
+        form_data = {
+            "mode": "rtsp",
+            "model_path": "best.onnx",
+            "ums_base_urls": [
+                "http://10.26.11.108/umsapiproxy/fab4ums",
+                "http://10.26.11.109/umsapiproxy/fab4ums"
+            ],
+            "ums_api_key": "secret_key_999",
+        }
+
+        response = self.client.post('/', data=form_data)
+        self.assertEqual(response.status_code, 200)
+
+        saved = self.read_yaml()
+        self.assertEqual(saved["ums_base_urls"], [
+            "http://10.26.11.108/umsapiproxy/fab4ums",
+            "http://10.26.11.109/umsapiproxy/fab4ums"
+        ])
+        self.assertNotIn("ums_base_url", saved)
+        self.assertEqual(saved["ums_api_key"], "secret_key_999")
+
 
 if __name__ == "__main__":
     unittest.main()
+

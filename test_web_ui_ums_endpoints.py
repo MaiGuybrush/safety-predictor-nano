@@ -35,16 +35,16 @@ class TestWebUiUmsEndpoints(unittest.TestCase):
         web_ui.app.config['TESTING'] = True
         self.client = web_ui.app.test_client()
 
-    @patch("web_ui.UmsApiClient")
+    @patch("web_ui.FailoverUmsClient")
     @patch("web_ui.ConfigManager")
-    def test_get_ums_models_success(self, mock_config_mgr_cls, mock_ums_client_cls):
+    def test_get_ums_models_success(self, mock_config_mgr_cls, mock_failover_client_cls):
         mock_cfg = mock_config_mgr_cls.return_value
+        mock_cfg.get_ums_base_urls.return_value = ["http://test.ums"]
         mock_cfg.get.side_effect = lambda k, d=None: {
-            "ums_base_url": "http://test.ums",
             "ums_api_key": "test_key"
         }.get(k, d)
 
-        mock_client = mock_ums_client_cls.return_value
+        mock_client = mock_failover_client_cls.return_value
         mock_client.fetch_my_models.return_value = [
             DummyModel(
                 model_id=1,
@@ -87,16 +87,16 @@ class TestWebUiUmsEndpoints(unittest.TestCase):
         self.assertEqual(project["models"][0]["model_name"], "yolo8n")
         self.assertEqual(len(project["models"][0]["versions"]), 2)
 
-    @patch("web_ui.UmsApiClient")
+    @patch("web_ui.FailoverUmsClient")
     @patch("web_ui.ConfigManager")
-    def test_get_ums_models_api_error_returns_200_with_error_status(self, mock_config_mgr_cls, mock_ums_client_cls):
+    def test_get_ums_models_api_error_returns_200_with_error_status(self, mock_config_mgr_cls, mock_failover_client_cls):
         mock_cfg = mock_config_mgr_cls.return_value
+        mock_cfg.get_ums_base_urls.return_value = ["http://test.ums"]
         mock_cfg.get.side_effect = lambda k, d=None: {
-            "ums_base_url": "http://test.ums",
             "ums_api_key": "test_key"
         }.get(k, d)
 
-        mock_client = mock_ums_client_cls.return_value
+        mock_client = mock_failover_client_cls.return_value
         mock_client.fetch_my_models.side_effect = RuntimeError("Connection refused")
 
         response = self.client.get('/api/ums/models')
@@ -108,6 +108,7 @@ class TestWebUiUmsEndpoints(unittest.TestCase):
     @patch("web_ui.ConfigManager")
     def test_get_ums_models_missing_key_returns_error_status(self, mock_config_mgr_cls):
         mock_cfg = mock_config_mgr_cls.return_value
+        mock_cfg.get_ums_base_urls.return_value = ["http://test.ums"]
         mock_cfg.get.return_value = None
 
         with patch.dict("os.environ", {}, clear=True):
@@ -116,10 +117,12 @@ class TestWebUiUmsEndpoints(unittest.TestCase):
             data = response.get_json()
             self.assertEqual(data["status"], "error")
 
-    @patch("web_ui.UmsApiClient")
-    def test_test_connection_success(self, mock_ums_client_cls):
-        mock_client = mock_ums_client_cls.return_value
-        mock_client.fetch_my_models.return_value = [MagicMock(), MagicMock()]
+    @patch("web_ui.FailoverUmsClient")
+    def test_test_connection_success(self, mock_failover_client_cls):
+        mock_client = mock_failover_client_cls.return_value
+        mock_client.test_endpoints.return_value = [
+            {"url": "http://test.ums", "status": "ok", "models_count": 2, "message": "連線成功"}
+        ]
 
         response = self.client.post('/api/ums/test_connection', json={
             "base_url": "http://test.ums",
@@ -129,11 +132,34 @@ class TestWebUiUmsEndpoints(unittest.TestCase):
         data = response.get_json()
         self.assertEqual(data["status"], "ok")
         self.assertEqual(data["models_count"], 2)
+        self.assertEqual(len(data["endpoints"]), 1)
 
-    @patch("web_ui.UmsApiClient")
-    def test_test_connection_failure(self, mock_ums_client_cls):
-        mock_client = mock_ums_client_cls.return_value
-        mock_client.fetch_my_models.side_effect = RuntimeError("401 Unauthorized")
+    @patch("web_ui.FailoverUmsClient")
+    def test_test_connection_multi_endpoints(self, mock_failover_client_cls):
+        mock_client = mock_failover_client_cls.return_value
+        mock_client.test_endpoints.return_value = [
+            {"url": "http://ep1.ums", "status": "ok", "models_count": 3, "message": "連線成功"},
+            {"url": "http://ep2.ums", "status": "error", "message": "Timeout", "error": "Timeout"}
+        ]
+
+        response = self.client.post('/api/ums/test_connection', json={
+            "base_urls": ["http://ep1.ums", "http://ep2.ums"],
+            "api_key": "valid_key"
+        })
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(data["status"], "ok")
+        self.assertEqual(data["models_count"], 3)
+        self.assertEqual(len(data["endpoints"]), 2)
+        self.assertEqual(data["endpoints"][0]["status"], "ok")
+        self.assertEqual(data["endpoints"][1]["status"], "error")
+
+    @patch("web_ui.FailoverUmsClient")
+    def test_test_connection_all_failure(self, mock_failover_client_cls):
+        mock_client = mock_failover_client_cls.return_value
+        mock_client.test_endpoints.return_value = [
+            {"url": "http://test.ums", "status": "error", "message": "401 Unauthorized", "error": "401 Unauthorized"}
+        ]
 
         response = self.client.post('/api/ums/test_connection', json={
             "base_url": "http://test.ums",
@@ -143,6 +169,7 @@ class TestWebUiUmsEndpoints(unittest.TestCase):
         data = response.get_json()
         self.assertEqual(data["status"], "error")
         self.assertIn("401 Unauthorized", data["message"])
+        self.assertEqual(len(data["endpoints"]), 1)
 
 
 if __name__ == "__main__":

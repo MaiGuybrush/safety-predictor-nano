@@ -670,13 +670,41 @@
                 </div>
                 <div class="collapsible-content">
                     <!-- UMS API Settings -->
-                    <div style="border-bottom: 1px dashed var(--border); padding-bottom: 0.6rem; margin-bottom: 0.6rem;">
-                        <span style="font-size: 0.72rem; color: var(--cyan); font-weight: bold;">// UMS API 連線設定</span>
+                    <div style="border-bottom: 1px dashed var(--border); padding-bottom: 0.8rem; margin-bottom: 0.8rem;">
+                        <span style="font-size: 0.72rem; color: var(--cyan); font-weight: bold;">// UMS API 連線設定 (多端點備援 FAILOVER)</span>
                         <div class="form-grid" style="margin-top: 0.4rem;">
+                            <!-- FAB Presets Dropdown -->
                             <div class="field">
-                                <label>UMS BASE URL</label>
-                                <input type="text" name="ums_base_url" id="ums_base_url" value="{{ config.get('ums_base_url', 'http://tncimweb.cminl.oa/umsapiproxy/fab4ums') }}">
+                                <label>廠區預設快速選單 (FAB PRESETS)</label>
+                                <select id="fab-preset-select" class="detail-select" onchange="applyFabPreset(this.value)" style="width: 100%; padding: 0.35rem 0.5rem; background: #111; color: var(--cyan); border: 1px solid var(--border-cyan); font-family: inherit; font-size: 0.75rem;">
+                                    <option value="">-- 請選擇廠區快速帶入主備端點 --</option>
+                                    <option value="OA">OA 辦公網段 (tncimweb1 / tncimweb2)</option>
+                                    <option value="FAB1">FAB 1 (10.26.11.108 / 10.26.11.109)</option>
+                                    <option value="FAB3">FAB 3 (10.75.1.208 / 10.75.1.209)</option>
+                                    <option value="FAB6">FAB 6 (10.99.1.143 / 10.99.1.144)</option>
+                                    <option value="FAB7">FAB 7 (10.107.1.148 / 10.107.1.149)</option>
+                                    <option value="FAB8">FAB 8 (10.109.1.129 / 10.109.1.130)</option>
+                                    <option value="FABT6">FAB T6 (10.59.119.183 / 10.59.119.184)</option>
+                                    <option value="FABTS1">FAB TS1 (10.242.1.114 / 10.242.1.115)</option>
+                                    <option value="FABT1">FAB T1 (172.16.12.161 / 172.16.12.162)</option>
+                                    <option value="FABT2">FAB T2 (172.20.11.164 / 172.20.11.169)</option>
+                                    <option value="FABT3">FAB T3 (10.32.203.43)</option>
+                                    <option value="custom">自訂 / 其它 (Custom Endpoints)</option>
+                                </select>
                             </div>
+
+                            <!-- Dynamic UMS Endpoints List -->
+                            <div class="field">
+                                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.3rem;">
+                                    <label style="margin-bottom: 0;">UMS 服務端點清單 (UMS_BASE_URLS)</label>
+                                    <button type="button" class="stream-btn" style="width: auto; padding: 0.15rem 0.5rem; font-size: 0.65rem;" onclick="addUmsEndpointRow()">+ 新增備援端點</button>
+                                </div>
+                                <div id="ums-endpoints-container" style="display: flex; flex-direction: column; gap: 0.4rem;">
+                                    <!-- Dynamic rows inserted here -->
+                                </div>
+                            </div>
+
+                            <!-- UMS API Key -->
                             <div class="field">
                                 <label>UMS API KEY</label>
                                 <div style="display: flex; gap: 0.4rem;">
@@ -684,9 +712,13 @@
                                     <button type="button" class="stream-btn" style="width: auto; padding: 0 0.5rem;" onclick="toggleApiKeyVisibility()">顯示</button>
                                 </div>
                             </div>
-                            <div style="display: flex; align-items: center; gap: 0.6rem;">
-                                <button type="button" class="stream-btn cyan" onclick="testUmsConnection()">[ 測試連線 ]</button>
-                                <span id="ums-test-status" style="font-size: 0.7rem;"></span>
+
+                            <!-- Test Connection Button & Status -->
+                            <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+                                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                                    <button type="button" class="stream-btn cyan" onclick="testUmsConnection()">[ 測試連線 ]</button>
+                                    <span id="ums-test-status" style="font-size: 0.7rem;"></span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -912,6 +944,7 @@
         const CONFIG_INITIAL_STREAMS = {{ config.get('streams', []) | tojson }};
         const CONFIG_INITIAL_UMS_MODEL = {{ config.get('ums_model') | tojson }};
         const CONFIG_VIDEO_PATH = {{ config.get('video_path', '') | tojson }};
+        const CONFIG_INITIAL_UMS_URLS = {{ (config.get('ums_base_urls') if config.get('ums_base_urls') is not none else ([config.get('ums_base_url')] if config.get('ums_base_url') else ['http://tncimweb1.cminl.oa/umsapiproxy/fab4ums', 'http://tncimweb2.cminl.oa/umsapiproxy/fab4ums'])) | tojson }};
 
         let umsProjectsData = [];
         let streamsList = [];
@@ -1168,21 +1201,182 @@
             document.getElementById('ums_model_version').value = verSelect.value;
         }
 
+        // ── UMS Multi-Endpoint & FAB Presets Manager ──
+        const FAB_PRESETS = {
+            "OA": [
+                "http://tncimweb1.cminl.oa/umsapiproxy/fab4ums",
+                "http://tncimweb2.cminl.oa/umsapiproxy/fab4ums"
+            ],
+            "FAB1": [
+                "http://10.26.11.108/umsapiproxy/fab4ums",
+                "http://10.26.11.109/umsapiproxy/fab4ums"
+            ],
+            "FAB3": [
+                "http://10.75.1.208/umsapiproxy/fab4ums",
+                "http://10.75.1.209/umsapiproxy/fab4ums"
+            ],
+            "FAB6": [
+                "http://10.99.1.143/umsapiproxy/fab4ums",
+                "http://10.99.1.144/umsapiproxy/fab4ums"
+            ],
+            "FAB7": [
+                "http://10.107.1.148/umsapiproxy/fab4ums",
+                "http://10.107.1.149/umsapiproxy/fab4ums"
+            ],
+            "FAB8": [
+                "http://10.109.1.129/umsapiproxy/fab4ums",
+                "http://10.109.1.130/umsapiproxy/fab4ums"
+            ],
+            "FABT6": [
+                "http://10.59.119.183/umsapiproxy/fab4ums",
+                "http://10.59.119.184/umsapiproxy/fab4ums"
+            ],
+            "FABTS1": [
+                "http://10.242.1.114/umsapiproxy/fab4ums",
+                "http://10.242.1.115/umsapiproxy/fab4ums"
+            ],
+            "FABT1": [
+                "http://172.16.12.161/umsapiproxy/fab4ums",
+                "http://172.16.12.162/umsapiproxy/fab4ums"
+            ],
+            "FABT2": [
+                "http://172.20.11.164/umsapiproxy/fab4ums",
+                "http://172.20.11.169/umsapiproxy/fab4ums"
+            ],
+            "FABT3": [
+                "http://10.32.203.43/umsapiproxy/fab4ums"
+            ]
+        };
+
+        function detectFabPreset(urls) {
+            if (!urls || urls.length === 0) return '';
+            for (const [key, presetUrls] of Object.entries(FAB_PRESETS)) {
+                if (presetUrls.length === urls.length && presetUrls.every((u, i) => u.trim() === urls[i].trim())) {
+                    return key;
+                }
+            }
+            return 'custom';
+        }
+
+        function renderUmsEndpointRows(urls) {
+            const container = document.getElementById('ums-endpoints-container');
+            if (!container) return;
+            container.innerHTML = '';
+            
+            const list = Array.isArray(urls) && urls.length > 0 ? urls : [''];
+            list.forEach((url, idx) => {
+                const row = document.createElement('div');
+                row.className = 'ums-endpoint-row';
+                row.style.cssText = 'display: flex; flex-direction: column; gap: 0.2rem; background: #0c0c0c; border: 1px solid var(--border); padding: 0.35rem 0.5rem; border-radius: 2px;';
+                
+                const tagText = idx === 0 ? 'src1 (主)' : `src${idx+1} (備)`;
+                row.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                        <span class="ums-endpoint-tag" style="font-size: 0.65rem; color: var(--cyan); width: 62px; flex-shrink: 0; font-weight: bold;">${tagText}</span>
+                        <input type="text" name="ums_base_urls" class="ums-endpoint-input" value="${url || ''}" placeholder="http://.../umsapiproxy/fab4ums" style="flex: 1; font-size: 0.72rem; padding: 0.25rem 0.4rem; background: #000; border: 1px solid var(--border); color: var(--text);">
+                        <button type="button" class="stream-btn red" style="width: auto; padding: 0.2rem 0.45rem; font-size: 0.65rem; flex-shrink: 0;" onclick="removeUmsEndpointRow(${idx})" title="刪除此端點">✕</button>
+                    </div>
+                    <div class="ums-ep-status-badge" id="ums-ep-status-${idx}" style="font-size: 0.65rem; color: var(--text-dim); margin-left: 66px;"></div>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        function getCurrentUmsUrls() {
+            const inputs = document.querySelectorAll('.ums-endpoint-input');
+            const urls = [];
+            inputs.forEach(inp => {
+                const val = inp.value.trim();
+                if (val) urls.push(val);
+            });
+            return urls;
+        }
+
+        function addUmsEndpointRow(url = '') {
+            const current = getCurrentUmsUrls();
+            current.push(url);
+            renderUmsEndpointRows(current);
+            const matched = detectFabPreset(current);
+            const select = document.getElementById('fab-preset-select');
+            if (select) select.value = matched;
+        }
+
+        function removeUmsEndpointRow(idx) {
+            const inputs = document.querySelectorAll('.ums-endpoint-input');
+            const current = [];
+            inputs.forEach((inp, i) => {
+                if (i !== idx) {
+                    current.push(inp.value.trim());
+                }
+            });
+            if (current.length === 0) current.push('');
+            renderUmsEndpointRows(current);
+            const matched = detectFabPreset(current);
+            const select = document.getElementById('fab-preset-select');
+            if (select) select.value = matched;
+        }
+
+        function applyFabPreset(presetKey) {
+            if (!presetKey) return;
+            if (FAB_PRESETS[presetKey]) {
+                renderUmsEndpointRows(FAB_PRESETS[presetKey]);
+                const statusEl = document.getElementById('ums-test-status');
+                if (statusEl) {
+                    statusEl.textContent = '已套用廠區預設端點，請點擊 [ 測試連線 ] 驗證';
+                    statusEl.style.color = '#00e5ff';
+                }
+            }
+        }
+
         function testUmsConnection() {
             const statusEl = document.getElementById('ums-test-status');
-            const baseUrl = document.getElementById('ums_base_url').value.trim();
             const apiKey = document.getElementById('ums_api_key').value.trim();
+            const inputs = document.querySelectorAll('.ums-endpoint-input');
+            const urls = [];
+            inputs.forEach(inp => {
+                const val = inp.value.trim();
+                if (val) urls.push(val);
+            });
+
+            if (urls.length === 0) {
+                statusEl.textContent = '✗ 請至少輸入一組 UMS 端點 URL';
+                statusEl.style.color = '#ff3333';
+                return;
+            }
 
             statusEl.textContent = '連線測試中...';
             statusEl.style.color = '#00e5ff';
 
+            inputs.forEach((inp, idx) => {
+                const badge = document.getElementById(`ums-ep-status-${idx}`);
+                if (badge) {
+                    badge.textContent = '測試中...';
+                    badge.style.color = '#00e5ff';
+                }
+            });
+
             fetch('/api/ums/test_connection', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({base_url: baseUrl, api_key: apiKey})
+                body: JSON.stringify({base_urls: urls, api_key: apiKey})
             })
             .then(r => r.json())
             .then(data => {
+                if (data.endpoints && Array.isArray(data.endpoints)) {
+                    data.endpoints.forEach((ep, idx) => {
+                        const badge = document.getElementById(`ums-ep-status-${idx}`);
+                        if (badge) {
+                            if (ep.status === 'ok') {
+                                badge.textContent = `✓ 正常 (${ep.models_count || 0} models)`;
+                                badge.style.color = '#00ff41';
+                            } else {
+                                badge.textContent = `✗ 異常: ${ep.message || ep.error || '連線失敗'}`;
+                                badge.style.color = '#ff3333';
+                            }
+                        }
+                    });
+                }
+
                 if (data.status === 'ok') {
                     statusEl.textContent = `✓ ${data.message || '連線成功'}`;
                     statusEl.style.color = '#00ff41';
@@ -1193,8 +1387,15 @@
                 }
             })
             .catch(err => {
-                statusEl.textContent = '✗ 網路錯誤';
+                statusEl.textContent = '✗ 網路或請求錯誤';
                 statusEl.style.color = '#ff3333';
+                inputs.forEach((inp, idx) => {
+                    const badge = document.getElementById(`ums-ep-status-${idx}`);
+                    if (badge) {
+                        badge.textContent = '✗ 請求失敗';
+                        badge.style.color = '#ff3333';
+                    }
+                });
             });
         }
 
@@ -1713,6 +1914,14 @@
         window.addEventListener('DOMContentLoaded', () => {
             initMasterDetailStreams();
             onModeChange();
+
+            // Initialize UMS dynamic endpoints
+            renderUmsEndpointRows(CONFIG_INITIAL_UMS_URLS);
+            const matchedPreset = detectFabPreset(CONFIG_INITIAL_UMS_URLS);
+            const presetSelect = document.getElementById('fab-preset-select');
+            if (presetSelect && matchedPreset) {
+                presetSelect.value = matchedPreset;
+            }
 
             if (CONFIG_INITIAL_UMS_MODEL && CONFIG_INITIAL_UMS_MODEL.name) {
                 selectModelSource('ums');

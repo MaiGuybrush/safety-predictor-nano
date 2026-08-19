@@ -242,7 +242,54 @@ class TestConfigManager(unittest.TestCase):
         self.assertIsNotNone(mgr.config)
         self.assertIsInstance(mgr.config, dict)
 
+    def test_get_ums_base_urls_from_list(self):
+        data = {
+            "ums_base_urls": [
+                "http://10.26.11.108/umsapiproxy/fab4ums",
+                "http://10.26.11.109/umsapiproxy/fab4ums"
+            ]
+        }
+        self.write_yaml(data)
+        mgr = ConfigManager(self.tmp_path)
+        with unittest.mock.patch.dict("os.environ", {}, clear=True):
+            urls = mgr.get_ums_base_urls()
+            self.assertEqual(urls, [
+                "http://10.26.11.108/umsapiproxy/fab4ums",
+                "http://10.26.11.109/umsapiproxy/fab4ums"
+            ])
+
+    def test_get_ums_base_urls_from_legacy_single_string(self):
+        data = {
+            "ums_base_url": "http://legacy.ums/fab4ums"
+        }
+        self.write_yaml(data)
+        mgr = ConfigManager(self.tmp_path)
+        with unittest.mock.patch.dict("os.environ", {}, clear=True):
+            urls = mgr.get_ums_base_urls()
+            self.assertEqual(urls, ["http://legacy.ums/fab4ums"])
+
+    def test_get_ums_base_urls_from_env_var_comma_separated(self):
+        data = {
+            "ums_base_urls": ["http://config.ums/fab4ums"]
+        }
+        self.write_yaml(data)
+        mgr = ConfigManager(self.tmp_path)
+        with unittest.mock.patch.dict("os.environ", {"UMS_BASE_URL": "http://env1.ums, http://env2.ums"}):
+            urls = mgr.get_ums_base_urls()
+            self.assertEqual(urls, ["http://env1.ums", "http://env2.ums"])
+
+    def test_get_ums_base_urls_fallback_defaults(self):
+        data = {}
+        self.write_yaml(data)
+        mgr = ConfigManager(self.tmp_path)
+        with unittest.mock.patch.dict("os.environ", {}, clear=True):
+            urls = mgr.get_ums_base_urls()
+            self.assertEqual(len(urls), 2)
+            self.assertIn("tncimweb1.cminl.oa", urls[0])
+            self.assertIn("tncimweb2.cminl.oa", urls[1])
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

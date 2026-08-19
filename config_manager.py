@@ -4,6 +4,11 @@ import os
 
 from argus_eventlog import parse_camera_id
 
+DEFAULT_UMS_BASE_URLS = [
+    "http://tncimweb1.cminl.oa/umsapiproxy/fab4ums",
+    "http://tncimweb2.cminl.oa/umsapiproxy/fab4ums",
+]
+
 _STREAM_MODEL_KEY_RE = re.compile(r"^streams\[(\d+)\]\.model$")
 
 
@@ -132,6 +137,33 @@ class ConfigManager:
                     targets.append(target)
 
         return targets
+
+    def get_ums_base_urls(self):
+        """提供標準化的 UMS 端點 URL 清單。
+
+        優先權：
+        1. 環境變數 UMS_BASE_URL / UMS_BASE_URLS（支援逗號分隔）
+        2. config.yaml 的 ums_base_urls（列表）
+        3. 舊版 config.yaml 的 ums_base_url（單一字串）
+        4. Fallback 至預設 OA 端點清單
+        """
+        env_val = os.environ.get("UMS_BASE_URL") or os.environ.get("UMS_BASE_URLS")
+        if env_val and isinstance(env_val, str):
+            urls = [u.strip() for u in env_val.split(",") if u.strip()]
+            if urls:
+                return urls
+
+        raw_list = self.config.get("ums_base_urls")
+        if isinstance(raw_list, list):
+            urls = [str(u).strip() for u in raw_list if str(u).strip()]
+            if urls:
+                return urls
+
+        raw_single = self.config.get("ums_base_url")
+        if raw_single and isinstance(raw_single, str) and raw_single.strip():
+            return [raw_single.strip()]
+
+        return list(DEFAULT_UMS_BASE_URLS)
 
     def update_model_paths(self, updates):
         """把同步後的實際路徑寫回 config.yaml 指定欄位，不重建整份 config。

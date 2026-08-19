@@ -3,11 +3,16 @@ import yaml
 import os
 
 import model_sync
-from config_manager import ConfigManager
+from config_manager import ConfigManager, DEFAULT_UMS_BASE_URLS
 try:
     from ums_client import UmsApiClient
 except ImportError:
     UmsApiClient = None
+
+try:
+    from failover_ums_client import FailoverUmsClient
+except ImportError:
+    FailoverUmsClient = None
 
 app = Flask(__name__)
 CONFIG_FILE = "config.yaml"
@@ -105,8 +110,34 @@ def index():
                 ums_changed = True
 
         # 4. UMS settings
-        if "ums_base_url" in request.form:
-            new_config["ums_base_url"] = request.form["ums_base_url"].strip()
+        if "ums_base_urls" in request.form or "ums_base_urls[]" in request.form:
+            raw_urls = request.form.getlist("ums_base_urls") or request.form.getlist("ums_base_urls[]")
+            parsed_urls = []
+            for item in raw_urls:
+                if not item:
+                    continue
+                if item.startswith("[") and item.endswith("]"):
+                    try:
+                        sub_list = json.loads(item)
+                        if isinstance(sub_list, list):
+                            for u in sub_list:
+                                if str(u).strip():
+                                    parsed_urls.append(str(u).strip())
+                            continue
+                    except Exception:
+                        pass
+                for u in item.split(","):
+                    if u.strip():
+                        parsed_urls.append(u.strip())
+            if parsed_urls:
+                new_config["ums_base_urls"] = parsed_urls
+                new_config.pop("ums_base_url", None)
+        elif "ums_base_url" in request.form:
+            u_single = request.form["ums_base_url"].strip()
+            if u_single:
+                new_config["ums_base_url"] = u_single
+                new_config["ums_base_urls"] = [u_single]
+
         if "ums_api_key" in request.form:
             new_config["ums_api_key"] = request.form["ums_api_key"].strip()
 
@@ -260,18 +291,27 @@ def sync_status():
 
 @app.route('/api/ums/models', methods=['GET'])
 def get_ums_models():
-    if UmsApiClient is None:
+    if FailoverUmsClient is None and UmsApiClient is None:
         return jsonify({"status": "error", "message": "ums_client 套件未安裝"})
     
-    mgr = ConfigManager(CONFIG_FILE)
-    base_url = os.environ.get("UMS_BASE_URL") or mgr.get("ums_base_url") or "http://tncimweb.cminl.oa/umsapiproxy/fab4ums"
-    api_key = os.environ.get("UMS_API_KEY") or mgr.get("ums_api_key")
+    try:
+        mgr = ConfigManager(CONFIG_FILE)
+        base_urls = mgr.get_ums_base_urls()
+        cfg_key = mgr.get("ums_api_key")
+    except Exception:
+        base_urls = list(DEFAULT_UMS_BASE_URLS)
+        cfg_key = None
+
+    api_key = os.environ.get("UMS_API_KEY") or cfg_key
     
     if not api_key:
         return jsonify({"status": "error", "message": "尚未設定 UMS API Key"})
     
     try:
-        client = UmsApiClient(base_url=base_url, api_key=api_key)
+        if FailoverUmsClient is not None:
+            client = FailoverUmsClient(base_urls=base_urls, api_key=api_key)
+        else:
+            client = UmsApiClient(base_url=base_urls[0], api_key=api_key)
         raw_models = client.fetch_my_models()
         
         projects_dict = {}
@@ -315,26 +355,64 @@ def get_ums_models():
 
 @app.route('/api/ums/test_connection', methods=['POST'])
 def test_ums_connection():
-    if UmsApiClient is None:
+    if FailoverUmsClient is None and UmsApiClient is None:
         return jsonify({"status": "error", "message": "ums_client 套件未安裝"})
     
     data = request.get_json(force=True, silent=True) or request.form.to_dict() or {}
-    base_url = data.get("base_url") or os.environ.get("UMS_BASE_URL") or "http://tncimweb.cminl.oa/umsapiproxy/fab4ums"
     api_key = data.get("api_key") or os.environ.get("UMS_API_KEY")
     
     if not api_key:
         return jsonify({"status": "error", "message": "API Key 不得為空"})
     
-    try:
-        client = UmsApiClient(base_url=base_url, api_key=api_key, timeout=10)
-        models = client.fetch_my_models()
+    candidate_urls = []
+    if "base_urls" in data:
+        raw_val = data["base_urls"]
+        if isinstance(raw_val, list):
+            candidate_urls = [str(u).strip() for u in raw_val if str(u).strip()]
+        elif isinstance(raw_val, str):
+            candidate_urls = [u.strip() for u in raw_val.split(",") if u.strip()]
+    elif "base_url" in data and data["base_url"]:
+        candidate_urls = [data["base_url"].strip()]
+    
+    if not candidate_urls:
+        try:
+            mgr = ConfigManager(CONFIG_FILE)
+            candidate_urls = mgr.get_ums_base_urls()
+        except Exception:
+            candidate_urls = list(DEFAULT_UMS_BASE_URLS)
+
+    if FailoverUmsClient is not None:
+        client = FailoverUmsClient(base_urls=candidate_urls, api_key=api_key, timeout=10)
+        endpoints_results = client.test_endpoints()
+    else:
+        endpoints_results = []
+        for u in candidate_urls:
+            try:
+                c = UmsApiClient(base_url=u, api_key=api_key, timeout=10)
+                ms = c.fetch_my_models()
+                endpoints_results.append({"url": u, "status": "ok", "models_count": len(ms), "message": f"連線成功，共取得 {len(ms)} 個模型"})
+            except Exception as e:
+                endpoints_results.append({"url": u, "status": "error", "message": str(e), "error": str(e)})
+
+    success_count = sum(1 for ep in endpoints_results if ep.get("status") == "ok")
+    total_count = len(endpoints_results)
+
+    if success_count > 0:
+        first_success = next(ep for ep in endpoints_results if ep.get("status") == "ok")
+        models_cnt = first_success.get("models_count", 0)
         return jsonify({
             "status": "ok",
-            "models_count": len(models),
-            "message": f"連線成功，共取得 {len(models)} 個模型"
+            "models_count": models_cnt,
+            "message": f"連線測試完成：{success_count}/{total_count} 個端點連線成功",
+            "endpoints": endpoints_results
         })
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)})
+    else:
+        err_msg = endpoints_results[0].get("message") if endpoints_results else "連線失敗"
+        return jsonify({
+            "status": "error",
+            "message": f"所有端點皆連線失敗: {err_msg}",
+            "endpoints": endpoints_results
+        })
 
 @app.route('/video_feed')
 def video_feed():

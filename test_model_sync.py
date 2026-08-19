@@ -246,6 +246,29 @@ class TestModelSync(unittest.TestCase):
             self.assertEqual(len(r["success"]), 1)
             self.assertEqual(r["failed"], [])
 
+    @unittest.mock.patch("failover_ums_client.FailoverUmsClient")
+    def test_sync_all_creates_failover_client_with_config_urls(self, mock_client_cls):
+        self.write_yaml({
+            "ums_base_urls": ["http://ep1", "http://ep2"],
+            "ums_api_key": "my_api_key",
+            "ums_model": {"name": "target_model"}
+        })
+        mgr = ConfigManager(self.tmp_path)
+        mock_instance = mock_client_cls.return_value
+        mock_instance.fetch_my_models.return_value = [
+            make_model("target_model", [make_version(1, 1, status="Active")])
+        ]
+        mock_instance.download_version.return_value = self.dest_dir / "target.onnx"
+
+        report = model_sync.sync_all(mgr, client=None)
+
+        mock_client_cls.assert_called_once_with(
+            base_urls=["http://ep1", "http://ep2"],
+            api_key="my_api_key"
+        )
+        self.assertEqual(len(report["success"]), 1)
+        self.assertEqual(report["failed"], [])
+
 
 class TestLandArtifact(unittest.TestCase):
     def setUp(self):
