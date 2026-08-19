@@ -3,6 +3,8 @@ import threading
 import queue
 import time
 
+import web_ui
+
 class StreamHandler:
     def __init__(self, rtsp_url, fps_limit):
         self.rtsp_url = rtsp_url
@@ -39,6 +41,7 @@ class StreamHandler:
     def _capture_frames(self):
         cap = self._open_capture()
         fail_count = 0
+        last_retrieve_time = 0
         try:
             while self.running:
                 if not cap.isOpened():
@@ -49,8 +52,8 @@ class StreamHandler:
                     cap = self._open_capture()  # 重連時保持相同 buffer 設定
                     continue
 
-                ret, frame = cap.read()
-                if not ret:
+                grab_ok = cap.grab()
+                if not grab_ok:
                     fail_count += 1
                     if fail_count > 10:  # 失敗超過 10 次，嘗試重新連線
                         cap.release()
@@ -60,14 +63,25 @@ class StreamHandler:
                     continue
                 
                 fail_count = 0
-                
-                # 更新 queue，只保留最新的一幀
-                if self.frame_queue.full():
-                    try:
-                        self.frame_queue.get_nowait()
-                    except queue.Empty:
-                        pass
-                self.frame_queue.put(frame)
+                now = time.time()
+
+                # 判斷是否需要進行昂貴的像素解碼 (retrieve)
+                streaming_active = web_ui.is_streaming_active() if hasattr(web_ui, 'is_streaming_active') else False
+                interval = (1.0 / self.fps_limit) if self.fps_limit > 0 else 0
+                should_retrieve = streaming_active or (now - last_retrieve_time >= interval)
+
+                if should_retrieve:
+                    ret, frame = cap.retrieve()
+                    if ret and frame is not None:
+                        last_retrieve_time = now
+                        if self.frame_queue.full():
+                            try:
+                                self.frame_queue.get_nowait()
+                            except queue.Empty:
+                                pass
+                        self.frame_queue.put(frame)
+                        self.last_frame = frame
+
                 time.sleep(0.001)
         finally:
             cap.release()

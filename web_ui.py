@@ -175,6 +175,25 @@ def index():
     return render_template("index.html", config=config)
 
 
+LATEST_FRAME = None
+_clients_lock = threading.Lock()
+ACTIVE_VIDEO_CLIENTS = 0
+
+def register_video_client():
+    global ACTIVE_VIDEO_CLIENTS
+    with _clients_lock:
+        ACTIVE_VIDEO_CLIENTS += 1
+
+def unregister_video_client():
+    global ACTIVE_VIDEO_CLIENTS
+    with _clients_lock:
+        if ACTIVE_VIDEO_CLIENTS > 0:
+            ACTIVE_VIDEO_CLIENTS -= 1
+
+def is_streaming_active():
+    with _clients_lock:
+        return ACTIVE_VIDEO_CLIENTS > 0
+
 STREAM_UNITS = []
 LATEST_DETECTIONS = {}
 MODEL_INFO = {
@@ -207,41 +226,49 @@ NO_SIGNAL_FRAME = _create_no_signal_frame()
 
 def gen_frames():
     import time
-    while True:
-        frame = LATEST_FRAME if LATEST_FRAME is not None else NO_SIGNAL_FRAME
-        if frame:
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-        if app.config.get('TESTING'):
-            break
-        time.sleep(0.03)
+    register_video_client()
+    try:
+        while True:
+            frame = LATEST_FRAME if LATEST_FRAME is not None else NO_SIGNAL_FRAME
+            if frame:
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+            if app.config.get('TESTING'):
+                break
+            time.sleep(0.03)
+    finally:
+        unregister_video_client()
 
 def gen_single_stream_frames(stream_id):
     import time
-    while True:
-        frame_bytes = None
-        if 0 <= stream_id < len(STREAM_UNITS):
-            unit = STREAM_UNITS[stream_id]
-            raw_frame = unit.get("latest_raw_frame")
-            if raw_frame is None and "handler" in unit:
-                raw_frame = unit["handler"].get_latest_frame()
-                
-            if raw_frame is not None:
-                if isinstance(raw_frame, bytes):
-                    frame_bytes = raw_frame
-                elif isinstance(raw_frame, np.ndarray):
-                    ret, buf = cv2.imencode('.jpg', raw_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
-                    if ret:
-                        frame_bytes = buf.tobytes()
-        
-        if frame_bytes is None:
-            frame_bytes = NO_SIGNAL_FRAME
+    register_video_client()
+    try:
+        while True:
+            frame_bytes = None
+            if 0 <= stream_id < len(STREAM_UNITS):
+                unit = STREAM_UNITS[stream_id]
+                raw_frame = unit.get("latest_raw_frame")
+                if raw_frame is None and "handler" in unit:
+                    raw_frame = unit["handler"].get_latest_frame()
+                    
+                if raw_frame is not None:
+                    if isinstance(raw_frame, bytes):
+                        frame_bytes = raw_frame
+                    elif isinstance(raw_frame, np.ndarray):
+                        ret, buf = cv2.imencode('.jpg', raw_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+                        if ret:
+                            frame_bytes = buf.tobytes()
+            
+            if frame_bytes is None:
+                frame_bytes = NO_SIGNAL_FRAME
 
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-        if app.config.get('TESTING'):
-            break
-        time.sleep(0.03)
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+            if app.config.get('TESTING'):
+                break
+            time.sleep(0.03)
+    finally:
+        unregister_video_client()
 
 def gen_detections_feed():
     import time

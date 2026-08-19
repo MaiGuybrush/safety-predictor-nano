@@ -433,6 +433,40 @@
             object-fit: contain;
             display: block;
         }
+        .stream-idle-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.88);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.6rem;
+            z-index: 50;
+            cursor: pointer;
+            backdrop-filter: blur(4px);
+            border: 1px dashed var(--cyan);
+            user-select: none;
+        }
+        .stream-idle-overlay .idle-icon {
+            font-size: 1.8rem;
+            color: var(--cyan);
+            animation: blink 2s infinite;
+        }
+        .stream-idle-overlay .idle-title {
+            font-size: 0.95rem;
+            font-weight: bold;
+            color: #fff;
+            letter-spacing: 1px;
+        }
+        .stream-idle-overlay .idle-hint {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            background: #111;
+            padding: 0.25rem 0.6rem;
+            border-radius: 3px;
+            border: 1px solid var(--border);
+        }
         .monitor-stream-bar {
             display: none;
             gap: 0.4rem;
@@ -847,8 +881,13 @@
                     </div>
                     <button type="button" class="stream-btn cyan" onclick="openDetailFullscreen()">全螢幕檢視 ↗</button>
                 </div>
-                <div class="preview-img-wrapper" onclick="openDetailFullscreen()">
+                <div class="preview-img-wrapper" onclick="handlePreviewClick(event)">
                     <img id="preview-cam-img" src="/video_feed/0" class="cam-feed-preview" alt="Camera Feed">
+                    <div id="preview-idle-overlay" class="stream-idle-overlay" onclick="wakeFromIdle(event)">
+                        <div class="idle-icon">⏸</div>
+                        <div class="idle-title">省電休眠模式中</div>
+                        <div class="idle-hint">點擊任意處或移動滑鼠以恢復監看畫面</div>
+                    </div>
                 </div>
                 <!-- Monitor Mode Stream Selector Bar (Shown only in hide-config) -->
                 <div class="monitor-stream-bar" id="monitor-stream-bar">
@@ -993,6 +1032,11 @@
         <div class="modal-body" onclick="event.stopPropagation()">
             <img id="fullscreen-img" alt="Stream Feed">
             <canvas id="fullscreen-canvas"></canvas>
+            <div id="fullscreen-idle-overlay" class="stream-idle-overlay" onclick="wakeFromIdle(event)">
+                <div class="idle-icon">⏸</div>
+                <div class="idle-title">全螢幕省電休眠中</div>
+                <div class="idle-hint">點擊任意處或移動滑鼠以恢復即時畫面</div>
+            </div>
         </div>
     </div>
 
@@ -2537,6 +2581,111 @@
                 drawCanvas();
             }
         });
+
+        // ── Smart Inactivity & Visibility Decoupler ──
+        const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 分鐘閒置逾時
+        let idleTimer = null;
+        let isUserIdle = false;
+        let isTabHidden = false;
+
+        function pauseAllStreams() {
+            const previewImg = document.getElementById('preview-cam-img');
+            if (previewImg && previewImg.src) {
+                previewImg.src = '';
+            }
+            const fsImg = document.getElementById('fullscreen-img');
+            if (fsImg && fsImg.src) {
+                fsImg.src = '';
+            }
+        }
+
+        function resumeAllStreams() {
+            if (isUserIdle || isTabHidden) return;
+
+            const previewImg = document.getElementById('preview-cam-img');
+            if (previewImg && typeof selectedStreamIndex !== 'undefined' && selectedStreamIndex !== null) {
+                previewImg.src = `/video_feed/${selectedStreamIndex}?t=` + Date.now();
+            }
+
+            const modal = document.getElementById('fullscreen-modal');
+            const fsImg = document.getElementById('fullscreen-img');
+            if (modal && modal.style.display !== 'none' && fsImg && typeof activeStreamIndex !== 'undefined' && activeStreamIndex !== null) {
+                fsImg.src = `/video_feed/${activeStreamIndex}?t=` + Date.now();
+            }
+        }
+
+        function setIdleOverlayVisibility(show) {
+            const previewOverlay = document.getElementById('preview-idle-overlay');
+            if (previewOverlay) {
+                previewOverlay.style.display = show ? 'flex' : 'none';
+            }
+            const fsOverlay = document.getElementById('fullscreen-idle-overlay');
+            if (fsOverlay) {
+                fsOverlay.style.display = show ? 'flex' : 'none';
+            }
+        }
+
+        function enterIdleMode() {
+            if (isUserIdle) return;
+            isUserIdle = true;
+            pauseAllStreams();
+            setIdleOverlayVisibility(true);
+        }
+
+        function wakeFromIdle(event) {
+            if (event) {
+                event.stopPropagation();
+            }
+            if (!isUserIdle) return;
+            isUserIdle = false;
+            setIdleOverlayVisibility(false);
+            resumeAllStreams();
+            resetIdleTimer();
+        }
+
+        function resetIdleTimer() {
+            if (idleTimer) clearTimeout(idleTimer);
+            if (isUserIdle) {
+                wakeFromIdle();
+            }
+            idleTimer = setTimeout(() => {
+                enterIdleMode();
+            }, IDLE_TIMEOUT_MS);
+        }
+
+        function handlePreviewClick(event) {
+            if (isUserIdle) {
+                wakeFromIdle(event);
+                return;
+            }
+            openDetailFullscreen();
+        }
+
+        // Page Visibility API 監聽 (分頁切換/最小化)
+        document.addEventListener('visibilitychange', () => {
+            isTabHidden = document.hidden;
+            if (isTabHidden) {
+                pauseAllStreams();
+            } else {
+                resumeAllStreams();
+                resetIdleTimer();
+            }
+        });
+
+        // 使用者互動監聽 (重設閒置計時器)
+        const USER_ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+        USER_ACTIVITY_EVENTS.forEach(evt => {
+            window.addEventListener(evt, () => {
+                if (isUserIdle) {
+                    wakeFromIdle();
+                } else {
+                    resetIdleTimer();
+                }
+            }, { passive: true });
+        });
+
+        // 啟動初始計時器
+        resetIdleTimer();
     </script>
 </body>
 </html>

@@ -139,7 +139,7 @@ def process_detections(stream_key, camera_id, detections, frame_w, frame_h,
         sensitivity = float(zone.get("sensitivity", 0.0))
         detections = [
             d for d in detections 
-            if _is_inside_zone(d, polygon, frame_w, frame_h, trigger_mode=trigger_mode, sensitivity=sensitivity)
+            if (d["in_zone"] if "in_zone" in d else _is_inside_zone(d, polygon, frame_w, frame_h, trigger_mode=trigger_mode, sensitivity=sensitivity))
         ]
 
     by_label = {}

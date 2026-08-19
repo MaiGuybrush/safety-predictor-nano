@@ -473,13 +473,14 @@ def main():
                             unit["latest_raw_frame"] = frame
                             latest_frames[unit["url"]] = frame
                     
-                    active_frames = [latest_frames[u["url"]] for u in stream_units if u["url"] in latest_frames]
-                    if active_frames:
-                        grid_img = compose_grid(active_frames, target_width=640)
-                        if grid_img is not None:
-                            ret_enc, buffer = cv2.imencode('.jpg', grid_img, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
-                            if ret_enc:
-                                web_ui.LATEST_FRAME = buffer.tobytes()
+                    if web_ui.is_streaming_active():
+                        active_frames = [latest_frames[u["url"]] for u in stream_units if u["url"] in latest_frames]
+                        if active_frames:
+                            grid_img = compose_grid(active_frames, target_width=640)
+                            if grid_img is not None:
+                                ret_enc, buffer = cv2.imencode('.jpg', grid_img, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+                                if ret_enc:
+                                    web_ui.LATEST_FRAME = buffer.tobytes()
 
             elif mode == 'video' and video_handler and video_engine:
                 frame = video_handler.get_latest_frame()
