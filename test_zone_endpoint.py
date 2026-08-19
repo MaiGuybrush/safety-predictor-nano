@@ -14,7 +14,9 @@ class TestZoneEndpoint(unittest.TestCase):
         mock_mgr = mock_cfg_mgr_cls.return_value
         mock_mgr.get_zone.return_value = {
             "polygon": [[0.1, 0.2], [0.5, 0.2], [0.5, 0.8], [0.1, 0.8]],
-            "zone_name": "機台危險區"
+            "zone_name": "機台危險區",
+            "trigger_mode": "intersect",
+            "sensitivity": 0.3
         }
 
         stream_url = "rtsp://127.0.0.1:8554/test_stream1"
@@ -24,6 +26,8 @@ class TestZoneEndpoint(unittest.TestCase):
         data = response.get_json()
         self.assertEqual(data["polygon"], [[0.1, 0.2], [0.5, 0.2], [0.5, 0.8], [0.1, 0.8]])
         self.assertEqual(data["zone_name"], "機台危險區")
+        self.assertEqual(data["trigger_mode"], "intersect")
+        self.assertEqual(data["sensitivity"], 0.3)
         mock_mgr.get_zone.assert_called_once_with(stream_url)
 
     @patch("web_ui.ConfigManager")
@@ -37,18 +41,24 @@ class TestZoneEndpoint(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.get_json()
         self.assertIsNone(data.get("polygon"))
+        self.assertEqual(data.get("trigger_mode"), "center")
+        self.assertEqual(data.get("sensitivity"), 0.0)
 
     @patch("web_ui.ConfigManager")
     def test_post_zone_save(self, mock_cfg_mgr_cls):
         mock_mgr = mock_cfg_mgr_cls.return_value
         mock_mgr.get_zone.return_value = {
             "polygon": [[0.1, 0.2], [0.5, 0.2], [0.5, 0.8], [0.1, 0.8]],
-            "zone_name": "機台危險區"
+            "zone_name": "機台危險區",
+            "trigger_mode": "intersect",
+            "sensitivity": 0.3
         }
         stream_url = "rtsp://127.0.0.1:8554/test_stream1"
         payload = {
             "polygon": [[0.1, 0.2], [0.5, 0.2], [0.5, 0.8], [0.1, 0.8]],
-            "zone_name": "機台危險區"
+            "zone_name": "機台危險區",
+            "trigger_mode": "intersect",
+            "sensitivity": 0.3
         }
 
         response = self.client.post(f'/zone/{stream_url}', json=payload)
@@ -57,10 +67,14 @@ class TestZoneEndpoint(unittest.TestCase):
         data = response.get_json()
         self.assertEqual(data["status"], "ok")
         self.assertEqual(data["zone"]["zone_name"], "機台危險區")
+        self.assertEqual(data["zone"]["trigger_mode"], "intersect")
+        self.assertEqual(data["zone"]["sensitivity"], 0.3)
         mock_mgr.save_zone.assert_called_once_with(
             stream_url,
             payload["polygon"],
-            "機台危險區"
+            "機台危險區",
+            trigger_mode="intersect",
+            sensitivity=0.3
         )
 
     @patch("web_ui.ConfigManager")
@@ -78,7 +92,9 @@ class TestZoneEndpoint(unittest.TestCase):
         mock_mgr.save_zone.assert_called_once_with(
             stream_url,
             [],
-            None
+            None,
+            trigger_mode="center",
+            sensitivity=0.0
         )
 
 

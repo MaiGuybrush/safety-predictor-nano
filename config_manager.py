@@ -207,7 +207,7 @@ class ConfigManager:
             return None
         return self.get_zones().get(stream_url)
 
-    def save_zone(self, stream_url, polygon, zone_name=None):
+    def save_zone(self, stream_url, polygon, zone_name=None, trigger_mode="center", sensitivity=0.0):
         if not stream_url:
             return
 
@@ -221,6 +221,10 @@ class ConfigManager:
             zone_data = {"polygon": polygon}
             if zone_name:
                 zone_data["zone_name"] = zone_name
+            if trigger_mode:
+                zone_data["trigger_mode"] = str(trigger_mode)
+            if sensitivity is not None:
+                zone_data["sensitivity"] = float(sensitivity)
             raw["zones"][stream_url] = zone_data
         else:
             raw["zones"].pop(stream_url, None)

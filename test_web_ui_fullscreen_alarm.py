@@ -37,9 +37,11 @@ def test_fullscreen_modal_alarm_css_and_elements(client):
     assert 'id="fullscreen-modal"' in html
     assert 'id="fullscreen-canvas"' in html
     assert 'id="zone-status-badge"' in html
+    assert 'id="zone-trigger-mode-select"' in html
+    assert 'id="zone-sensitivity-range"' in html
+    assert 'updateTriggerModeUI' in html
 
     # 3. 檢查 JavaScript 核心幾何判定與告警繪圖邏輯
-    assert 'function isPointInPolygon(' in html
     assert 'hasAlarmInZone' in html
     assert '[ALARM]' in html
     assert '[ ROI:' in html

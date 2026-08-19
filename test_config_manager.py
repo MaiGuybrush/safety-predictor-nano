@@ -154,12 +154,14 @@ class TestConfigManager(unittest.TestCase):
         self.write_yaml(data)
         mgr = ConfigManager(self.tmp_path)
         poly = [[0.1, 0.2], [0.5, 0.2], [0.5, 0.8], [0.1, 0.8]]
-        mgr.save_zone("rtsp://cam1", poly, "機台危險區")
+        mgr.save_zone("rtsp://cam1", poly, "機台危險區", trigger_mode="intersect", sensitivity=0.25)
 
         # In-memory check
         self.assertEqual(mgr.get_zone("rtsp://cam1"), {
             "polygon": poly,
-            "zone_name": "機台危險區"
+            "zone_name": "機台危險區",
+            "trigger_mode": "intersect",
+            "sensitivity": 0.25
         })
 
         # On-disk check
@@ -167,6 +169,8 @@ class TestConfigManager(unittest.TestCase):
             on_disk = yaml.safe_load(f)
         self.assertEqual(on_disk["zones"]["rtsp://cam1"]["polygon"], poly)
         self.assertEqual(on_disk["zones"]["rtsp://cam1"]["zone_name"], "機台危險區")
+        self.assertEqual(on_disk["zones"]["rtsp://cam1"]["trigger_mode"], "intersect")
+        self.assertEqual(on_disk["zones"]["rtsp://cam1"]["sensitivity"], 0.25)
         self.assertEqual(on_disk["cpu_cores"], 4)
 
     def test_delete_zone(self):

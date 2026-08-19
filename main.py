@@ -162,6 +162,16 @@ def _inference_worker(context):
                 stream_zone = zones_cfg.get(url)
 
                 h, w = frame.shape[:2]
+                if isinstance(stream_zone, dict) and stream_zone.get("polygon") and len(stream_zone["polygon"]) >= 3:
+                    poly = stream_zone["polygon"]
+                    t_mode = stream_zone.get("trigger_mode", "center")
+                    sens = float(stream_zone.get("sensitivity", 0.0))
+                    for d in formatted_detections:
+                        d["in_zone"] = event_producer._is_inside_zone(d, poly, w, h, trigger_mode=t_mode, sensitivity=sens)
+                else:
+                    for d in formatted_detections:
+                        d["in_zone"] = False
+
                 event_producer.process_detections(
                     unit_idx, unit.get("camera_id", "unknown"),
                     formatted_detections, w, h,
@@ -495,6 +505,16 @@ def main():
                         video_url = config.get("video_path", "")
                         zones_cfg = config.get("zones") if isinstance(config.get("zones"), dict) else {}
                         video_zone = zones_cfg.get(video_url)
+
+                        if isinstance(video_zone, dict) and video_zone.get("polygon") and len(video_zone["polygon"]) >= 3:
+                            poly = video_zone["polygon"]
+                            t_mode = video_zone.get("trigger_mode", "center")
+                            sens = float(video_zone.get("sensitivity", 0.0))
+                            for d in formatted_detections:
+                                d["in_zone"] = event_producer._is_inside_zone(d, poly, w, h, trigger_mode=t_mode, sensitivity=sens)
+                        else:
+                            for d in formatted_detections:
+                                d["in_zone"] = False
 
                         event_producer.process_detections(
                             "video", video_camera_id,

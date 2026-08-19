@@ -264,8 +264,18 @@ def get_zone(stream_url):
     mgr = ConfigManager(CONFIG_FILE)
     zone = mgr.get_zone(stream_url)
     if zone is None:
-        return jsonify({"polygon": None, "zone_name": None})
-    return jsonify(zone)
+        return jsonify({
+            "polygon": None,
+            "zone_name": None,
+            "trigger_mode": "center",
+            "sensitivity": 0.0
+        })
+    res = dict(zone)
+    if "trigger_mode" not in res:
+        res["trigger_mode"] = "center"
+    if "sensitivity" not in res:
+        res["sensitivity"] = 0.0
+    return jsonify(res)
 
 @app.route('/zone/<path:stream_url>', methods=['POST'])
 def post_zone(stream_url):
@@ -273,7 +283,9 @@ def post_zone(stream_url):
     data = request.get_json(force=True, silent=True) or {}
     polygon = data.get("polygon", [])
     zone_name = data.get("zone_name")
-    mgr.save_zone(stream_url, polygon, zone_name)
+    trigger_mode = data.get("trigger_mode", "center")
+    sensitivity = data.get("sensitivity", 0.0)
+    mgr.save_zone(stream_url, polygon, zone_name, trigger_mode=trigger_mode, sensitivity=sensitivity)
     return jsonify({
         "status": "ok",
         "stream_url": stream_url,

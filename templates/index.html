@@ -938,8 +938,17 @@
                 <div id="zone-view-controls">
                     <button type="button" class="stream-btn" id="btn-edit-zone" onclick="enterZoneEditMode()">[ 編輯區域 EDIT_ZONE ]</button>
                 </div>
-                <div id="zone-edit-controls" style="display: none; align-items: center; gap: 0.5rem;">
-                    <input type="text" id="zone-name-input" placeholder="ZONE_NAME" style="width: 130px; padding: 0.3rem 0.5rem; font-size: 0.75rem; border: 1px solid #00e5ff; color: #00e5ff; background: rgba(0,0,0,0.5);">
+                <div id="zone-edit-controls" style="display: none; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                    <input type="text" id="zone-name-input" placeholder="ZONE_NAME" style="width: 110px; padding: 0.3rem 0.5rem; font-size: 0.75rem; border: 1px solid #00e5ff; color: #00e5ff; background: rgba(0,0,0,0.5);">
+                    <select id="zone-trigger-mode-select" style="padding: 0.3rem 0.5rem; font-size: 0.75rem; border: 1px solid #00e5ff; color: #00e5ff; background: #111; cursor: pointer;" onchange="updateTriggerModeUI()">
+                        <option value="center">中心點 (Center)</option>
+                        <option value="intersect">相交重疊 (Intersect)</option>
+                    </select>
+                    <div id="zone-sensitivity-container" style="display: none; align-items: center; gap: 0.3rem; font-size: 0.75rem; color: #00e5ff;">
+                        <span>敏感度:</span>
+                        <input type="range" id="zone-sensitivity-range" min="0" max="100" value="0" style="width: 65px;" oninput="document.getElementById('zone-sensitivity-val').innerText = this.value + '%'">
+                        <span id="zone-sensitivity-val" style="min-width: 32px;">0%</span>
+                    </div>
                     <button type="button" class="stream-btn" onclick="closeZonePolygon()" style="border-color: #00e5ff; color: #00e5ff;">[ 封閉 CLOSE ]</button>
                     <button type="button" class="stream-btn" onclick="clearZonePoints()" style="border-color: #ffaa00; color: #ffaa00;">[ 清除 CLEAR ]</button>
                     <button type="button" class="stream-btn" onclick="saveZone()" style="border-color: #00ff41; color: #00ff41;">[ 儲存 SAVE ]</button>
@@ -1878,7 +1887,8 @@
                 .then(data => {
                     if (data && data.polygon && data.polygon.length >= 3) {
                         const name = data.zone_name ? ` (${data.zone_name})` : '';
-                        badge.textContent = `[ ROI: ACTIVE${name} ]`;
+                        const modeStr = (data.trigger_mode === 'intersect') ? ` [相交 ${Math.round((data.sensitivity || 0) * 100)}%]` : '';
+                        badge.textContent = `[ ROI: ACTIVE${name}${modeStr} ]`;
                         badge.style.color = '#00e5ff';
                     } else {
                         badge.textContent = '[ ROI: INACTIVE ]';
@@ -2137,11 +2147,38 @@
             canvas.style.top = img.offsetTop + 'px';
         }
 
+        function updateTriggerModeUI() {
+            const modeSelect = document.getElementById('zone-trigger-mode-select');
+            const sensContainer = document.getElementById('zone-sensitivity-container');
+            if (modeSelect && sensContainer) {
+                sensContainer.style.display = (modeSelect.value === 'intersect') ? 'flex' : 'none';
+            }
+        }
+
         function enterZoneEditMode() {
             isEditingZone = true;
             isPolygonClosed = !!(currentSavedZone && currentSavedZone.polygon && currentSavedZone.polygon.length >= 3);
             editingPolygon = (currentSavedZone && currentSavedZone.polygon) ? JSON.parse(JSON.stringify(currentSavedZone.polygon)) : [];
             document.getElementById('zone-name-input').value = (currentSavedZone && currentSavedZone.zone_name) || '';
+
+            const triggerMode = (currentSavedZone && currentSavedZone.trigger_mode) || 'center';
+            const sensitivity = (currentSavedZone && currentSavedZone.sensitivity !== undefined) ? currentSavedZone.sensitivity : 0.0;
+
+            const modeSelect = document.getElementById('zone-trigger-mode-select');
+            if (modeSelect) {
+                modeSelect.value = triggerMode;
+            }
+            const sensRange = document.getElementById('zone-sensitivity-range');
+            const sensVal = document.getElementById('zone-sensitivity-val');
+            const sensPct = Math.round(sensitivity * 100);
+            if (sensRange) {
+                sensRange.value = sensPct;
+            }
+            if (sensVal) {
+                sensVal.innerText = sensPct + '%';
+            }
+            updateTriggerModeUI();
+
             document.getElementById('zone-view-controls').style.display = 'none';
             document.getElementById('zone-edit-controls').style.display = 'flex';
             const canvas = document.getElementById('fullscreen-canvas');
@@ -2174,13 +2211,20 @@
                 return;
             }
             const name = document.getElementById('zone-name-input').value.trim();
+            const modeSelect = document.getElementById('zone-trigger-mode-select');
+            const sensRange = document.getElementById('zone-sensitivity-range');
+            const triggerMode = modeSelect ? modeSelect.value : 'center';
+            const sensitivity = sensRange ? (parseFloat(sensRange.value) / 100.0) : 0.0;
+
             const polyToSend = (editingPolygon.length >= 3) ? editingPolygon : [];
             fetch('/zone/' + encodeURIComponent(url), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     polygon: polyToSend,
-                    zone_name: polyToSend.length >= 3 ? (name || null) : null
+                    zone_name: polyToSend.length >= 3 ? (name || null) : null,
+                    trigger_mode: triggerMode,
+                    sensitivity: sensitivity
                 })
             })
             .then(r => r.json())
@@ -2346,9 +2390,7 @@
                 detObj.detections.forEach(det => {
                     const coords = det.xyxy || [];
                     if (coords.length >= 4) {
-                        const cx = (coords[0] + coords[2]) / (2.0 * detObj.frame_w);
-                        const cy = (coords[1] + coords[3]) / (2.0 * detObj.frame_h);
-                        const inZone = (!isEditingZone && savedPoly) ? isPointInPolygon([cx, cy], savedPoly) : false;
+                        const inZone = (!isEditingZone && savedPoly) ? Boolean(det.in_zone) : false;
                         if (inZone) {
                             hasAlarmInZone = true;
                         }

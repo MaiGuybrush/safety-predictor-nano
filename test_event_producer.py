@@ -146,6 +146,63 @@ class TestEventProducer(unittest.TestCase):
         self.assertEqual(len(starts), 1)
         self.assertEqual(starts[0].category, "no_helmet")
 
+    def test_intersect_mode_triggers_when_center_outside_but_border_overlaps(self):
+        zone = {
+            "polygon": [[0.2, 0.2], [0.8, 0.2], [0.8, 0.8], [0.2, 0.8]],
+            "zone_name": "Danger Zone",
+            "trigger_mode": "intersect",
+            "sensitivity": 0.0
+        }
+        # Bbox: (10, 10, 25, 25) on 100x100 -> [0.1, 0.1, 0.25, 0.25]
+        # Center is (0.175, 0.175) -> OUTSIDE [0.2, 0.8]
+        # Overlap region is [0.2, 0.25] x [0.2, 0.25] -> INTERSECTS
+        det = _det("person", xyxy=(10, 10, 25, 25))
+
+        # Under center mode: should be filtered out
+        center_zone = dict(zone, trigger_mode="center")
+        event_producer.process_detections("s0", "CCD1", [det], 100, 100, zone=center_zone)
+        self.assertEqual(self._actions(), [])
+
+        # Under intersect mode with sensitivity=0.0: should trigger
+        event_producer.process_detections("s0", "CCD1", [det], 100, 100, zone=zone)
+        actions = self._actions()
+        self.assertEqual(len(actions), 2)
+        start = actions[0]
+        self.assertEqual(start.category, "person")
+
+    def test_intersect_mode_sensitivity_threshold(self):
+        zone = {
+            "polygon": [[0.2, 0.2], [0.8, 0.2], [0.8, 0.8], [0.2, 0.8]],
+            "trigger_mode": "intersect",
+            "sensitivity": 0.6  # Requires 60% overlap
+        }
+        # Bbox: (10, 40, 30, 60) on 100x100 -> [0.1, 0.4, 0.3, 0.6]
+        # Bbox Area = 0.2 * 0.2 = 0.04
+        # Overlap with ROI [0.2, 0.8] is [0.2, 0.3] x [0.4, 0.6] -> Area = 0.1 * 0.2 = 0.02
+        # Overlap ratio = 0.02 / 0.04 = 0.5 (50%)
+        det = _det("forklift", xyxy=(10, 40, 30, 60))
+
+        # 50% < 60% -> Suppressed
+        event_producer.process_detections("s0", "CCD1", [det], 100, 100, zone=zone)
+        self.assertEqual(self._actions(), [])
+
+        # 50% >= 40% -> Triggered
+        zone_low_sens = dict(zone, sensitivity=0.4)
+        event_producer.process_detections("s0", "CCD1", [det], 100, 100, zone=zone_low_sens)
+        actions = self._actions()
+        self.assertEqual(len(actions), 2)
+        self.assertEqual(actions[0].category, "forklift")
+
+    def test_intersect_mode_completely_outside_does_not_trigger(self):
+        zone = {
+            "polygon": [[0.2, 0.2], [0.8, 0.2], [0.8, 0.8], [0.2, 0.8]],
+            "trigger_mode": "intersect",
+            "sensitivity": 0.0
+        }
+        det = _det("worker", xyxy=(0, 0, 10, 10))
+        event_producer.process_detections("s0", "CCD1", [det], 100, 100, zone=zone)
+        self.assertEqual(self._actions(), [])
+
 
 if __name__ == "__main__":
     unittest.main()
