@@ -43,10 +43,12 @@ def test_fullscreen_modal_alarm_css_and_elements(client):
 
     # 3. 檢查 JavaScript 核心幾何判定與告警繪圖邏輯
     assert 'hasAlarmInZone' in html
-    assert '[ALARM]' in html
-    assert '[ ROI:' in html
-    assert '- INTRUSION' in html
-    assert 'ZONE: ALARM TRIGGERED' in html
+    assert '[告警]' in html
+    assert '警戒區:' in html
+    assert '侵入告警' in html
+    assert '警戒區：觸發告警' in html
+    assert '警戒區：未設定' in html
+    assert '警戒區：已啟用' in html
 
 
 def test_is_point_in_polygon_logic():

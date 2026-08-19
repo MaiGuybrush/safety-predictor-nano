@@ -124,13 +124,17 @@
         /* Section Cards */
         .section-card {
             border: 1px solid var(--border);
+            border-left: 3px solid var(--text-dim);
             background: var(--panel-card);
             padding: 0.8rem;
             margin-bottom: 0.8rem;
             position: relative;
+            box-shadow: inset 1px 0 6px rgba(0, 255, 65, 0.05);
         }
         .section-card.cyan {
             border-color: var(--border-cyan);
+            border-left: 3px solid var(--cyan);
+            box-shadow: inset 1px 0 6px rgba(0, 229, 255, 0.05);
         }
         .section-title {
             font-size: 0.75rem;
@@ -140,10 +144,39 @@
             margin-bottom: 0.6rem;
             display: flex;
             align-items: center;
+            justify-content: space-between;
             gap: 0.4rem;
             letter-spacing: 1px;
         }
         .section-card.cyan .section-title { color: var(--cyan); }
+        .section-title-left {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .section-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 255, 65, 0.12);
+            border: 1px solid var(--text-dim);
+            color: var(--text);
+            font-size: 0.68rem;
+            font-weight: bold;
+            padding: 0.1rem 0.4rem;
+            border-radius: 2px;
+            letter-spacing: 0.5px;
+        }
+        .section-card.cyan .section-badge {
+            background: rgba(0, 229, 255, 0.12);
+            border-color: var(--cyan-dim);
+            color: var(--cyan);
+        }
+        .collapsible-section .section-badge {
+            background: rgba(0, 255, 65, 0.12);
+            border: 1px solid var(--text-dim);
+            color: var(--text);
+        }
 
         .form-grid {
             display: grid;
@@ -531,20 +564,20 @@
                 <div class="blink"></div>
                 <h1>ARGUS // PREDICTOR_NANO</h1>
             </div>
-            <button type="button" class="btn-exec" style="margin:0; width:auto; padding: 0.4rem 0.8rem; font-size:0.75rem;" onclick="document.getElementById('sys-core').classList.toggle('hide-config')">[ TOGGLE_CONFIG ]</button>
+            <button type="button" class="btn-exec" style="margin:0; width:auto; padding: 0.4rem 0.8rem; font-size:0.75rem;" onclick="document.getElementById('sys-core').classList.toggle('hide-config')">切換面板</button>
         </header>
 
         <div class="model-status-bar" id="model-status-bar">
-            <span class="status-label">MODEL</span>
+            <span class="status-label">模型</span>
             <span class="status-value" id="model-type">---</span>
             <span class="status-sep">//</span>
-            <span class="status-label">PATH</span>
+            <span class="status-label">路徑</span>
             <span class="status-value" id="model-path">---</span>
             <span class="status-sep">//</span>
-            <span class="status-label">CORES</span>
+            <span class="status-label">核心數</span>
             <span class="status-value" id="model-cores">---</span>
             <span class="status-sep">//</span>
-            <button type="button" class="stream-btn" onclick="syncModels()">[ SYNC_MODELS ]</button>
+            <button type="button" class="stream-btn" onclick="syncModels()">同步模型</button>
             <span class="status-value" id="sync-status">---</span>
         </div>
     </div>
@@ -564,7 +597,7 @@
 
         <!-- LEFT MASTER PANEL: Global & Master Stream List -->
         <form method="POST" class="panel" id="config-panel" onsubmit="return prepareSubmit()">
-            <div class="panel-frame-title">[ SYS_CONFIG_PARAMETERS ]</div>
+            <div class="panel-frame-title">系統參數設定</div>
             <input type="hidden" name="streams_json" id="streams_json">
             <input type="hidden" name="ums_model_name" id="ums_model_name">
             <input type="hidden" name="ums_model_version" id="ums_model_version">
@@ -572,7 +605,7 @@
             <!-- SECTION 1: 推論效能 -->
             <div class="section-card">
                 <div class="section-title">
-                    <span>[ 01 // 推論效能參數 (PERFORMANCE) ]</span>
+                    <span class="section-title-left"><span class="section-badge">01</span> 推論效能參數</span>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
                     <div class="field">
@@ -585,7 +618,7 @@
                     </div>
                 </div>
                 <div class="field" style="margin-top: 0.5rem;">
-                    <label>信心度門檻 (CONF_THRESHOLD)</label>
+                    <label>信心度門檻</label>
                     <input type="number" name="conf_threshold" value="{{ config.get('conf_threshold', 0.25) }}" step="0.01" min="0.01" max="1.0" required>
                 </div>
             </div>
@@ -593,22 +626,22 @@
             <!-- SECTION 2: 全域模型來源配置 -->
             <div class="section-card cyan">
                 <div class="section-title">
-                    <span>[ 02 // 全域模型來源配置 (MODEL_SOURCE) ]</span>
+                    <span class="section-title-left"><span class="section-badge">02</span> 全域模型來源配置</span>
                 </div>
                 <div class="radio-switch-group">
                     <label class="radio-switch-item active" id="label-source-local" onclick="selectModelSource('local')">
                         <input type="radio" name="model_source" value="local" id="radio-source-local" checked>
-                        [ 本地檔案 LOCAL ]
+                        本地檔案
                     </label>
                     <label class="radio-switch-item" id="label-source-ums" onclick="selectModelSource('ums')">
                         <input type="radio" name="model_source" value="ums" id="radio-source-ums">
-                        [ UMS 雲端同步 UMS_SYNC ]
+                        UMS 雲端同步
                     </label>
                 </div>
 
                 <div id="local-model-box">
                     <div class="field">
-                        <label>模型檔案路徑 (MODEL_PATH)</label>
+                        <label>模型檔案路徑</label>
                         <input type="text" name="model_path" id="input_model_path" value="{{ config.get('model_path', 'best.onnx') }}" placeholder="best.onnx / best.pt / ncnn_dir">
                     </div>
                 </div>
@@ -616,19 +649,19 @@
                 <div id="ums-model-box" style="display: none;">
                     <div class="form-grid">
                         <div class="field">
-                            <label>UMS 專案 (PROJECT)</label>
+                            <label>UMS 專案</label>
                             <select id="ums-project-select" onchange="onUmsProjectChange()">
                                 <option value="">載入中 / 選擇專案...</option>
                             </select>
                         </div>
                         <div class="field">
-                            <label>UMS 模型 (MODEL)</label>
+                            <label>UMS 模型</label>
                             <select id="ums-model-select" onchange="onUmsModelChange()">
                                 <option value="">請先選擇專案...</option>
                             </select>
                         </div>
                         <div class="field">
-                            <label>模型版本 (VERSION)</label>
+                            <label>模型版本</label>
                             <select id="ums-version-select" onchange="onUmsVersionChange()">
                                 <option value="latest">latest (最新 Active 版本)</option>
                             </select>
@@ -637,7 +670,7 @@
                 </div>
 
                 <div class="field" style="margin-top: 0.6rem;">
-                    <label>模型格式偏好類別 (MODEL_FORMAT)</label>
+                    <label>模型格式偏好</label>
                     <select name="model_format" id="global-model-format-select">
                         <option value="auto" {% if config.get('model_format', 'auto') == 'auto' %}selected{% endif %}>AUTO (自動推薦: ONNX > PT > NCNN)</option>
                         <option value="onnx" {% if config.get('model_format') == 'onnx' %}selected{% endif %}>ONNX (.onnx / ONNX Runtime 加速)</option>
@@ -650,10 +683,10 @@
             <!-- SECTION 3: 運作模式與串流主清單 (Master List) -->
             <div class="section-card">
                 <div class="section-title">
-                    <span>[ 03 // 運作模式與串流清單 (MODE_&_STREAMS) ]</span>
+                    <span class="section-title-left"><span class="section-badge">03</span> 運作模式與串流清單</span>
                 </div>
                 <div class="field" style="margin-bottom: 0.6rem;">
-                    <label>運作模式 (MODE)</label>
+                    <label>運作模式</label>
                     <select name="mode" id="mode-select" onchange="onModeChange()">
                         <option value="rtsp" {% if config.get('mode', 'rtsp') == 'rtsp' %}selected{% endif %}>RTSP 多路模式 (MULTI_STREAM)</option>
                         <option value="video" {% if config.get('mode', 'rtsp') == 'video' %}selected{% endif %}>影片驗證模式 (VIDEO_FILE)</option>
@@ -666,13 +699,13 @@
                     <div class="master-stream-list" id="master-stream-list">
                         <!-- Dynamic master items inserted here -->
                     </div>
-                    <button type="button" class="btn-add-stream" onclick="addMasterStream()">+ 新增串流 ADD_STREAM</button>
+                    <button type="button" class="btn-add-stream" onclick="addMasterStream()">+ 新增串流</button>
                 </div>
 
                 <!-- Video Mode Section -->
                 <div id="video-master-section" style="display: none;">
                     <div class="field">
-                        <label>影片檔案路徑 (VIDEO_PATH)</label>
+                        <label>影片檔案路徑</label>
                         <input type="text" name="video_path" id="input_video_path" value="{{ config.get('video_path', '') }}" placeholder="D:\path\to\video.avi" oninput="onVideoPathChange(this.value)">
                     </div>
                 </div>
@@ -681,17 +714,17 @@
             <!-- SECTION 4: 進階系統參數 (可摺疊) -->
             <div class="collapsible-section" id="advanced-section">
                 <div class="collapsible-header" onclick="toggleAdvancedSection()">
-                    <span>[ ADVANCED_SYSTEM_PARAMETERS ]</span>
+                    <span class="section-title-left"><span class="section-badge">04</span> 進階系統參數</span>
                     <span id="advanced-toggle-icon">▼ 展開</span>
                 </div>
                 <div class="collapsible-content">
                     <!-- UMS API Settings -->
                     <div style="border-bottom: 1px dashed var(--border); padding-bottom: 0.8rem; margin-bottom: 0.8rem;">
-                        <span style="font-size: 0.72rem; color: var(--cyan); font-weight: bold;">// UMS API 連線設定 (多端點備援 FAILOVER)</span>
+                        <span style="font-size: 0.72rem; color: var(--cyan); font-weight: bold;">// UMS API 連線設定 (多端點備援)</span>
                         <div class="form-grid" style="margin-top: 0.4rem;">
                             <!-- FAB Presets Dropdown -->
                             <div class="field">
-                                <label>廠區預設快速選單 (FAB PRESETS)</label>
+                                <label>廠區預設快速選單</label>
                                 <select id="fab-preset-select" class="detail-select" onchange="applyFabPreset(this.value)" style="width: 100%; padding: 0.35rem 0.5rem; background: #111; color: var(--cyan); border: 1px solid var(--border-cyan); font-family: inherit; font-size: 0.75rem;">
                                     <option value="">-- 請選擇廠區快速帶入主備端點 --</option>
                                     <option value="OA">OA 辦公網段 (tncimweb1 / tncimweb2)</option>
@@ -712,7 +745,7 @@
                             <!-- Dynamic UMS Endpoints List -->
                             <div class="field">
                                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.3rem;">
-                                    <label style="margin-bottom: 0;">UMS 服務端點清單 (UMS_BASE_URLS)</label>
+                                    <label style="margin-bottom: 0;">UMS 服務端點清單</label>
                                     <button type="button" class="stream-btn" style="width: auto; padding: 0.15rem 0.5rem; font-size: 0.65rem;" onclick="addUmsEndpointRow()">+ 新增備援端點</button>
                                 </div>
                                 <div id="ums-endpoints-container" style="display: flex; flex-direction: column; gap: 0.4rem;">
@@ -722,7 +755,7 @@
 
                             <!-- UMS API Key -->
                             <div class="field">
-                                <label>UMS API KEY</label>
+                                <label>UMS API Key</label>
                                 <div style="display: flex; gap: 0.4rem;">
                                     <input type="password" name="ums_api_key" id="ums_api_key" value="{{ config.get('ums_api_key', '') }}" placeholder="ums_xxx">
                                     <button type="button" class="stream-btn" style="width: auto; padding: 0 0.5rem;" onclick="toggleApiKeyVisibility()">顯示</button>
@@ -732,7 +765,7 @@
                             <!-- Test Connection Button & Status -->
                             <div style="display: flex; flex-direction: column; gap: 0.3rem;">
                                 <div style="display: flex; align-items: center; gap: 0.6rem;">
-                                    <button type="button" class="stream-btn cyan" onclick="testUmsConnection()">[ 測試連線 ]</button>
+                                    <button type="button" class="stream-btn cyan" onclick="testUmsConnection()">測試連線</button>
                                     <span id="ums-test-status" style="font-size: 0.7rem;"></span>
                                 </div>
                             </div>
@@ -747,26 +780,26 @@
                             <div class="field">
                                 <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer;">
                                     <input type="checkbox" name="heartbeat_enabled" value="true" style="width: auto;" {% if hb.get('enabled', true) %}checked{% endif %}>
-                                    啟用心跳服務 (ENABLED)
+                                    啟用心跳服務
                                 </label>
                             </div>
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
                                 <div class="field">
-                                    <label>AGENT PORT</label>
+                                    <label>Agent Port</label>
                                     <input type="number" name="heartbeat_agent_port" value="{{ hb.get('agent_port', 8080) }}">
                                 </div>
                                 <div class="field">
-                                    <label>間隔秒數 (SEC)</label>
+                                    <label>間隔秒數</label>
                                     <input type="number" name="heartbeat_interval_seconds" value="{{ hb.get('interval_seconds', 60) }}">
                                 </div>
                             </div>
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
                                 <div class="field">
-                                    <label>AP NAME</label>
+                                    <label>AP Name</label>
                                     <input type="text" name="heartbeat_ap_name" value="{{ hb.get('ap_name', 'SafetyNano') }}">
                                 </div>
                                 <div class="field">
-                                    <label>VERSION</label>
+                                    <label>版本</label>
                                     <input type="text" name="heartbeat_version" value="{{ hb.get('version', '0.1.0') }}">
                                 </div>
                             </div>
@@ -783,7 +816,7 @@
                                     <input type="number" name="event_absence_tolerance" value="{{ config.get('event_absence_tolerance', 2) }}" min="1" max="30">
                                 </div>
                                 <div class="field">
-                                    <label>效能日誌間隔 (SEC)</label>
+                                    <label>效能日誌間隔</label>
                                     <input type="number" name="log_interval_seconds" value="{{ config.get('log_interval_seconds', 60) }}">
                                 </div>
                             </div>
@@ -800,7 +833,7 @@
                 </div>
             </div>
 
-            <button type="submit" class="btn-exec">[ EXECUTE_UPDATE ]</button>
+            <button type="submit" class="btn-exec">儲存並套用設定</button>
         </form>
 
         <!-- RIGHT WORKSPACE: Top Preview + Bottom Detail Inspector -->
@@ -809,10 +842,10 @@
             <div class="preview-container">
                 <div class="preview-header">
                     <div style="display: flex; align-items: center; gap: 0.5rem;">
-                        <span id="preview-stream-title">● STREAM #0 [大門入口]</span>
-                        <span class="live">● LIVE_FEED</span>
+                        <span id="preview-stream-title">● 串流 #0 [大門入口]</span>
+                        <span class="live">● 即時影像</span>
                     </div>
-                    <button type="button" class="stream-btn cyan" onclick="openDetailFullscreen()">[ 全螢幕檢視 FULLSCREEN ↗ ]</button>
+                    <button type="button" class="stream-btn cyan" onclick="openDetailFullscreen()">全螢幕檢視 ↗</button>
                 </div>
                 <div class="preview-img-wrapper" onclick="openDetailFullscreen()">
                     <img id="preview-cam-img" src="/video_feed/0" class="cam-feed-preview" alt="Camera Feed">
@@ -820,7 +853,7 @@
                 <!-- Monitor Mode Stream Selector Bar (Shown only in hide-config) -->
                 <div class="monitor-stream-bar" id="monitor-stream-bar">
                     {% for idx in range(urls|length) %}
-                        <button type="button" class="stream-btn" onclick="selectStream({{ idx }})">[ STREAM #{{ idx }} ]</button>
+                        <button type="button" class="stream-btn" onclick="selectStream({{ idx }})">串流 #{{ idx }}</button>
                     {% endfor %}
                 </div>
             </div>
@@ -829,52 +862,52 @@
             <div class="detail-inspector" id="stream-detail-inspector">
                 <div class="detail-header">
                     <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                        <span style="font-weight: bold; color: var(--cyan); font-size: 0.78rem; letter-spacing: 1px;">[ STREAM_DETAIL_INSPECTOR ]</span>
-                        <span id="detail-stream-badge" style="color: var(--text); font-size: 0.75rem; font-weight: bold;">// STREAM #0</span>
-                        <span id="detail-zone-status" style="color: #888; font-size: 0.72rem;">[ ROI: INACTIVE ]</span>
+                        <span style="font-weight: bold; color: var(--cyan); font-size: 0.78rem; letter-spacing: 1px;">串流詳細設定</span>
+                        <span id="detail-stream-badge" style="color: var(--text); font-size: 0.75rem; font-weight: bold;">串流 #0</span>
+                        <span id="detail-zone-status" style="color: #888; font-size: 0.72rem;">警戒區：未設定</span>
                     </div>
-                    <button type="button" class="stream-btn cyan" onclick="openDetailFullscreen()">[ 全螢幕 / 編輯 ROI 區域 ]</button>
+                    <button type="button" class="stream-btn cyan" onclick="openDetailFullscreen()">全螢幕 / 編輯警戒區 (ROI)</button>
                 </div>
 
                 <div class="form-grid">
                     <div class="field">
-                        <label>串流 URL (RTSP / HTTP / 來源)</label>
+                        <label>串流 URL (RTSP / HTTP)</label>
                         <input type="text" id="detail-input-url" placeholder="rtsp://127.0.0.1:8554/stream1" oninput="onDetailFieldChange('url', this.value)" required>
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
                         <div class="field">
-                            <label>畫面標籤 (LABEL)</label>
+                            <label>畫面標籤</label>
                             <input type="text" id="detail-input-label" placeholder="大門入口 (選填)" oninput="onDetailFieldChange('label', this.value)">
                         </div>
                         <div class="field">
-                            <label>鏡頭識別碼 (CAMERA_ID)</label>
+                            <label>鏡頭識別碼</label>
                             <input type="text" id="detail-input-camid" placeholder="cam-01 (選填)" oninput="onDetailFieldChange('camera_id', this.value)" onblur="onDetailCameraIdBlur()">
                         </div>
                     </div>
                     <div id="detail-camid-warning" style="display: none; border: 1px dashed var(--warn); background: rgba(255, 170, 0, 0.08); padding: 0.4rem 0.6rem; margin-top: 0.2rem; font-size: 0.7rem; color: var(--warn); align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap;">
                         <span>⚠ 警告：若 RTSP 來源為 Argus Agent，修改 camera_id 會導致與 Argus 系統串接異常 (預期: <span id="detail-expected-camid" style="font-weight: bold; text-decoration: underline;"></span>)</span>
-                        <button type="button" class="stream-btn" style="border-color: var(--warn); color: var(--warn); padding: 0.15rem 0.45rem; font-size: 0.68rem;" onclick="restoreArgusCameraId()">[ 還原為預設 ID ]</button>
+                        <button type="button" class="stream-btn" style="border-color: var(--warn); color: var(--warn); padding: 0.15rem 0.45rem; font-size: 0.68rem;" onclick="restoreArgusCameraId()">還原為預設 ID</button>
                     </div>
                     <div class="field" style="margin-top: 0.2rem;">
                         <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer;">
                             <input type="checkbox" id="detail-override-toggle" onchange="onDetailOverrideToggle(this.checked)" style="width:auto;">
-                            自訂獨立模型 (OVERRIDE_MODEL)
+                            自訂獨立模型
                         </label>
                         <div id="detail-override-box" style="display: none; margin-top: 0.4rem; padding: 0.6rem; border: 1px dashed var(--border-cyan); background: rgba(0, 20, 30, 0.4);">
                             <div class="radio-switch-group" style="margin-bottom: 0.5rem;">
                                 <label class="radio-switch-item active" id="detail-label-source-local" onclick="selectDetailModelSource('local')">
                                     <input type="radio" name="detail_model_source" value="local" id="detail-radio-source-local" checked>
-                                    [ 本地檔案 LOCAL ]
+                                    本地檔案
                                 </label>
                                 <label class="radio-switch-item" id="detail-label-source-ums" onclick="selectDetailModelSource('ums')">
                                     <input type="radio" name="detail_model_source" value="ums" id="detail-radio-source-ums">
-                                    [ UMS 雲端同步 UMS_SYNC ]
+                                    UMS 雲端同步
                                 </label>
                             </div>
 
                             <div id="detail-local-model-box">
                                 <div class="field">
-                                    <label>獨立模型路徑 (MODEL_PATH)</label>
+                                    <label>獨立模型路徑</label>
                                     <input type="text" id="detail-input-model" placeholder="custom_model.onnx / custom.pt" oninput="onDetailLocalModelChange(this.value)">
                                 </div>
                             </div>
@@ -882,19 +915,19 @@
                             <div id="detail-ums-model-box" style="display: none;">
                                 <div class="form-grid">
                                     <div class="field">
-                                        <label>UMS 專案 (PROJECT)</label>
+                                        <label>UMS 專案</label>
                                         <select id="detail-ums-project-select" onchange="onDetailUmsProjectChange()">
                                             <option value="">載入中 / 選擇專案...</option>
                                         </select>
                                     </div>
                                     <div class="field">
-                                        <label>UMS 模型 (MODEL)</label>
+                                        <label>UMS 模型</label>
                                         <select id="detail-ums-model-select" onchange="onDetailUmsModelChange()">
                                             <option value="">請先選擇專案...</option>
                                         </select>
                                     </div>
                                     <div class="field">
-                                        <label>模型版本 (VERSION)</label>
+                                        <label>模型版本</label>
                                         <select id="detail-ums-version-select" onchange="onDetailUmsVersionChange()">
                                             <option value="latest">latest (最新 Active 版本)</option>
                                         </select>
@@ -903,7 +936,7 @@
                             </div>
 
                             <div class="field" style="margin-top: 0.5rem;">
-                                <label>獨立模型格式偏好 (MODEL_FORMAT)</label>
+                                <label>獨立模型格式偏好</label>
                                 <select id="detail-model-format-select" onchange="onDetailFieldChange('model_format', this.value)">
                                     <option value="auto">AUTO (自動推薦: ONNX > PT > NCNN)</option>
                                     <option value="onnx">ONNX (.onnx / ONNX Runtime)</option>
@@ -916,7 +949,7 @@
 
                     <div id="detail-resolved-model-box" style="margin-top: 0.6rem; padding: 0.5rem 0.8rem; border: 1px solid var(--border-cyan); background: rgba(0, 229, 255, 0.05); font-size: 0.75rem; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap;">
                         <div>
-                            <span style="color: var(--text-dim);">實際生效模型 (RESOLVED MODEL):</span>
+                            <span style="color: var(--text-dim);">實際生效模型:</span>
                             <span id="detail-resolved-model-path" style="color: var(--text); font-weight: bold; margin-left: 0.4rem; word-break: break-all;">---</span>
                         </div>
                         <span id="detail-resolved-model-badge" style="background: var(--text-cyan); color: #000; padding: 0.15rem 0.45rem; font-weight: bold; border-radius: 2px; font-size: 0.7rem;">---</span>
@@ -931,30 +964,30 @@
         <div class="modal-header">
             <div style="display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap;">
                 <div class="blink"></div>
-                <span id="modal-title">FULLSCREEN_STREAM // STREAM #0</span>
-                <span id="zone-status-badge" style="color: #888888; font-size: 0.75rem;">[ ZONE: INACTIVE ]</span>
+                <span id="modal-title">全螢幕串流 // 串流 #0</span>
+                <span id="zone-status-badge" style="color: #888888; font-size: 0.75rem;">警戒區：未設定</span>
             </div>
             <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
                 <div id="zone-view-controls">
-                    <button type="button" class="stream-btn" id="btn-edit-zone" onclick="enterZoneEditMode()">[ 編輯區域 EDIT_ZONE ]</button>
+                    <button type="button" class="stream-btn" id="btn-edit-zone" onclick="enterZoneEditMode()">編輯警戒區</button>
                 </div>
                 <div id="zone-edit-controls" style="display: none; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                    <input type="text" id="zone-name-input" placeholder="ZONE_NAME" style="width: 110px; padding: 0.3rem 0.5rem; font-size: 0.75rem; border: 1px solid #00e5ff; color: #00e5ff; background: rgba(0,0,0,0.5);">
+                    <input type="text" id="zone-name-input" placeholder="警戒區域名稱 (選填)" style="width: 130px; padding: 0.3rem 0.5rem; font-size: 0.75rem; border: 1px solid #00e5ff; color: #00e5ff; background: rgba(0,0,0,0.5);">
                     <select id="zone-trigger-mode-select" style="padding: 0.3rem 0.5rem; font-size: 0.75rem; border: 1px solid #00e5ff; color: #00e5ff; background: #111; cursor: pointer;" onchange="updateTriggerModeUI()">
-                        <option value="center">中心點 (Center)</option>
-                        <option value="intersect">相交重疊 (Intersect)</option>
+                        <option value="center">物件中心點 (Center)</option>
+                        <option value="intersect">邊界框相交重疊 (Intersect)</option>
                     </select>
                     <div id="zone-sensitivity-container" style="display: none; align-items: center; gap: 0.3rem; font-size: 0.75rem; color: #00e5ff;">
-                        <span>敏感度:</span>
+                        <span>重疊敏感度:</span>
                         <input type="range" id="zone-sensitivity-range" min="0" max="100" value="0" style="width: 65px;" oninput="document.getElementById('zone-sensitivity-val').innerText = this.value + '%'">
                         <span id="zone-sensitivity-val" style="min-width: 32px;">0%</span>
                     </div>
-                    <button type="button" class="stream-btn" onclick="closeZonePolygon()" style="border-color: #00e5ff; color: #00e5ff;">[ 封閉 CLOSE ]</button>
-                    <button type="button" class="stream-btn" onclick="clearZonePoints()" style="border-color: #ffaa00; color: #ffaa00;">[ 清除 CLEAR ]</button>
-                    <button type="button" class="stream-btn" onclick="saveZone()" style="border-color: #00ff41; color: #00ff41;">[ 儲存 SAVE ]</button>
-                    <button type="button" class="stream-btn" onclick="cancelZoneEdit()" style="border-color: #ff3333; color: #ff3333;">[ 取消 CANCEL ]</button>
+                    <button type="button" class="stream-btn" onclick="closeZonePolygon()" style="border-color: #00e5ff; color: #00e5ff;">封閉多邊形</button>
+                    <button type="button" class="stream-btn" onclick="clearZonePoints()" style="border-color: #ffaa00; color: #ffaa00;">清除區域</button>
+                    <button type="button" class="stream-btn" onclick="saveZone()" style="border-color: #00ff41; color: #00ff41;">儲存警戒區</button>
+                    <button type="button" class="stream-btn" onclick="cancelZoneEdit()" style="border-color: #ff3333; color: #ff3333;">取消</button>
                 </div>
-                <button type="button" class="modal-close-btn" onclick="closeFullscreen()">[ EXIT_FULLSCREEN ✕ ]</button>
+                <button type="button" class="modal-close-btn" onclick="closeFullscreen()">關閉全螢幕 ✕</button>
             </div>
         </div>
         <div class="modal-body" onclick="event.stopPropagation()">
@@ -1059,7 +1092,7 @@
             if (mode === 'video') {
                 streamsMasterSec.style.display = 'none';
                 videoMasterSec.style.display = 'block';
-                document.getElementById('preview-stream-title').textContent = '● VIDEO_FILE_FEED';
+                document.getElementById('preview-stream-title').textContent = '● 影片來源';
                 document.getElementById('preview-cam-img').src = '/video_feed?t=' + Date.now();
                 detailInspector.classList.add('video-mode-hidden');
             } else {
@@ -1555,7 +1588,7 @@
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = 'stream-btn' + (isSelected ? ' cyan' : '');
-                btn.textContent = `[ STREAM #${idx} ]`;
+                btn.textContent = `串流 #${idx}`;
                 btn.onclick = () => selectStream(idx);
                 monitorBar.appendChild(btn);
             });
@@ -1578,11 +1611,11 @@
             const titleEl = document.getElementById('preview-stream-title');
             const previewImg = document.getElementById('preview-cam-img');
             const labelText = currentItem.label ? `[${currentItem.label}]` : '';
-            titleEl.textContent = `● STREAM #${idx} ${labelText}`;
+            titleEl.textContent = `● 串流 #${idx} ${labelText}`;
             previewImg.src = `/video_feed/${idx}?t=` + Date.now();
 
             // Update Bottom-Right Detail Inspector
-            document.getElementById('detail-stream-badge').textContent = `// STREAM #${idx}`;
+            document.getElementById('detail-stream-badge').textContent = `串流 #${idx}`;
             document.getElementById('detail-input-url').value = currentItem.url || '';
             document.getElementById('detail-input-label').value = currentItem.label || '';
             document.getElementById('detail-input-camid').value = currentItem.camera_id || '';
@@ -1638,7 +1671,7 @@
             if (field === 'label') {
                 const titleEl = document.getElementById('preview-stream-title');
                 const labelText = val ? `[${val}]` : '';
-                titleEl.textContent = `● STREAM #${selectedStreamIndex} ${labelText}`;
+                titleEl.textContent = `● 串流 #${selectedStreamIndex} ${labelText}`;
             }
 
             if (field === 'url') {
@@ -1878,7 +1911,7 @@
             const badge = document.getElementById('detail-zone-status');
             if (!badge) return;
             if (!url) {
-                badge.textContent = '[ ROI: INACTIVE ]';
+                badge.textContent = '警戒區：未設定';
                 badge.style.color = '#888';
                 return;
             }
@@ -1888,15 +1921,15 @@
                     if (data && data.polygon && data.polygon.length >= 3) {
                         const name = data.zone_name ? ` (${data.zone_name})` : '';
                         const modeStr = (data.trigger_mode === 'intersect') ? ` [相交 ${Math.round((data.sensitivity || 0) * 100)}%]` : '';
-                        badge.textContent = `[ ROI: ACTIVE${name}${modeStr} ]`;
+                        badge.textContent = `警戒區：已啟用${name}${modeStr}`;
                         badge.style.color = '#00e5ff';
                     } else {
-                        badge.textContent = '[ ROI: INACTIVE ]';
+                        badge.textContent = '警戒區：未設定';
                         badge.style.color = '#888';
                     }
                 })
                 .catch(() => {
-                    badge.textContent = '[ ROI: INACTIVE ]';
+                    badge.textContent = '警戒區：未設定';
                     badge.style.color = '#888';
                 });
         }
@@ -1995,16 +2028,16 @@
             if (currentSavedZone && currentSavedZone.polygon && currentSavedZone.polygon.length >= 3) {
                 const name = currentSavedZone.zone_name ? ` (${currentSavedZone.zone_name})` : '';
                 if (isAlarm && !isEditingZone) {
-                    badge.textContent = `[ ZONE: ALARM TRIGGERED${name} ]`;
+                    badge.textContent = `警戒區：觸發告警${name}`;
                     badge.style.color = '#ff3333';
                     badge.style.fontWeight = 'bold';
                 } else {
-                    badge.textContent = `[ ZONE: ACTIVE${name} ]`;
+                    badge.textContent = `警戒區：已啟用${name}`;
                     badge.style.color = '#00e5ff';
                     badge.style.fontWeight = 'normal';
                 }
             } else {
-                badge.textContent = '[ ZONE: INACTIVE ]';
+                badge.textContent = '警戒區：未設定';
                 badge.style.color = '#888888';
                 badge.style.fontWeight = 'normal';
             }
@@ -2062,7 +2095,7 @@
             const img = document.getElementById('fullscreen-img');
             const title = document.getElementById('modal-title');
 
-            title.textContent = `FULLSCREEN_STREAM // STREAM #${streamId}`;
+            title.textContent = `全螢幕串流 // 串流 #${streamId}`;
             img.src = `/video_feed/${streamId}?t=` + Date.now();
             modal.style.display = 'flex';
 
@@ -2207,7 +2240,7 @@
         function saveZone() {
             const url = activeStreamUrl || getStreamUrlByIndex(activeStreamIndex);
             if (!url) {
-                alert('No active stream URL found');
+                alert('找不到作用中的串流 URL');
                 return;
             }
             const name = document.getElementById('zone-name-input').value.trim();
@@ -2237,7 +2270,7 @@
             })
             .catch(err => {
                 console.error('Error saving zone:', err);
-                alert('Failed to save zone');
+                alert('儲存警戒區失敗');
             });
         }
 
@@ -2338,9 +2371,9 @@
             if (isClosed && poly.length >= 3) {
                 let label = '';
                 if (inAlarm) {
-                    label = zoneName ? `[ ROI: ${zoneName} - INTRUSION ]` : '[ ROI: ACTIVE - INTRUSION ]';
+                    label = zoneName ? `[ 警戒區: ${zoneName} - 侵入告警 ]` : '[ 警戒區: 已啟用 - 侵入告警 ]';
                 } else {
-                    label = zoneName ? `[ ROI: ${zoneName} ]` : '[ ROI: ACTIVE ]';
+                    label = zoneName ? `[ 警戒區: ${zoneName} ]` : '[ 警戒區: 已啟用 ]';
                 }
                 ctx.font = '12px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace';
                 const textWidth = ctx.measureText(label).width;
@@ -2457,8 +2490,8 @@
                     ctx.strokeRect(x1, y1, w, h);
                     ctx.setLineDash([]);
 
-                    const tag = isStale ? ' [SAMPLED]' : '';
-                    const labelText = `[ALARM] Class ${det.cls} (${(det.conf * 100).toFixed(0)}%)${tag}`;
+                    const tag = isStale ? ' [抽樣]' : '';
+                    const labelText = `[告警] 類別 ${det.cls} (${(det.conf * 100).toFixed(0)}%)${tag}`;
                     ctx.font = 'bold 13px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace';
                     const textWidth = ctx.measureText(labelText).width;
 
@@ -2483,8 +2516,8 @@
                     ctx.strokeRect(x1, y1, w, h);
                     ctx.setLineDash([]);
 
-                    const tag = isStale ? ' [SAMPLED]' : '';
-                    const labelText = `Class ${det.cls} (${(det.conf * 100).toFixed(0)}%)${tag}`;
+                    const tag = isStale ? ' [抽樣]' : '';
+                    const labelText = `類別 ${det.cls} (${(det.conf * 100).toFixed(0)}%)${tag}`;
                     ctx.font = '13px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace';
                     const textWidth = ctx.measureText(labelText).width;
 
