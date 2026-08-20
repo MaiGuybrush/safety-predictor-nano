@@ -33,3 +33,6 @@ recordings/
 config.yaml
 
 /.agents/skills/
+
+/build
+/dist
