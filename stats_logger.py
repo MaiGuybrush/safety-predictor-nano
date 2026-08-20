@@ -1,8 +1,99 @@
 import os
+import sys
 import psutil
 import time
 import logging
 from logging.handlers import TimedRotatingFileHandler
+
+SYSTEM_LOG_FORMAT = '%(asctime)s [%(levelname)s] [%(name)s] %(message)s'
+
+
+class SystemLogger:
+    def __init__(self, log_file="logs/system.log", log_level="INFO", backup_count=3, name="system"):
+        self.log_file = log_file
+        self.backup_count = int(backup_count) if backup_count is not None else 3
+        self.log_level_str = str(log_level).upper() if log_level else "INFO"
+        self.level = getattr(logging, self.log_level_str, logging.INFO)
+        self.name = name
+
+        if self.log_file:
+            dir_path = os.path.dirname(os.path.abspath(self.log_file))
+            if dir_path and not os.path.exists(dir_path):
+                os.makedirs(dir_path, exist_ok=True)
+
+        self.logger = logging.getLogger(self.name)
+        self.logger.setLevel(self.level)
+        self.logger.propagate = False
+
+        # 清除既有 Handler 避免重載時重複掛載
+        for h in list(self.logger.handlers):
+            try:
+                h.close()
+            except Exception:
+                pass
+            self.logger.removeHandler(h)
+
+        formatter = logging.Formatter(SYSTEM_LOG_FORMAT)
+
+        # 1. Console (sys.stdout)
+        self.console_handler = logging.StreamHandler(sys.stdout)
+        self.console_handler.setLevel(self.level)
+        self.console_handler.setFormatter(formatter)
+        self.logger.addHandler(self.console_handler)
+
+        # 2. TimedRotatingFileHandler (每日輪替, UTF-8)
+        if self.log_file:
+            self.file_handler = TimedRotatingFileHandler(
+                self.log_file,
+                when="midnight",
+                interval=1,
+                backupCount=self.backup_count,
+                encoding="utf-8"
+            )
+            self.file_handler.setLevel(self.level)
+            self.file_handler.setFormatter(formatter)
+            self.logger.addHandler(self.file_handler)
+        else:
+            self.file_handler = None
+
+    def get_logger(self):
+        return self.logger
+
+    def debug(self, msg, *args, **kwargs):
+        self.logger.debug(msg, *args, **kwargs)
+
+    def info(self, msg, *args, **kwargs):
+        self.logger.info(msg, *args, **kwargs)
+
+    def warning(self, msg, *args, **kwargs):
+        self.logger.warning(msg, *args, **kwargs)
+
+    def error(self, msg, *args, **kwargs):
+        self.logger.error(msg, *args, **kwargs)
+
+    def critical(self, msg, *args, **kwargs):
+        self.logger.critical(msg, *args, **kwargs)
+
+    def exception(self, msg, *args, **kwargs):
+        self.logger.exception(msg, *args, **kwargs)
+
+
+_system_logger_instance = None
+
+
+def setup_system_logger(log_file="logs/system.log", log_level="INFO", backup_count=3, name="system") -> SystemLogger:
+    global _system_logger_instance
+    _system_logger_instance = SystemLogger(log_file=log_file, log_level=log_level, backup_count=backup_count, name=name)
+    return _system_logger_instance
+
+
+def get_system_logger(name="system") -> logging.Logger:
+    return logging.getLogger(name)
+
+
+def configure_werkzeug_logger(level=logging.WARNING):
+    logging.getLogger('werkzeug').setLevel(level)
+
 
 class StatsLogger:
     def __init__(self, log_file="logs/performance.log", detection_log_file="logs/detections.log", backup_count=3):

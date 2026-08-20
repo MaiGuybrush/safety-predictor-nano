@@ -65,8 +65,11 @@ heartbeat:
   agent_port: 8080               # (選填) 心跳 Agent 的指定通訊埠
 
 # 9. 日誌與效能記錄設定 (Logging)
-log_file: "logs/performance.log"       # CPU/RAM/推論速度效能日誌路徑
+system_log_file: "logs/system.log"       # 系統主要運作與錯誤日誌路徑
+log_file: "logs/performance.log"         # CPU/RAM/推論速度效能日誌路徑
 detection_log_file: "logs/detections.log" # 物件偵測事件 Log 路徑
-log_interval_seconds: 60         # 效能統計寫入間隔 (秒)
-log_backup_count: 3              # 日誌歷史檔案保留天數
+log_level: "INFO"                       # 全域日誌等級: DEBUG / INFO / WARNING / ERROR
+log_interval_seconds: 60                 # 效能統計寫入間隔 (秒)
+log_backup_count: 3                      # 日誌歷史檔案保留天數
+
 

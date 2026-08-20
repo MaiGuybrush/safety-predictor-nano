@@ -13,7 +13,7 @@ from config_manager import ConfigManager
 from stream_handler import StreamHandler
 from video_handler import VideoHandler
 from inference_engine import InferenceEngine
-from stats_logger import StatsLogger
+from stats_logger import StatsLogger, setup_system_logger, get_system_logger, configure_werkzeug_logger
 from grid_composer import annotate_frame, compose_grid
 import model_sync
 
@@ -266,9 +266,16 @@ def update_rtsp_model_info(stream_units, engine_cache, cpu_cores):
 def initialize_runtime(config_mgr):
     """開機時執行一次 UMS 模型同步（失敗不中止，沿用舊 model_path/streams[].model），
     再依（可能已被同步寫回更新的）config 建立初始執行環境。"""
+    config = config_mgr.config
+    sys_logger = setup_system_logger(
+        log_file=config.get("system_log_file", "logs/system.log"),
+        log_level=config.get("log_level", "INFO"),
+        backup_count=int(config.get("log_backup_count", 3))
+    )
+
     sync_report = model_sync.sync_all(config_mgr)
     if sync_report["success"] or sync_report["failed"]:
-        print(f"[ModelSync] 開機同步完成：成功 {len(sync_report['success'])}，失敗 {len(sync_report['failed'])}")
+        sys_logger.info(f"[ModelSync] 開機同步完成：成功 {len(sync_report['success'])}，失敗 {len(sync_report['failed'])}")
     config = config_mgr.config
 
     logger = StatsLogger(
@@ -385,7 +392,12 @@ def main():
         while True:
             if config_mgr.check_for_updates():
                 new_config = config_mgr.config or {}
-                print("[Config] Settings updated dynamically!")
+                sys_logger = setup_system_logger(
+                    log_file=new_config.get("system_log_file", "logs/system.log"),
+                    log_level=new_config.get("log_level", "INFO"),
+                    backup_count=int(new_config.get("log_backup_count", 3))
+                )
+                sys_logger.info("[Config] Settings updated dynamically!")
                 
                 logger = StatsLogger(
                     log_file=new_config.get("log_file", "logs/performance.log"),

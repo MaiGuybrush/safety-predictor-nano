@@ -13,6 +13,11 @@ MANUAL_DIR = get_resource_path(os.path.join("docs", "user-manual", "book"))
 
 import model_sync
 from config_manager import ConfigManager, DEFAULT_UMS_BASE_URLS
+from stats_logger import configure_werkzeug_logger
+import logging
+
+configure_werkzeug_logger(logging.WARNING)
+
 try:
     from ums_client import UmsApiClient
 except ImportError:
@@ -91,8 +96,10 @@ def index():
             "cpu_cores": int(request.form.get("cpu_cores", current.get("cpu_cores", 4))),
             "conf_threshold": float(request.form.get("conf_threshold", current.get("conf_threshold", 0.25))),
             "log_interval_seconds": int(request.form.get("log_interval_seconds", current.get("log_interval_seconds", 60))),
+            "system_log_file": request.form.get("system_log_file", current.get("system_log_file", "logs/system.log")),
             "log_file": request.form.get("log_file", current.get("log_file", "logs/performance.log")),
             "detection_log_file": request.form.get("detection_log_file", current.get("detection_log_file", "logs/detections.log")),
+            "log_level": request.form.get("log_level", current.get("log_level", "INFO")),
             "log_backup_count": log_backup_count
         }
 

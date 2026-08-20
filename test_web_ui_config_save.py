@@ -257,8 +257,10 @@ class TestWebUiConfigSave(unittest.TestCase):
         initial = {
             "mode": "rtsp",
             "model_path": "best.onnx",
+            "system_log_file": "logs/system.log",
             "log_file": "logs/performance.log",
             "detection_log_file": "logs/detections.log",
+            "log_level": "INFO",
             "log_backup_count": 3,
         }
         self.write_yaml(initial)
@@ -266,8 +268,10 @@ class TestWebUiConfigSave(unittest.TestCase):
         form_data = {
             "mode": "rtsp",
             "model_path": "best.onnx",
+            "system_log_file": "logs/custom_sys.log",
             "log_file": "logs/custom_perf.log",
             "detection_log_file": "logs/custom_det.log",
+            "log_level": "DEBUG",
             "log_backup_count": "7",
             "fps_limit": "2",
             "cpu_cores": "4",
@@ -279,8 +283,10 @@ class TestWebUiConfigSave(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
 
         saved = self.read_yaml()
+        self.assertEqual(saved["system_log_file"], "logs/custom_sys.log")
         self.assertEqual(saved["log_file"], "logs/custom_perf.log")
         self.assertEqual(saved["detection_log_file"], "logs/custom_det.log")
+        self.assertEqual(saved["log_level"], "DEBUG")
         self.assertEqual(saved["log_backup_count"], 7)
 
     def test_render_log_backup_count_field(self):

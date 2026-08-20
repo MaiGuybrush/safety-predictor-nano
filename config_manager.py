@@ -240,3 +240,15 @@ class ConfigManager:
     def delete_zone(self, stream_url):
         self.save_zone(stream_url, [])
 
+    def get_system_log_file(self):
+        return self.config.get("system_log_file", "logs/system.log")
+
+    def get_log_level(self):
+        return self.config.get("log_level", "INFO")
+
+    def get_log_backup_count(self):
+        try:
+            return int(self.config.get("log_backup_count", 3))
+        except (ValueError, TypeError):
+            return 3
+
