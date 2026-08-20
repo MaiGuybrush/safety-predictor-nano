@@ -5,8 +5,9 @@
 
 ## 啟動方式 (開發環境)
 1. 安裝依賴：`pip install -r requirements.txt`
-2. 執行：`python main.py`
-3. 瀏覽器開啟：`http://<樹莓派IP>:8188`
+2. 建置使用手冊 (選用，若有修改手冊)：`mdbook build docs/user-manual`
+3. 執行主程式：`python main.py`
+4. 瀏覽器開啟：`http://<樹莓派IP>:8188` (點擊頂部「📖 使用手冊」或訪問 `http://<樹莓派IP>:8188/manual/` 查閱完整操作說明)
 
 ---
 
@@ -55,21 +56,27 @@ python main.py
    - `ums-client`: `git+http://tncimweb.cminl.oa/git-server/guy.mai/ums-client.git@master`
    *(已包含在 `requirements.txt` 中，安裝時樹莓派需能存取內部 Git 伺服器)*
 
-### 方案 B：硬要打包成單一執行檔
-如果你一定要產出單一 `argus_predictor` 檔案，請**在樹莓派本機上**執行打包：
+### 方案 B：打包成單一執行檔
+如果你一定要產出包含 Web UI 與離線使用手冊的單一 `argus_predictor` 檔案，請**在樹莓派本機上**執行打包：
 
-1. 進入樹莓派終端機，安裝 PyInstaller：
+1. 進入樹莓派終端機，安裝 PyInstaller 與 mdBook：
 ```bash
 pip install pyinstaller
+# 確保系統已安裝 mdbook（若尚未建置 docs/user-manual/book）
 ```
 
-2. 執行打包指令：
-在專案根目錄執行以下指令，將主程式與依賴封裝為單一可執行檔：
+2. 執行建置與打包指令：
+在專案根目錄執行以下指令，將主程式、手冊與依賴封裝為單一可執行檔：
 
 ```bash
+# 1. 建置 mdBook 使用手冊
+mdbook build docs/user-manual
+
+# 2. 封裝單一可執行檔
 pyinstaller --onefile \
             --add-data "templates:templates" \
             --add-data "config.yaml:." \
+            --add-data "docs/user-manual/book:docs/user-manual/book" \
             --collect-all ultralytics \
             --collect-all flask \
             --collect-all argus_eventlog \
@@ -78,7 +85,7 @@ pyinstaller --onefile \
             main.py
 ```
 
-*注意：`--collect-all` 用於確保 `ultralytics`、`flask`、`argus_eventlog` 與 `ums_client` 等相依套件能正確被打包。*
+*注意：`--collect-all` 用於確保 `ultralytics`、`flask`、`argus_eventlog` 與 `ums_client` 等相依套件能正確被打包；`--add-data` 會將 Web 範本與手冊網站打包進二進位檔。*
 
 ### 3. 部署至樹莓派
 封裝完成後，在 `dist/` 資料夾下會產生 `argus_predictor` 檔案。
