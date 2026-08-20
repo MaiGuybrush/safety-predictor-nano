@@ -8,4 +8,4 @@ command = "mdbook-mermaid"
 optional = true
 
 [output.html]
-additional-js = ["mermaid.min.js", "mermaid-init.js"]
+additional-js = ["mermaid.min.js", "mermaid-init.js", "assets/fzf.umd.js", "assets/elasticlunr.js"]
