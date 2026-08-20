@@ -1,6 +1,15 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, send_from_directory, abort
 import yaml
 import os
+import sys
+
+def get_resource_path(relative_path):
+    """取得資源檔案路徑，相容 PyInstaller 凍結環境 (_MEIPASS) 與開發環境"""
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.abspath(relative_path)
+
+MANUAL_DIR = get_resource_path(os.path.join("docs", "user-manual", "book"))
 
 import model_sync
 from config_manager import ConfigManager, DEFAULT_UMS_BASE_URLS
@@ -474,6 +483,15 @@ def video_feed_stream(stream_id):
 @app.route('/detections_feed')
 def detections_feed():
     return Response(gen_detections_feed(), mimetype='text/event-stream')
+
+@app.route('/manual')
+@app.route('/manual/')
+@app.route('/manual/<path:filename>')
+def serve_manual(filename="index.html"):
+    """提供 mdBook 靜態使用手冊"""
+    if not os.path.exists(MANUAL_DIR):
+        abort(404, description="使用手冊尚未建置或不存在，請先執行 mdbook build docs/user-manual")
+    return send_from_directory(MANUAL_DIR, filename)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8188)

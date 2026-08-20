@@ -18,6 +18,7 @@ class TestWebUiConfigSave(unittest.TestCase):
 
     def tearDown(self):
         self.temp_dir.cleanup()
+        web_ui.CONFIG_FILE = "config.yaml"
 
     def write_yaml(self, data):
         with open(self.config_path, "w", encoding="utf-8") as f:

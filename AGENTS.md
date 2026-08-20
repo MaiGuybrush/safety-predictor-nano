@@ -26,11 +26,16 @@ The system utilizes a multi-threaded Python architecture to decouple frame captu
   ```
 - **Access Web UI**: Navigate to `http://<device-ip>:8188`
 - **Build/Deploy (PyInstaller)**:
-  *Crucial Constraint*: Must be built directly on an ARM64 environment (e.g., Raspberry Pi 5 or ARM64 VM). Cross-compilation from x86/x64 is unsupported and will fail.
+  *Crucial Constraint*: Must be built directly on an ARM64 environment (e.g., Raspberry Pi 5 or ARM64 VM). Cross-compilation from x86/x64 is unsupported and will fail. Build the mdBook user manual before running PyInstaller.
   ```bash
+  # 1. Build mdBook user manual
+  mdbook build docs/user-manual
+
+  # 2. Package binary with PyInstaller
   pyinstaller --onefile \
               --add-data "templates:templates" \
               --add-data "config.yaml:." \
+              --add-data "docs/user-manual/book:docs/user-manual/book" \
               --collect-all ultralytics \
               --collect-all flask \
               --collect-all argus_eventlog \
