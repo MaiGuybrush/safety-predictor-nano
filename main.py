@@ -272,8 +272,9 @@ def initialize_runtime(config_mgr):
     config = config_mgr.config
 
     logger = StatsLogger(
-        log_file=config.get("log_file", "performance.log"),
-        detection_log_file=config.get("detection_log_file", "detections.log")
+        log_file=config.get("log_file", "logs/performance.log"),
+        detection_log_file=config.get("detection_log_file", "logs/detections.log"),
+        backup_count=int(config.get("log_backup_count", 3))
     )
 
     mode = config.get("mode", "rtsp")
@@ -387,8 +388,9 @@ def main():
                 print("[Config] Settings updated dynamically!")
                 
                 logger = StatsLogger(
-                    log_file=new_config.get("log_file", "performance.log"),
-                    detection_log_file=new_config.get("detection_log_file", "detections.log")
+                    log_file=new_config.get("log_file", "logs/performance.log"),
+                    detection_log_file=new_config.get("detection_log_file", "logs/detections.log"),
+                    backup_count=int(new_config.get("log_backup_count", 3))
                 )
                 
                 new_mode = new_config.get("mode", "rtsp")

@@ -61,6 +61,15 @@ def index():
                 else:
                     updated_streams.append({"url": u})
 
+        # Parse log_backup_count defensively
+        raw_backup_count = request.form.get("log_backup_count")
+        try:
+            log_backup_count = int(raw_backup_count) if raw_backup_count is not None and str(raw_backup_count).strip() else int(current.get("log_backup_count", 3))
+            if log_backup_count < 1:
+                log_backup_count = 3
+        except (ValueError, TypeError):
+            log_backup_count = int(current.get("log_backup_count", 3))
+
         # 2. Base fields
         new_config = {
             **current,
@@ -73,8 +82,9 @@ def index():
             "cpu_cores": int(request.form.get("cpu_cores", current.get("cpu_cores", 4))),
             "conf_threshold": float(request.form.get("conf_threshold", current.get("conf_threshold", 0.25))),
             "log_interval_seconds": int(request.form.get("log_interval_seconds", current.get("log_interval_seconds", 60))),
-            "log_file": request.form.get("log_file", current.get("log_file", "performance.log")),
-            "detection_log_file": request.form.get("detection_log_file", current.get("detection_log_file", "detections.log"))
+            "log_file": request.form.get("log_file", current.get("log_file", "logs/performance.log")),
+            "detection_log_file": request.form.get("detection_log_file", current.get("detection_log_file", "logs/detections.log")),
+            "log_backup_count": log_backup_count
         }
 
         # 3. Model source & ums_model

@@ -252,6 +252,53 @@ class TestWebUiConfigSave(unittest.TestCase):
         self.assertNotIn("ums_base_url", saved)
         self.assertEqual(saved["ums_api_key"], "secret_key_999")
 
+    def test_save_log_backup_count_and_paths(self):
+        initial = {
+            "mode": "rtsp",
+            "model_path": "best.onnx",
+            "log_file": "logs/performance.log",
+            "detection_log_file": "logs/detections.log",
+            "log_backup_count": 3,
+        }
+        self.write_yaml(initial)
+
+        form_data = {
+            "mode": "rtsp",
+            "model_path": "best.onnx",
+            "log_file": "logs/custom_perf.log",
+            "detection_log_file": "logs/custom_det.log",
+            "log_backup_count": "7",
+            "fps_limit": "2",
+            "cpu_cores": "4",
+            "conf_threshold": "0.25",
+            "log_interval_seconds": "60",
+        }
+
+        response = self.client.post('/', data=form_data)
+        self.assertEqual(response.status_code, 200)
+
+        saved = self.read_yaml()
+        self.assertEqual(saved["log_file"], "logs/custom_perf.log")
+        self.assertEqual(saved["detection_log_file"], "logs/custom_det.log")
+        self.assertEqual(saved["log_backup_count"], 7)
+
+    def test_render_log_backup_count_field(self):
+        initial = {
+            "mode": "rtsp",
+            "model_path": "best.onnx",
+            "log_file": "logs/performance.log",
+            "detection_log_file": "logs/detections.log",
+            "log_backup_count": 5,
+        }
+        self.write_yaml(initial)
+
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("log_backup_count", html)
+        self.assertIn("日誌保留天數", html)
+        self.assertIn('value="5"', html)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,27 +1,65 @@
+import os
 import psutil
 import time
 import logging
+from logging.handlers import TimedRotatingFileHandler
 
 class StatsLogger:
-    def __init__(self, log_file="performance.log", detection_log_file="detections.log"):
+    def __init__(self, log_file="logs/performance.log", detection_log_file="logs/detections.log", backup_count=3):
         self.log_file = log_file
         self.detection_log_file = detection_log_file
+        self.backup_count = int(backup_count) if backup_count is not None else 3
+
+        # 自動建立日誌所在目錄
+        for path in (self.log_file, self.detection_log_file):
+            if path:
+                dir_path = os.path.dirname(os.path.abspath(path))
+                if dir_path and not os.path.exists(dir_path):
+                    os.makedirs(dir_path, exist_ok=True)
         
+        formatter = logging.Formatter('%(asctime)s - %(message)s')
+
         # 設定 Performance Logger
         self.perf_logger = logging.getLogger("performance")
         self.perf_logger.setLevel(logging.INFO)
-        if not self.perf_logger.handlers:
-            handler = logging.FileHandler(self.log_file)
-            handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
-            self.perf_logger.addHandler(handler)
+        self.perf_logger.propagate = False
+        for h in list(self.perf_logger.handlers):
+            try:
+                h.close()
+            except Exception:
+                pass
+            self.perf_logger.removeHandler(h)
+
+        perf_handler = TimedRotatingFileHandler(
+            self.log_file,
+            when="midnight",
+            interval=1,
+            backupCount=self.backup_count,
+            encoding="utf-8"
+        )
+        perf_handler.setFormatter(formatter)
+        self.perf_logger.addHandler(perf_handler)
 
         # 設定 Detection Logger
         self.det_logger = logging.getLogger("detection")
         self.det_logger.setLevel(logging.INFO)
-        if not self.det_logger.handlers:
-            det_handler = logging.FileHandler(self.detection_log_file)
-            det_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
-            self.det_logger.addHandler(det_handler)
+        self.det_logger.propagate = False
+        for h in list(self.det_logger.handlers):
+            try:
+                h.close()
+            except Exception:
+                pass
+            self.det_logger.removeHandler(h)
+
+        det_handler = TimedRotatingFileHandler(
+            self.detection_log_file,
+            when="midnight",
+            interval=1,
+            backupCount=self.backup_count,
+            encoding="utf-8"
+        )
+        det_handler.setFormatter(formatter)
+        self.det_logger.addHandler(det_handler)
 
         self.inference_times = []
 
