@@ -350,6 +350,79 @@ def sync_models():
     report = model_sync.sync_all(ConfigManager(CONFIG_FILE))
     return jsonify(report)
 
+@app.route('/api/logs', methods=['GET'])
+def get_logs():
+    """安全取得日誌內容，supports ?file=system|performance|detections&lines=200
+
+    - file 參數僅允許白名單中的三種日誌類型
+    - lines 參數為整數，預設 200，上限 1000
+    - 檔案不存在時回傳 200 OK 且 content 為空字串
+    - 非法 file 參數回傳 400
+    """
+    import os
+
+    # 嚴格白名單：僅允許以下三種日誌類型
+    LOG_WHITELIST = {
+        "system": None,        # 將從 config 動態取得
+        "performance": None,
+        "detections": None,
+    }
+
+    file_type = request.args.get('file', 'system').strip().lower()
+
+    # 路徑穿越防護：不允許任何路徑分隔符
+    if '/' in file_type or '\\' in file_type or '..' in file_type:
+        return jsonify({'status': 'error', 'message': 'Invalid file parameter'}), 400
+
+    if file_type not in LOG_WHITELIST:
+        return jsonify({'status': 'error', 'message': f'Unknown log type: {file_type}. Valid: system, performance, detections'}), 400
+
+    # 取得 lines 參數
+    try:
+        lines = int(request.args.get('lines', 200))
+    except (ValueError, TypeError):
+        lines = 200
+    lines = max(1, min(lines, 1000))  # 上限 1000 行
+
+    # 從 config 取得實際檔案路徑
+    try:
+        cfg = load_config()
+    except Exception:
+        cfg = {}
+
+    file_path_map = {
+        'system': cfg.get('system_log_file', 'logs/system.log'),
+        'performance': cfg.get('log_file', 'logs/performance.log'),
+        'detections': cfg.get('detection_log_file', 'logs/detections.log'),
+    }
+
+    log_path = file_path_map[file_type]
+
+    # 檔案不存在時，優雅回傳 200 且 content 為空字串
+    if not os.path.exists(log_path):
+        return jsonify({
+            'status': 'ok',
+            'file_type': file_type,
+            'file_path': log_path,
+            'lines': 0,
+            'content': ''
+        })
+
+    try:
+        with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
+            all_lines = f.readlines()
+        tail = all_lines[-lines:] if len(all_lines) > lines else all_lines
+        content = ''.join(tail)
+        return jsonify({
+            'status': 'ok',
+            'file_type': file_type,
+            'file_path': log_path,
+            'lines': len(tail),
+            'content': content
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 @app.route('/sync_status')
 def sync_status():
     return jsonify(model_sync.get_last_report())

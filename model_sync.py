@@ -15,6 +15,16 @@ _last_report = {"timestamp": None, "success": [], "failed": []}
 _sync_lock = threading.Lock()
 
 
+def _get_sys_logger():
+    """取得系統 logger（延遲 import 避免循環相依）"""
+    try:
+        from stats_logger import get_system_logger
+        return get_system_logger()
+    except Exception:
+        import logging
+        return logging.getLogger("model_sync")
+
+
 def get_last_report():
     return _last_report
 
@@ -126,6 +136,7 @@ def _sync_all_locked(config_manager, client):
             api_key = os.environ.get("UMS_API_KEY") or config_manager.get("ums_api_key")
             client = FailoverUmsClient(base_urls=base_urls, api_key=api_key)
         except Exception as e:
+            _get_sys_logger().error(f"[ModelSync Error] 無法初始化 UMS Client：{e}")
             for t in targets:
                 report["failed"].append({"key": t["key"], "name": t["name"], "version": t["version"], "error": str(e)})
             return report
@@ -148,6 +159,7 @@ def _sync_all_locked(config_manager, client):
                         models_by_name = {m.model_name: m for m in client.fetch_my_models()}
                     except Exception as e:
                         fetch_error = e
+                        _get_sys_logger().error(f"[ModelSync Error] 取得模型清單失敗：{e}")
                 if fetch_error is not None:
                     raise fetch_error
                 model_info = models_by_name.get(name)
@@ -161,6 +173,15 @@ def _sync_all_locked(config_manager, client):
             updates[key] = path
             report["success"].append({"key": key, "name": name, "version": version, "format": format_pref, "path": path})
         except Exception as e:
+            err_str = str(e)
+            if "API Key" in err_str or "Unauthorized" in err_str or "401" in err_str:
+                _get_sys_logger().error(f"[ModelSync Error] API Key 無效或未授權 [{name}@{version}]: {err_str}")
+            elif "找不到模型" in err_str or "NotFound" in err_str or "404" in err_str:
+                _get_sys_logger().error(f"[ModelSync Error] 模型不存在 [{name}@{version}]: {err_str}")
+            elif "Connection" in err_str or "Timeout" in err_str or "connect" in err_str.lower():
+                _get_sys_logger().error(f"[ModelSync Error] 端點連線失敗 [{name}@{version}]: {err_str}")
+            else:
+                _get_sys_logger().error(f"[ModelSync Error] 同步失敗 [{name}@{version}]: {err_str}")
             report["failed"].append({"key": key, "name": name, "version": version, "format": format_pref, "error": str(e)})
 
     if updates:

@@ -276,6 +276,9 @@ def initialize_runtime(config_mgr):
     sync_report = model_sync.sync_all(config_mgr)
     if sync_report["success"] or sync_report["failed"]:
         sys_logger.info(f"[ModelSync] 開機同步完成：成功 {len(sync_report['success'])}，失敗 {len(sync_report['failed'])}")
+    if sync_report["failed"]:
+        for fail in sync_report["failed"]:
+            sys_logger.error(f"[ModelSync Error] 開機同步失敗 [{fail['name']}@{fail['version']}]: {fail['error']}")
     config = config_mgr.config
 
     logger = StatsLogger(

@@ -4,7 +4,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import yaml
 
@@ -335,6 +335,93 @@ class TestLandArtifact(unittest.TestCase):
         self.assertEqual(result, expected)
         self.assertTrue(os.path.exists(expected))
         self.assertFalse(bin_file.exists())
+
+
+class TestModelSyncErrorLogging(unittest.TestCase):
+    def setUp(self):
+        fd, self.tmp_path = tempfile.mkstemp(suffix=".yaml")
+        os.close(fd)
+        self.dest_dir = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        if os.path.exists(self.tmp_path):
+            os.remove(self.tmp_path)
+
+    def write_yaml(self, data):
+        with open(self.tmp_path, "w", encoding="utf-8") as f:
+            yaml.dump(data, f)
+
+    def test_client_init_failure_logs_error(self):
+        """當 UMS Client 初始化失敗時，應記錄 [ModelSync Error] 日誌"""
+        self.write_yaml({"ums_model": {"name": "foo", "version": "latest"}})
+        mgr = ConfigManager(self.tmp_path)
+
+        with patch("model_sync._get_sys_logger") as mock_logger_fn:
+            mock_log = MagicMock()
+            mock_logger_fn.return_value = mock_log
+
+            # FailoverUmsClient 是在函數內部 import，透過攔截 builtins.__import__ 讓它失敗
+            import builtins
+            original_import = builtins.__import__
+            def mock_import(name, *args, **kwargs):
+                if name == 'failover_ums_client':
+                    raise ImportError("not installed")
+                return original_import(name, *args, **kwargs)
+            with patch('builtins.__import__', side_effect=mock_import):
+                report = model_sync.sync_all(mgr)
+
+        self.assertEqual(len(report["failed"]), 1)
+        mock_log.error.assert_called()
+
+    def test_fetch_models_failure_produces_failed_report(self):
+        """當 fetch_my_models 失敗時，report.failed 應有記錄"""
+        self.write_yaml({"ums_model": {"name": "bar", "version": "latest"}})
+        mgr = ConfigManager(self.tmp_path)
+
+        client = MagicMock()
+        client.fetch_my_models.side_effect = ConnectionError("Connection refused")
+
+        with patch("model_sync._get_sys_logger") as mock_logger_fn:
+            mock_log = MagicMock()
+            mock_logger_fn.return_value = mock_log
+            report = model_sync.sync_all(mgr, client=client)
+
+        self.assertEqual(len(report["failed"]), 1)
+        self.assertIn("bar", report["failed"][0]["name"])
+        mock_log.error.assert_called()
+
+    def test_model_not_found_produces_failed_report(self):
+        """當模型不存在時，report.failed 應有記錄，且 error 欄位包含原因"""
+        self.write_yaml({"ums_model": {"name": "nonexistent", "version": "latest"}})
+        mgr = ConfigManager(self.tmp_path)
+
+        client = MagicMock()
+        client.fetch_my_models.return_value = []  # empty list - model not found
+
+        with patch("model_sync._get_sys_logger") as mock_logger_fn:
+            mock_log = MagicMock()
+            mock_logger_fn.return_value = mock_log
+            report = model_sync.sync_all(mgr, client=client)
+
+        self.assertEqual(len(report["failed"]), 1)
+        self.assertIn("nonexistent", report["failed"][0]["name"])
+        self.assertTrue(len(report["failed"][0]["error"]) > 0)
+        mock_log.error.assert_called()
+
+    def test_failed_report_has_required_keys(self):
+        """失敗記錄的結構應包含 key, name, version, error"""
+        self.write_yaml({"ums_model": {"name": "model_x", "version": "v2"}})
+        mgr = ConfigManager(self.tmp_path)
+
+        client = MagicMock()
+        client.fetch_my_models.side_effect = RuntimeError("API Key invalid - Unauthorized")
+
+        report = model_sync.sync_all(mgr, client=client)
+
+        self.assertEqual(len(report["failed"]), 1)
+        fail = report["failed"][0]
+        for key in ("key", "name", "version", "error"):
+            self.assertIn(key, fail, f"missing key: {key}")
 
 
 if __name__ == "__main__":
