@@ -6,7 +6,7 @@
     <title>Argus // System Config</title>
     <style>
         :root {
-            font-size: 150%;
+            font-size: 135%;
             --bg: #050505;
             --panel: #0a0a0a;
             --panel-card: #0e0e0e;
@@ -81,7 +81,7 @@
         .sys-core {
             flex: 1;
             display: grid;
-            grid-template-columns: 410px 1fr;
+            grid-template-columns: 400px 1fr;
             gap: 0.8rem;
             padding: 0.6rem 1.2rem 0.8rem 1.2rem;
             overflow: hidden;
@@ -697,6 +697,131 @@
             padding: 0 0.3rem;
         }
         .lv-close-btn:hover { color: var(--danger); }
+
+        /* ===== Responsive Breakpoints (ADR-016) ===== */
+        /* Tier 1: Standard Desktop / Large Laptop (1200px ~ 1439px) */
+        @media (max-width: 1439px) {
+            :root {
+                font-size: 110%;
+            }
+            .sys-core {
+                grid-template-columns: 350px 1fr;
+                gap: 0.7rem;
+                padding: 0.5rem 1rem 0.7rem 1rem;
+            }
+        }
+
+        /* Tier 2: Compact Screen / Small Laptop / Tablet Landscape (992px ~ 1199px) */
+        @media (max-width: 1199px) {
+            :root {
+                font-size: 95%;
+            }
+            .sys-core {
+                grid-template-columns: 310px 1fr;
+                gap: 0.6rem;
+                padding: 0.4rem 0.8rem 0.6rem 0.8rem;
+            }
+            .top-container {
+                padding: 0.4rem 0.8rem 0.3rem 0.8rem;
+            }
+        }
+
+        /* Tier 3: Small Screen / 1024x768 Industrial / Netbook (768px ~ 991px) */
+        @media (max-width: 991px) {
+            :root {
+                font-size: 85%;
+            }
+            .sys-core {
+                grid-template-columns: 280px 1fr;
+                gap: 0.5rem;
+                padding: 0.4rem 0.6rem 0.5rem 0.6rem;
+            }
+            .top-container {
+                padding: 0.35rem 0.6rem 0.25rem 0.6rem;
+            }
+            .section-card {
+                padding: 0.6rem;
+                margin-bottom: 0.6rem;
+            }
+        }
+
+        /* Tier 4: Narrow Screen / Portrait Mobile (< 768px) */
+        @media (max-width: 767px) {
+            :root {
+                font-size: 85%;
+            }
+            html, body {
+                height: auto;
+                min-height: 100vh;
+                overflow-y: auto;
+                overflow-x: hidden;
+            }
+            .top-container {
+                padding: 0.5rem 0.6rem;
+            }
+            .sys-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.4rem;
+            }
+            .sys-core {
+                display: flex;
+                flex-direction: column;
+                height: auto;
+                overflow: visible;
+                padding: 0.4rem 0.6rem 0.8rem 0.6rem;
+                gap: 0.6rem;
+            }
+            .panel {
+                height: auto;
+                max-height: none;
+                overflow: visible;
+            }
+            .right-workspace {
+                height: auto;
+                overflow: visible;
+            }
+            .preview-container {
+                min-height: 220px;
+                height: 260px;
+            }
+            .detail-inspector {
+                min-height: 200px;
+                height: auto;
+            }
+        }
+
+        /* Vertical Height Constraint (Window Height <= 720px on non-mobile) */
+        @media (max-height: 720px) and (min-width: 768px) {
+            :root {
+                font-size: 88%;
+            }
+            .top-container {
+                padding: 0.3rem 0.8rem 0.2rem 0.8rem;
+            }
+            .sys-core {
+                padding: 0.3rem 0.8rem 0.4rem 0.8rem;
+                gap: 0.5rem;
+            }
+            .section-card {
+                padding: 0.5rem;
+                margin-bottom: 0.5rem;
+            }
+            .preview-container {
+                min-height: 150px;
+            }
+            .detail-inspector {
+                min-height: 160px;
+                padding: 0.5rem 0.7rem;
+            }
+            .panel {
+                padding: 0.5rem;
+            }
+            .panel-frame-title {
+                margin-bottom: 0.5rem;
+                padding-bottom: 0.3rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -730,7 +855,7 @@
                 <div class="blink"></div>
                 <h1>ARGUS // PREDICTOR_NANO</h1>
             </div>
-            <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
                 <a href="/manual/" target="_blank" class="btn-exec" style="text-decoration:none; margin:0; width:auto; padding: 0.4rem 0.8rem; font-size:0.75rem; display:inline-flex; align-items:center;">📖 使用手冊</a>
                 <button type="button" class="btn-exec" id="log-viewer-btn" style="margin:0; width:auto; padding: 0.4rem 0.8rem; font-size:0.75rem;" onclick="openLogViewer()">[ 日誌檢視 LOGS ]</button>
                 <button type="button" class="btn-exec" style="margin:0; width:auto; padding: 0.4rem 0.8rem; font-size:0.75rem;" onclick="document.getElementById('sys-core').classList.toggle('hide-config')">切換面板</button>

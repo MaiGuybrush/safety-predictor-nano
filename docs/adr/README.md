@@ -31,6 +31,7 @@
 | [ADR-013](ADR-013-ums-client-model-sync.md) | 採用 ums-client 從 UMS 平台同步模型（UMS Client Model Sync） | 已接受 | 2026-08-16 |
 | [ADR-014](ADR-014-argus-eventlog-integration.md) | 導入 argus-eventlog 輸出 ARGUS JSONL 事件（Argus Eventlog Integration） | 已接受 | 2026-08-16 |
 | [ADR-015](ADR-015-argus-agent-heartbeat-and-camera-id-parsing.md) | 導入 argus-agent Heartbeat 登錄與 RTSP URL Camera ID 自動解析 | 已接受 | 2026-08-16 |
+| [ADR-016](ADR-016-responsive-font-scaling-and-layout.md) | Web UI 響應式字級縮放與小螢幕佈局自適應架構 | 已接受 | 2026-08-21 |
 
 ## 新增 ADR
 
