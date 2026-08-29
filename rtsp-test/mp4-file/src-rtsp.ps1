@@ -1,0 +1,1 @@
+go2rtc -config .\go2rtc-mp4-file.yaml

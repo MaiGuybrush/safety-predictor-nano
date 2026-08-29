@@ -16,6 +16,7 @@ from inference_engine import InferenceEngine
 from stats_logger import StatsLogger, setup_system_logger, get_system_logger, configure_werkzeug_logger
 from grid_composer import annotate_frame, compose_grid
 import model_sync
+from retention_cleaner import RetentionCleanerService
 
 import argus_eventlog
 from argus_eventlog import EventWriterService, HeartbeatService, get_event_output_path, parse_camera_id
@@ -144,8 +145,9 @@ def _inference_worker(context):
 
         if now - last_infer_times.get(unit_idx, 0) >= interval:
             frame = unit.get("latest_raw_frame")
+            pts = unit.get("latest_pts")
             if frame is None and handler is not None:
-                frame = handler.get_latest_frame()
+                frame, pts = handler.get_latest_frame_and_pts()
 
             if frame is not None and engine is not None:
                 conf_thresh = config.get("conf_threshold", 0.25)
@@ -178,6 +180,8 @@ def _inference_worker(context):
                     config.get("event_severity", {}),
                     config.get("event_absence_tolerance", 2),
                     zone=stream_zone,
+                    pts=pts,
+                    clean_frame=frame,
                 )
                 web_ui.LATEST_DETECTIONS[unit_idx] = {
                     "stream_url": url,
@@ -362,6 +366,9 @@ def main():
     config_mgr = ConfigManager()
     state = initialize_runtime(config_mgr)
 
+    retention_cleaner = RetentionCleanerService(config_mgr)
+    retention_cleaner.start()
+
     config = state["config"]
     logger = state["logger"]
     mode = state["mode"]
@@ -485,9 +492,10 @@ def main():
                 if stream_units:
                     for unit in stream_units:
                         handler = unit["handler"]
-                        frame = handler.get_latest_frame()
+                        frame, pts = handler.get_latest_frame_and_pts()
                         if frame is not None:
                             unit["latest_raw_frame"] = frame
+                            unit["latest_pts"] = pts
                             latest_frames[unit["url"]] = frame
                     
                     if web_ui.is_streaming_active():
@@ -500,10 +508,11 @@ def main():
                                     web_ui.LATEST_FRAME = buffer.tobytes()
 
             elif mode == 'video' and video_handler and video_engine:
-                frame = video_handler.get_latest_frame()
+                frame, pts = video_handler.get_latest_frame_and_pts()
                 if frame is not None:
                     if web_ui.STREAM_UNITS:
                         web_ui.STREAM_UNITS[0]["latest_raw_frame"] = frame
+                        web_ui.STREAM_UNITS[0]["latest_pts"] = pts
                     
                     fps_lim = config.get("fps_limit", 30)
                     interval = 1.0 / fps_lim if fps_lim > 0 else 0
@@ -540,6 +549,8 @@ def main():
                             config.get("event_severity", {}),
                             config.get("event_absence_tolerance", 2),
                             zone=video_zone,
+                            pts=pts,
+                            clean_frame=frame,
                         )
                         web_ui.LATEST_DETECTIONS[0] = {
                             "stream_url": video_url,
@@ -566,6 +577,7 @@ def main():
         if video_handler:
             video_handler.stop()
         stop_heartbeat_services(heartbeat_services)
+        retention_cleaner.stop()
         event_writer.stop()
 
 if __name__ == "__main__":

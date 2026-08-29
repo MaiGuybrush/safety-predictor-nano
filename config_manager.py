@@ -252,3 +252,10 @@ class ConfigManager:
         except (ValueError, TypeError):
             return 3
 
+    def get_event_retention_days(self):
+        try:
+            days = int(self.config.get("event_retention_days", 30))
+            return days if days >= 1 else 30
+        except (ValueError, TypeError):
+            return 30
+

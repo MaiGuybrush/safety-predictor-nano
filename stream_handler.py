@@ -13,6 +13,7 @@ class StreamHandler:
         self.running = False
         self.thread = None
         self.last_frame = None
+        self.last_pts = 0.0
 
     def start(self):
         self.running = True
@@ -74,13 +75,20 @@ class StreamHandler:
                     ret, frame = cap.retrieve()
                     if ret and frame is not None:
                         last_retrieve_time = now
+                        pts_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
+                        if isinstance(pts_ms, (int, float)) and pts_ms > 0:
+                            pts = float(pts_ms) / 1000.0
+                        else:
+                            pts = now
+
                         if self.frame_queue.full():
                             try:
                                 self.frame_queue.get_nowait()
                             except queue.Empty:
                                 pass
-                        self.frame_queue.put(frame)
+                        self.frame_queue.put((frame, pts))
                         self.last_frame = frame
+                        self.last_pts = pts
 
                 time.sleep(0.001)
         finally:
@@ -88,8 +96,19 @@ class StreamHandler:
 
     def get_latest_frame(self):
         try:
-            frame = self.frame_queue.get_nowait()
-            self.last_frame = frame
-            return frame
+            item = self.frame_queue.get_nowait()
+            if isinstance(item, tuple):
+                self.last_frame, self.last_pts = item
+            else:
+                self.last_frame = item
+                self.last_pts = time.time()
+            return self.last_frame
         except queue.Empty:
             return self.last_frame
+
+    def get_latest_pts(self):
+        return getattr(self, "last_pts", 0.0)
+
+    def get_latest_frame_and_pts(self):
+        frame = self.get_latest_frame()
+        return frame, self.get_latest_pts()

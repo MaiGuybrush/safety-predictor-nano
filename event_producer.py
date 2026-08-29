@@ -1,7 +1,12 @@
+import os
+import queue
+import threading
+import time
 import cv2
 import numpy as np
 from datetime import datetime, timezone
 
+import argus_eventlog
 from argus_eventlog import (
     event_queue, EventStart, EventFrame, EventEnd,
     EventMeta, BboxDetection,
@@ -11,12 +16,73 @@ _FULL_FRAME_ROI = [[0, 0], [1, 0], [1, 1], [0, 1]]
 _DEFAULT_SEVERITY = "warning"
 _END_REASON = "no_longer_detected"
 
-# (stream_key, label) -> {"event_ref": str, "absent": int}
+# (stream_key, label) -> {"event_ref": str, "absent": int, "snapshotted": bool}
 _state = {}
 
+# Asynchronous Snapshot Worker Queue & Thread
+_snapshot_queue = queue.Queue()
+_snapshot_worker_thread = None
+_snapshot_worker_lock = threading.Lock()
 
-def _now_iso():
-    return datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+def _snapshot_worker():
+    while True:
+        try:
+            item = _snapshot_queue.get()
+            if item is None:
+                _snapshot_queue.task_done()
+                break
+            file_path, frame = item
+            try:
+                os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                cv2.imwrite(file_path, frame)
+            except Exception:
+                pass
+            finally:
+                _snapshot_queue.task_done()
+        except Exception:
+            pass
+
+
+def _ensure_snapshot_worker():
+    global _snapshot_worker_thread
+    with _snapshot_worker_lock:
+        if _snapshot_worker_thread is None or not _snapshot_worker_thread.is_alive():
+            _snapshot_worker_thread = threading.Thread(
+                target=_snapshot_worker,
+                name="SnapshotWorkerThread",
+                daemon=True
+            )
+            _snapshot_worker_thread.start()
+
+
+def enqueue_snapshot(file_path, frame):
+    _ensure_snapshot_worker()
+    _snapshot_queue.put((file_path, frame))
+
+
+def _get_base_dir():
+    import sys
+    if getattr(sys, 'frozen', False):
+        exe_dir = os.path.dirname(sys.executable)
+    else:
+        exe_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+    return os.path.normpath(os.path.join(exe_dir, 'recordings'))
+
+
+def _format_timestamp(pts=None):
+    """將 PTS (秒) 轉換為 ISO 8601 UTC 毫秒字串 (YYYY-MM-DDTHH:MM:SS.mmmZ)。
+    若 pts <= 0 或無效則 fallback 至系統時間。
+    """
+    if pts is not None and isinstance(pts, (int, float)) and pts > 0:
+        dt = datetime.fromtimestamp(pts, tz=timezone.utc)
+    else:
+        dt = datetime.now(tz=timezone.utc)
+    return f"{dt.strftime('%Y-%m-%dT%H:%M:%S')}.{dt.microsecond // 1000:03d}Z"
+
+
+def _now_iso(pts=None):
+    return _format_timestamp(pts)
 
 
 def _new_event_ref(label):
@@ -120,11 +186,15 @@ def _is_inside_zone(det, polygon, frame_w, frame_h, trigger_mode="center", sensi
 
 
 def process_detections(stream_key, camera_id, detections, frame_w, frame_h,
-                        severity_map=None, tolerance=2, zone=None):
+                        severity_map=None, tolerance=2, zone=None, pts=None,
+                        clean_frame=None, base_dir=None):
     """把偵測結果轉成 argus-eventlog 的 EventStart/EventFrame/EventEnd，丟進 event_queue。
 
     detections: [{"xyxy": [x1,y1,x2,y2], "cls": int, "conf": float, "label": str}, ...]
     zone: optional dict {"polygon": [[x1, y1], ...], "zone_name": str, "trigger_mode": str, "sensitivity": float}
+    pts: optional float PTS (秒)
+    clean_frame: optional ndarray 未繪製標註框之原始影像
+    base_dir: optional str recordings 基礎輸出目錄
     """
     severity_map = severity_map or {}
 
@@ -146,7 +216,8 @@ def process_detections(stream_key, camera_id, detections, frame_w, frame_h,
     for det in detections:
         by_label.setdefault(det["label"], []).append(det)
 
-    now = _now_iso()
+    now = _format_timestamp(pts)
+    pts_val = float(pts) if (pts is not None and isinstance(pts, (int, float)) and pts > 0) else time.time()
 
     for label, dets in by_label.items():
         key = (stream_key, label)
@@ -163,14 +234,23 @@ def process_detections(stream_key, camera_id, detections, frame_w, frame_h,
 
         if key not in _state:
             event_ref = _new_event_ref(label)
-            _state[key] = {"event_ref": event_ref, "absent": 0}
+            snap_rel_path = f"snapshots/{pts_val:.3f}_{event_ref}.jpg"
+            if clean_frame is not None:
+                base = base_dir or _get_base_dir()
+                full_snap_path = os.path.join(base, camera_id, "snapshots", f"{pts_val:.3f}_{event_ref}.jpg")
+                enqueue_snapshot(full_snap_path, clean_frame.copy())
+                meta = EventMeta(roi=roi, zone_name=zone_name, snapshot_path=snap_rel_path)
+            else:
+                meta = EventMeta(roi=roi, zone_name=zone_name)
+
+            _state[key] = {"event_ref": event_ref, "absent": 0, "snapshotted": True}
             event_queue.put(EventStart(
                 event_ref=event_ref,
                 category=label,
                 camera_id=camera_id,
                 timestamp=now,
                 severity=severity_map.get(label, _DEFAULT_SEVERITY),
-                meta=EventMeta(roi=roi, zone_name=zone_name),
+                meta=meta,
             ))
         else:
             _state[key]["absent"] = 0

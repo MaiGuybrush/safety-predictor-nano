@@ -1,0 +1,9 @@
+api:
+  listen: :1984
+
+ffmpeg:
+  wallclock: "-rtsp_transport tcp -use_wallclock_as_timestamps 1 -i {input}"
+
+streams:
+  camera_wallclock:
+    - "ffmpeg:rtsp://127.0.0.1:8654/fake_camera#input=wallclock#video=copy"

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, send_from_directory, abort
+from flask import Flask, render_template, request, send_from_directory, abort, jsonify
 import yaml
 import os
 import sys
@@ -47,155 +47,184 @@ import threading
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
-        current = load_config() or {}
-
-        # 1. Parse streams: priority to structured JSON payload `streams_json`
-        raw_streams_json = request.form.get("streams_json")
-        if raw_streams_json:
-            try:
-                updated_streams = json.loads(raw_streams_json)
-                if not isinstance(updated_streams, list):
-                    updated_streams = []
-            except Exception:
-                updated_streams = current.get("streams", [])
-        else:
-            # Fallback to plain textarea input
-            raw_streams_input = request.form.get("streams", "")
-            stream_urls = [s.strip() for s in raw_streams_input.replace("\r", "").split("\n") if s.strip()]
-            existing_streams_by_url = {}
-            if "streams" in current and isinstance(current["streams"], list):
-                for s in current["streams"]:
-                    if isinstance(s, dict) and "url" in s:
-                        existing_streams_by_url[s["url"]] = s
-
-            updated_streams = []
-            for u in stream_urls:
-                if u in existing_streams_by_url:
-                    updated_streams.append(existing_streams_by_url[u])
-                else:
-                    updated_streams.append({"url": u})
-
-        # Parse log_backup_count defensively
-        raw_backup_count = request.form.get("log_backup_count")
+        is_ajax = (
+            request.headers.get("X-Requested-With") == "XMLHttpRequest"
+            or "application/json" in request.headers.get("Accept", "")
+            or request.is_json
+        )
         try:
-            log_backup_count = int(raw_backup_count) if raw_backup_count is not None and str(raw_backup_count).strip() else int(current.get("log_backup_count", 3))
-            if log_backup_count < 1:
-                log_backup_count = 3
-        except (ValueError, TypeError):
-            log_backup_count = int(current.get("log_backup_count", 3))
+            current = load_config() or {}
 
-        # 2. Base fields
-        new_config = {
-            **current,
-            "streams": updated_streams,
-            "mode": request.form.get("mode", current.get("mode", "rtsp")),
-            "model_path": request.form.get("model_path", current.get("model_path", "best.onnx")),
-            "model_format": request.form.get("model_format", current.get("model_format", "auto")),
-            "video_path": request.form.get("video_path", current.get("video_path", "")),
-            "fps_limit": int(request.form.get("fps_limit", current.get("fps_limit", 2))),
-            "cpu_cores": int(request.form.get("cpu_cores", current.get("cpu_cores", 4))),
-            "conf_threshold": float(request.form.get("conf_threshold", current.get("conf_threshold", 0.25))),
-            "log_interval_seconds": int(request.form.get("log_interval_seconds", current.get("log_interval_seconds", 60))),
-            "system_log_file": request.form.get("system_log_file", current.get("system_log_file", "logs/system.log")),
-            "log_file": request.form.get("log_file", current.get("log_file", "logs/performance.log")),
-            "detection_log_file": request.form.get("detection_log_file", current.get("detection_log_file", "logs/detections.log")),
-            "log_level": request.form.get("log_level", current.get("log_level", "INFO")),
-            "log_backup_count": log_backup_count
-        }
-
-        # 3. Model source & ums_model
-        model_source = request.form.get("model_source")
-        ums_changed = False
-        old_ums = current.get("ums_model")
-
-        if model_source == "ums":
-            ums_name = request.form.get("ums_model_name", "").strip()
-            ums_version = request.form.get("ums_model_version", "latest").strip()
-            if ums_name:
-                new_ums = {"name": ums_name, "version": ums_version}
-                new_config["ums_model"] = new_ums
-                if old_ums != new_ums:
-                    ums_changed = True
+            # 1. Parse streams: priority to structured JSON payload `streams_json`
+            raw_streams_json = request.form.get("streams_json")
+            if raw_streams_json:
+                try:
+                    updated_streams = json.loads(raw_streams_json)
+                    if not isinstance(updated_streams, list):
+                        updated_streams = []
+                except Exception:
+                    updated_streams = current.get("streams", [])
             else:
+                # Fallback to plain textarea input
+                raw_streams_input = request.form.get("streams", "")
+                stream_urls = [s.strip() for s in raw_streams_input.replace("\r", "").split("\n") if s.strip()]
+                existing_streams_by_url = {}
+                if "streams" in current and isinstance(current["streams"], list):
+                    for s in current["streams"]:
+                        if isinstance(s, dict) and "url" in s:
+                            existing_streams_by_url[s["url"]] = s
+
+                updated_streams = []
+                for u in stream_urls:
+                    if u in existing_streams_by_url:
+                        updated_streams.append(existing_streams_by_url[u])
+                    else:
+                        updated_streams.append({"url": u})
+
+            # Parse log_backup_count defensively
+            raw_backup_count = request.form.get("log_backup_count")
+            try:
+                log_backup_count = int(raw_backup_count) if raw_backup_count is not None and str(raw_backup_count).strip() else int(current.get("log_backup_count", 3))
+                if log_backup_count < 1:
+                    log_backup_count = 3
+            except (ValueError, TypeError):
+                log_backup_count = int(current.get("log_backup_count", 3))
+
+            # Parse event_retention_days defensively
+            raw_retention_days = request.form.get("event_retention_days")
+            try:
+                event_retention_days = int(raw_retention_days) if raw_retention_days is not None and str(raw_retention_days).strip() else int(current.get("event_retention_days", 30))
+                if event_retention_days < 1:
+                    event_retention_days = 30
+            except (ValueError, TypeError):
+                event_retention_days = int(current.get("event_retention_days", 30))
+
+            # 2. Base fields
+            new_config = {
+                **current,
+                "streams": updated_streams,
+                "mode": request.form.get("mode", current.get("mode", "rtsp")),
+                "model_path": request.form.get("model_path", current.get("model_path", "best.onnx")),
+                "model_format": request.form.get("model_format", current.get("model_format", "auto")),
+                "video_path": request.form.get("video_path", current.get("video_path", "")),
+                "fps_limit": int(request.form.get("fps_limit", current.get("fps_limit", 2))),
+                "cpu_cores": int(request.form.get("cpu_cores", current.get("cpu_cores", 4))),
+                "conf_threshold": float(request.form.get("conf_threshold", current.get("conf_threshold", 0.25))),
+                "log_interval_seconds": int(request.form.get("log_interval_seconds", current.get("log_interval_seconds", 60))),
+                "system_log_file": request.form.get("system_log_file", current.get("system_log_file", "logs/system.log")),
+                "log_file": request.form.get("log_file", current.get("log_file", "logs/performance.log")),
+                "detection_log_file": request.form.get("detection_log_file", current.get("detection_log_file", "logs/detections.log")),
+                "log_level": request.form.get("log_level", current.get("log_level", "INFO")),
+                "log_backup_count": log_backup_count,
+                "event_retention_days": event_retention_days
+            }
+
+            # 3. Model source & ums_model
+            model_source = request.form.get("model_source")
+            ums_changed = False
+            old_ums = current.get("ums_model")
+
+            if model_source == "ums":
+                ums_name = request.form.get("ums_model_name", "").strip()
+                ums_version = request.form.get("ums_model_version", "latest").strip()
+                if ums_name:
+                    new_ums = {"name": ums_name, "version": ums_version}
+                    new_config["ums_model"] = new_ums
+                    if old_ums != new_ums:
+                        ums_changed = True
+                else:
+                    new_config.pop("ums_model", None)
+                    if old_ums is not None:
+                        ums_changed = True
+            elif model_source == "local":
                 new_config.pop("ums_model", None)
                 if old_ums is not None:
                     ums_changed = True
-        elif model_source == "local":
-            new_config.pop("ums_model", None)
-            if old_ums is not None:
-                ums_changed = True
-        else:
-            if "ums_model" in current:
-                new_config["ums_model"] = current["ums_model"]
+            else:
+                if "ums_model" in current:
+                    new_config["ums_model"] = current["ums_model"]
 
-        # Check if any per-stream ums_model changed
-        if not ums_changed:
-            old_stream_ums = [s.get("ums_model") for s in current.get("streams", []) if isinstance(s, dict)]
-            new_stream_ums = [s.get("ums_model") for s in updated_streams if isinstance(s, dict)]
-            if old_stream_ums != new_stream_ums:
-                ums_changed = True
+            # Check if any per-stream ums_model changed
+            if not ums_changed:
+                old_stream_ums = [s.get("ums_model") for s in current.get("streams", []) if isinstance(s, dict)]
+                new_stream_ums = [s.get("ums_model") for s in updated_streams if isinstance(s, dict)]
+                if old_stream_ums != new_stream_ums:
+                    ums_changed = True
 
-        # 4. UMS settings
-        if "ums_base_urls" in request.form or "ums_base_urls[]" in request.form:
-            raw_urls = request.form.getlist("ums_base_urls") or request.form.getlist("ums_base_urls[]")
-            parsed_urls = []
-            for item in raw_urls:
-                if not item:
-                    continue
-                if item.startswith("[") and item.endswith("]"):
-                    try:
-                        sub_list = json.loads(item)
-                        if isinstance(sub_list, list):
-                            for u in sub_list:
-                                if str(u).strip():
-                                    parsed_urls.append(str(u).strip())
-                            continue
-                    except Exception:
-                        pass
-                for u in item.split(","):
-                    if u.strip():
-                        parsed_urls.append(u.strip())
-            if parsed_urls:
-                new_config["ums_base_urls"] = parsed_urls
-                new_config.pop("ums_base_url", None)
-        elif "ums_base_url" in request.form:
-            u_single = request.form["ums_base_url"].strip()
-            if u_single:
-                new_config["ums_base_url"] = u_single
-                new_config["ums_base_urls"] = [u_single]
+            # 4. UMS settings
+            if "ums_base_urls" in request.form or "ums_base_urls[]" in request.form:
+                raw_urls = request.form.getlist("ums_base_urls") or request.form.getlist("ums_base_urls[]")
+                parsed_urls = []
+                for item in raw_urls:
+                    if not item:
+                        continue
+                    if item.startswith("[") and item.endswith("]"):
+                        try:
+                            sub_list = json.loads(item)
+                            if isinstance(sub_list, list):
+                                for u in sub_list:
+                                    if str(u).strip():
+                                        parsed_urls.append(str(u).strip())
+                                continue
+                        except Exception:
+                            pass
+                    for u in item.split(","):
+                        if u.strip():
+                            parsed_urls.append(u.strip())
+                if parsed_urls:
+                    new_config["ums_base_urls"] = parsed_urls
+                    new_config.pop("ums_base_url", None)
+            elif "ums_base_url" in request.form:
+                u_single = request.form["ums_base_url"].strip()
+                if u_single:
+                    new_config["ums_base_url"] = u_single
+                    new_config["ums_base_urls"] = [u_single]
 
-        if "ums_api_key" in request.form:
-            new_config["ums_api_key"] = request.form["ums_api_key"].strip()
+            if "ums_api_key" in request.form:
+                new_config["ums_api_key"] = request.form["ums_api_key"].strip()
 
-        # 5. Heartbeat settings
-        if "heartbeat_enabled" in request.form:
-            enabled = request.form["heartbeat_enabled"].lower() in ("true", "1", "yes", "on")
-            hb_curr = current.get("heartbeat", {}) if isinstance(current.get("heartbeat"), dict) else {}
-            new_config["heartbeat"] = {
-                **hb_curr,
-                "enabled": enabled,
-                "agent_port": int(request.form.get("heartbeat_agent_port", hb_curr.get("agent_port", 8080))),
-                "interval_seconds": int(request.form.get("heartbeat_interval_seconds", hb_curr.get("interval_seconds", 60))),
-                "ap_name": request.form.get("heartbeat_ap_name", hb_curr.get("ap_name", "SafetyNano")),
-                "version": request.form.get("heartbeat_version", hb_curr.get("version", "0.1.0"))
-            }
+            # 5. Heartbeat settings
+            if "heartbeat_enabled" in request.form:
+                enabled = request.form["heartbeat_enabled"].lower() in ("true", "1", "yes", "on")
+                hb_curr = current.get("heartbeat", {}) if isinstance(current.get("heartbeat"), dict) else {}
+                new_config["heartbeat"] = {
+                    **hb_curr,
+                    "enabled": enabled,
+                    "agent_port": int(request.form.get("heartbeat_agent_port", hb_curr.get("agent_port", 8080))),
+                    "interval_seconds": int(request.form.get("heartbeat_interval_seconds", hb_curr.get("interval_seconds", 60))),
+                    "ap_name": request.form.get("heartbeat_ap_name", hb_curr.get("ap_name", "SafetyNano")),
+                    "version": request.form.get("heartbeat_version", hb_curr.get("version", "0.1.0"))
+                }
 
-        # 6. Event settings
-        if "event_absence_tolerance" in request.form:
-            new_config["event_absence_tolerance"] = int(request.form["event_absence_tolerance"])
+            # 6. Event settings
+            if "event_absence_tolerance" in request.form:
+                new_config["event_absence_tolerance"] = int(request.form["event_absence_tolerance"])
 
-        save_config(new_config)
+            save_config(new_config)
 
-        # 7. Background sync trigger if ums_model changed
-        has_any_ums = bool(new_config.get("ums_model")) or any(
-            isinstance(s, dict) and bool(s.get("ums_model")) for s in updated_streams
-        )
-        if ums_changed and has_any_ums:
-            threading.Thread(
-                target=model_sync.sync_all,
-                args=(ConfigManager(CONFIG_FILE),),
-                daemon=True
-            ).start()
+            # 7. Background sync trigger if ums_model changed
+            has_any_ums = bool(new_config.get("ums_model")) or any(
+                isinstance(s, dict) and bool(s.get("ums_model")) for s in updated_streams
+            )
+            if ums_changed and has_any_ums:
+                threading.Thread(
+                    target=model_sync.sync_all,
+                    args=(ConfigManager(CONFIG_FILE),),
+                    daemon=True
+                ).start()
+
+            if is_ajax:
+                return jsonify({
+                    "status": "ok",
+                    "message": "設定已成功儲存並生效"
+                })
+        except Exception as e:
+            if is_ajax:
+                return jsonify({
+                    "status": "error",
+                    "message": f"儲存失敗: {e}"
+                }), 500
+            raise
     
     config = load_config()
     return render_template("index.html", config=config)

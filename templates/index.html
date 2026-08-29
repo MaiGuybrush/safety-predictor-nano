@@ -698,6 +698,185 @@
         }
         .lv-close-btn:hover { color: var(--danger); }
 
+        /* ===== Global Floating Action Bar (Issue #39) ===== */
+        .floating-action-bar {
+            position: fixed;
+            bottom: 1.2rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(140%);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 8500;
+            background: rgba(10, 10, 10, 0.95);
+            border: 1px solid var(--text);
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.25), 0 8px 24px rgba(0, 0, 0, 0.8);
+            border-radius: 4px;
+            backdrop-filter: blur(8px);
+            padding: 0.55rem 1.1rem;
+            transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease, box-shadow 0.25s ease;
+            max-width: 90vw;
+        }
+        .floating-action-bar.visible {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .fab-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1.2rem;
+        }
+        .fab-hint {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.76rem;
+            color: var(--warn);
+            font-weight: bold;
+            letter-spacing: 0.8px;
+            white-space: nowrap;
+        }
+        .fab-pulse-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--warn);
+            box-shadow: 0 0 8px var(--warn);
+            animation: blink 1.2s infinite ease-in-out;
+            flex-shrink: 0;
+        }
+        .fab-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            flex-shrink: 0;
+        }
+        .fab-btn {
+            padding: 0.4rem 0.85rem;
+            font-family: inherit;
+            font-size: 0.74rem;
+            font-weight: bold;
+            letter-spacing: 1px;
+            cursor: pointer;
+            border-radius: 2px;
+            transition: all 0.15s ease;
+            user-select: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+        .fab-btn-save {
+            background: var(--text);
+            color: #000;
+            border: 1px solid var(--text);
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+        }
+        .fab-btn-save:hover {
+            background: #fff;
+            border-color: #fff;
+            box-shadow: 0 0 16px rgba(0, 255, 65, 0.6);
+            transform: translateY(-1px);
+        }
+        .fab-btn-save:active {
+            transform: scale(0.97);
+        }
+        .fab-btn-discard {
+            background: rgba(255, 51, 51, 0.08);
+            color: var(--danger);
+            border: 1px solid var(--danger);
+        }
+        .fab-btn-discard:hover {
+            background: var(--danger);
+            color: #000;
+            box-shadow: 0 0 10px rgba(255, 51, 51, 0.4);
+            transform: translateY(-1px);
+        }
+        .fab-btn-discard:active {
+            transform: scale(0.97);
+        }
+
+        /* ===== HUD Toast Notification Component (Issue #39) ===== */
+        .hud-toast-container {
+            position: fixed;
+            top: 1.2rem;
+            right: 1.2rem;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+            pointer-events: none;
+            max-width: 90vw;
+        }
+        .hud-toast {
+            min-width: 260px;
+            max-width: 420px;
+            padding: 0.65rem 1rem;
+            border-radius: 3px;
+            font-size: 0.76rem;
+            font-family: inherit;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.8rem;
+            pointer-events: auto;
+            backdrop-filter: blur(8px);
+            transform: translateX(120%);
+            opacity: 0;
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+        }
+        .hud-toast.show {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        .hud-toast.success {
+            background: rgba(5, 20, 8, 0.96);
+            border: 1px solid var(--text);
+            color: var(--text);
+            box-shadow: 0 0 16px rgba(0, 255, 65, 0.3);
+        }
+        .hud-toast.error {
+            background: rgba(25, 5, 5, 0.96);
+            border: 1px solid var(--danger);
+            color: var(--danger);
+            box-shadow: 0 0 16px rgba(255, 51, 51, 0.35);
+        }
+        .hud-toast.info {
+            background: rgba(5, 18, 25, 0.96);
+            border: 1px solid var(--cyan);
+            color: var(--cyan);
+            box-shadow: 0 0 16px rgba(0, 229, 255, 0.3);
+        }
+        .hud-toast-msg {
+            flex: 1;
+            line-height: 1.4;
+            word-break: break-all;
+        }
+        .hud-toast-close {
+            background: transparent;
+            border: none;
+            color: inherit;
+            font-size: 0.9rem;
+            cursor: pointer;
+            opacity: 0.7;
+            padding: 0;
+            line-height: 1;
+        }
+        .hud-toast-close:hover {
+            opacity: 1;
+        }
+
+        /* Stream Dirty Badge (Issue #40) */
+        .stream-dirty-badge {
+            color: var(--warn);
+            font-weight: bold;
+            margin-left: 4px;
+            font-size: 0.85rem;
+            display: inline-block;
+        }
+
         /* ===== Responsive Breakpoints (ADR-016) ===== */
         /* Tier 1: Standard Desktop / Large Laptop (1200px ~ 1439px) */
         @media (max-width: 1439px) {
@@ -742,6 +921,16 @@
             .section-card {
                 padding: 0.6rem;
                 margin-bottom: 0.6rem;
+            }
+            .floating-action-bar {
+                padding: 0.45rem 0.8rem;
+            }
+            .fab-hint {
+                font-size: 0.7rem;
+            }
+            .fab-btn {
+                padding: 0.35rem 0.65rem;
+                font-size: 0.7rem;
             }
         }
 
@@ -789,6 +978,44 @@
                 min-height: 200px;
                 height: auto;
             }
+            .floating-action-bar {
+                width: calc(100% - 1.2rem);
+                left: 0.6rem;
+                transform: translateY(140%);
+                padding: 0.5rem 0.7rem;
+            }
+            .floating-action-bar.visible {
+                transform: translateY(0);
+            }
+            .fab-content {
+                flex-direction: column;
+                gap: 0.4rem;
+                align-items: stretch;
+                text-align: center;
+            }
+            .fab-hint {
+                justify-content: center;
+                font-size: 0.7rem;
+            }
+            .fab-actions {
+                justify-content: center;
+            }
+            .fab-btn {
+                flex: 1;
+                justify-content: center;
+                padding: 0.35rem 0.5rem;
+                font-size: 0.7rem;
+            }
+            .hud-toast-container {
+                top: 0.6rem;
+                right: 0.6rem;
+                left: 0.6rem;
+                max-width: none;
+            }
+            .hud-toast {
+                min-width: 0;
+                width: 100%;
+            }
         }
 
         /* Vertical Height Constraint (Window Height <= 720px on non-mobile) */
@@ -820,6 +1047,10 @@
             .panel-frame-title {
                 margin-bottom: 0.5rem;
                 padding-bottom: 0.3rem;
+            }
+            .floating-action-bar {
+                bottom: 0.6rem;
+                padding: 0.4rem 0.8rem;
             }
         }
     </style>
@@ -891,7 +1122,7 @@
         {% endif %}
 
         <!-- LEFT MASTER PANEL: Global & Master Stream List -->
-        <form method="POST" class="panel" id="config-panel" onsubmit="return prepareSubmit()">
+        <form method="POST" class="panel" id="config-panel" onsubmit="return submitConfigAjax(event)">
             <div class="panel-frame-title">系統參數設定</div>
             <input type="hidden" name="streams_json" id="streams_json">
             <input type="hidden" name="ums_model_name" id="ums_model_name">
@@ -1127,6 +1358,10 @@
                                 <label>偵測日誌檔名</label>
                                 <input type="text" name="detection_log_file" value="{{ config.get('detection_log_file', 'logs/detections.log') }}">
                             </div>
+                            <div class="field">
+                                <label>事件資料留存天數 (天)</label>
+                                <input type="number" name="event_retention_days" value="{{ config.get('event_retention_days', 30) }}" min="1">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1262,6 +1497,23 @@
             </div>
         </div>
     </main>
+
+    <!-- ===== Global Floating Action Bar (Issue #39) ===== -->
+    <div id="floating-action-bar" class="floating-action-bar" role="toolbar" aria-label="設定變更浮動操作列">
+        <div class="fab-content">
+            <div class="fab-hint">
+                <span class="fab-pulse-dot"></span>
+                <span class="fab-hint-text">⚠ 偵測到尚未儲存的設定變更</span>
+            </div>
+            <div class="fab-actions">
+                <button type="button" class="fab-btn fab-btn-discard" id="fab-discard-btn" onclick="discardChanges()">✕ 放棄變更</button>
+                <button type="button" class="fab-btn fab-btn-save" id="fab-save-btn" onclick="submitConfigAjax(event)">✓ 儲存並套用設定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== HUD Toast Notification Container (Issue #39) ===== -->
+    <div id="hud-toast-container" class="hud-toast-container" aria-live="polite"></div>
 
     <!-- Fullscreen Modal Overlay (Preserved ROI Canvas & SSE) -->
     <div id="fullscreen-modal" class="fullscreen-modal" style="display:none;" onclick="closeFullscreenOnBackdrop(event)">
@@ -1423,6 +1675,296 @@
             input.type = input.type === 'password' ? 'text' : 'password';
         }
 
+        // ── Dirty State & Snapshot Engine (Issues #40, #41) ──
+        let initialFormSnapshot = {};
+        let initialStreamsSnapshot = [];
+        let isInitializing = true;
+
+        function getFormState() {
+            const form = document.getElementById('config-panel');
+            if (!form) return {};
+            const state = {};
+            
+            const fieldNames = [
+                'fps_limit', 'cpu_cores', 'conf_threshold',
+                'model_path', 'model_format', 'video_path',
+                'ums_api_key', 'heartbeat_agent_port', 'heartbeat_interval_seconds',
+                'heartbeat_ap_name', 'heartbeat_version', 'event_absence_tolerance',
+                'log_interval_seconds', 'log_backup_count', 'log_file', 'detection_log_file',
+                'mode'
+            ];
+            fieldNames.forEach(name => {
+                const el = form.elements[name];
+                if (el) {
+                    state[name] = el.value;
+                }
+            });
+
+            const localRadio = document.getElementById('radio-source-local');
+            const isLocal = localRadio && localRadio.checked;
+            state['model_source'] = isLocal ? 'local' : 'ums';
+
+            if (!isLocal) {
+                const umsNameEl = document.getElementById('ums-model-select');
+                const umsVerEl = document.getElementById('ums-version-select');
+                state['ums_model_name'] = umsNameEl ? umsNameEl.value : '';
+                state['ums_model_version'] = umsVerEl ? umsVerEl.value : 'latest';
+            } else {
+                state['ums_model_name'] = '';
+                state['ums_model_version'] = '';
+            }
+
+            state['ums_base_urls'] = getCurrentUmsUrls();
+
+            const hbEl = form.elements['heartbeat_enabled'];
+            state['heartbeat_enabled'] = hbEl ? hbEl.checked : false;
+
+            return state;
+        }
+
+        function takeSnapshot() {
+            initialFormSnapshot = getFormState();
+            initialStreamsSnapshot = JSON.parse(JSON.stringify(streamsList));
+        }
+
+        function areStreamsEqual(s1, s2) {
+            if (!s1 && !s2) return true;
+            if (!s1 || !s2) return false;
+            
+            const u1 = (s1.url || '').trim();
+            const u2 = (s2.url || '').trim();
+            const l1 = (s1.label || '').trim();
+            const l2 = (s2.label || '').trim();
+            const c1 = (s1.camera_id || '').trim();
+            const c2 = (s2.camera_id || '').trim();
+            const m1 = (s1.model || '').trim();
+            const m2 = (s2.model || '').trim();
+            const f1 = s1.model_format || 'auto';
+            const f2 = s2.model_format || 'auto';
+
+            if (u1 !== u2 || l1 !== l2 || c1 !== c2 || m1 !== m2 || f1 !== f2) {
+                return false;
+            }
+
+            const ums1 = s1.ums_model;
+            const ums2 = s2.ums_model;
+            const hasUms1 = Boolean(ums1 && ums1.name && ums1.name.trim());
+            const hasUms2 = Boolean(ums2 && ums2.name && ums2.name.trim());
+            if (hasUms1 !== hasUms2) return false;
+            if (hasUms1 && hasUms2) {
+                if ((ums1.name || '').trim() !== (ums2.name || '').trim() || (ums1.version || 'latest') !== (ums2.version || 'latest')) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function checkDirtyState() {
+            if (isInitializing) {
+                const fab = document.getElementById('floating-action-bar');
+                if (fab) fab.classList.remove('visible');
+                return false;
+            }
+
+            const currentForm = getFormState();
+            let formDirty = false;
+
+            if (initialFormSnapshot && Object.keys(initialFormSnapshot).length > 0) {
+                for (const key in initialFormSnapshot) {
+                    if (key === 'ums_base_urls') {
+                        const arr1 = initialFormSnapshot[key] || [];
+                        const arr2 = currentForm[key] || [];
+                        if (arr1.length !== arr2.length || arr1.some((v, i) => v !== arr2[i])) {
+                            formDirty = true;
+                            break;
+                        }
+                    } else if (String(initialFormSnapshot[key] ?? '') !== String(currentForm[key] ?? '')) {
+                        formDirty = true;
+                        break;
+                    }
+                }
+            }
+
+            let anyStreamDirty = false;
+            const dirtyStreamIndices = new Set();
+
+            if (streamsList.length !== initialStreamsSnapshot.length) {
+                anyStreamDirty = true;
+            }
+
+            streamsList.forEach((stream, idx) => {
+                const initialStream = initialStreamsSnapshot[idx];
+                if (!initialStream || !areStreamsEqual(stream, initialStream)) {
+                    dirtyStreamIndices.add(idx);
+                    anyStreamDirty = true;
+                }
+            });
+
+            // Update master stream items visual dirty badges (*)
+            streamsList.forEach((s, idx) => {
+                const nameEl = document.getElementById(`master-stream-name-${idx}`);
+                if (nameEl) {
+                    const displayName = s.label ? `${s.label}` : (s.url ? s.url.replace(/^rtsp:\/\//, '') : '未命名串流');
+                    const isDirty = dirtyStreamIndices.has(idx);
+                    nameEl.innerHTML = `${escapeHtml(displayName)}${isDirty ? '<span class="stream-dirty-badge">*</span>' : ''}`;
+                }
+            });
+
+            const isDirty = formDirty || anyStreamDirty;
+            const fab = document.getElementById('floating-action-bar');
+            if (fab) {
+                if (isDirty) {
+                    fab.classList.add('visible');
+                } else {
+                    fab.classList.remove('visible');
+                }
+            }
+            return isDirty;
+        }
+
+        function discardChanges() {
+            // 1. Restore streams
+            streamsList = JSON.parse(JSON.stringify(initialStreamsSnapshot));
+            
+            // 2. Restore form fields
+            const form = document.getElementById('config-panel');
+            if (form && initialFormSnapshot) {
+                for (const [key, val] of Object.entries(initialFormSnapshot)) {
+                    if (key === 'model_source') {
+                        selectModelSource(val);
+                    } else if (key === 'ums_base_urls') {
+                        renderUmsEndpointRows(val);
+                        const matched = detectFabPreset(val);
+                        const presetSelect = document.getElementById('fab-preset-select');
+                        if (presetSelect) presetSelect.value = matched;
+                    } else if (key === 'heartbeat_enabled') {
+                        const el = form.elements['heartbeat_enabled'];
+                        if (el) el.checked = Boolean(val);
+                    } else if (key === 'ums_model_name' || key === 'ums_model_version' || key === 'ums_project_id') {
+                        // Handled by selectModelSource
+                    } else {
+                        const el = form.elements[key];
+                        if (el) el.value = val;
+                    }
+                }
+            }
+
+            if (initialFormSnapshot['model_source'] === 'ums' && initialFormSnapshot['ums_model_name']) {
+                loadUmsModels(initialFormSnapshot['ums_model_name'], initialFormSnapshot['ums_model_version']);
+            }
+
+            // 3. Re-render UI
+            renderMasterStreamList();
+            const nextIdx = (selectedStreamIndex >= 0 && selectedStreamIndex < streamsList.length) ? selectedStreamIndex : 0;
+            selectStream(nextIdx);
+            onModeChange();
+
+            // 4. Update dirty state & notify
+            checkDirtyState();
+            showToast('已放棄變更並還原所有設定', 'info', 2500);
+        }
+
+        // ── HUD Toast Notifications (Issue #39) ──
+        function showToast(message, type = 'success', duration = 3000) {
+            const container = document.getElementById('hud-toast-container');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            toast.className = `hud-toast ${type}`;
+            
+            const prefix = type === 'success' ? '✓' : (type === 'error' ? '✗' : 'ℹ');
+            toast.innerHTML = `
+                <span class="hud-toast-msg">${prefix} ${escapeHtml(message)}</span>
+                <button type="button" class="hud-toast-close" title="關閉">✕</button>
+            `;
+
+            const closeBtn = toast.querySelector('.hud-toast-close');
+            const dismiss = () => {
+                toast.classList.remove('show');
+                setTimeout(() => {
+                    if (toast.parentNode) toast.parentNode.removeChild(toast);
+                }, 300);
+            };
+
+            closeBtn.onclick = dismiss;
+            container.appendChild(toast);
+
+            requestAnimationFrame(() => {
+                toast.classList.add('show');
+            });
+
+            if (duration > 0) {
+                setTimeout(dismiss, duration);
+            }
+        }
+
+        // ── Seamless AJAX Save (Issue #41) ──
+        async function submitConfigAjax(event) {
+            if (event) event.preventDefault();
+
+            if (!prepareSubmit()) {
+                return false;
+            }
+
+            const saveBtn = document.getElementById('fab-save-btn');
+            const bottomSaveBtn = document.querySelector('#config-panel button[type="submit"]');
+            const origFabHtml = saveBtn ? saveBtn.innerHTML : '✓ 儲存並套用設定';
+            const origBottomHtml = bottomSaveBtn ? bottomSaveBtn.innerHTML : '儲存並套用設定';
+
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '⏳ 儲存中...';
+            }
+            if (bottomSaveBtn) {
+                bottomSaveBtn.disabled = true;
+                bottomSaveBtn.innerHTML = '⏳ 儲存中...';
+            }
+
+            try {
+                const form = document.getElementById('config-panel');
+                const formData = new FormData(form);
+
+                const response = await fetch('/', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+
+                let data = null;
+                try {
+                    data = await response.json();
+                } catch (err) {
+                    data = { status: 'error', message: `無法解析伺服器回應 (${response.status})` };
+                }
+
+                if (response.ok && data && data.status === 'ok') {
+                    showToast(data.message || '設定已成功儲存並生效', 'success', 3000);
+                    takeSnapshot();
+                    checkDirtyState();
+                    refreshModelInfo();
+                    refreshSyncStatus();
+                } else {
+                    const msg = (data && data.message) ? data.message : `儲存失敗 (HTTP ${response.status})`;
+                    showToast(msg, 'error', 4500);
+                }
+            } catch (err) {
+                console.error('Save error:', err);
+                showToast(`網路連線錯誤: ${err.message || err}`, 'error', 4500);
+            } finally {
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = origFabHtml;
+                }
+                if (bottomSaveBtn) {
+                    bottomSaveBtn.disabled = false;
+                    bottomSaveBtn.innerHTML = origBottomHtml;
+                }
+            }
+            return false;
+        }
+
         // Mode Switching
         function onModeChange() {
             const mode = document.getElementById('mode-select').value;
@@ -1442,10 +1984,11 @@
                 detailInspector.classList.remove('video-mode-hidden');
                 selectStream(selectedStreamIndex);
             }
+            checkDirtyState();
         }
 
         function onVideoPathChange(val) {
-            // update video mode
+            checkDirtyState();
         }
 
         // Model Source Switching
@@ -1475,18 +2018,24 @@
                 localLabel.className = 'radio-switch-item active';
                 umsLabel.className = 'radio-switch-item';
             }
+            checkDirtyState();
         }
 
         // UMS Models Cascade Select
         function loadUmsModels(targetModelName, targetVersion) {
             const projSelect = document.getElementById('ums-project-select');
-            projSelect.innerHTML = '<option value="">載入 UMS 模型清單中...</option>';
+            if (projSelect) projSelect.innerHTML = '<option value="">載入 UMS 模型清單中...</option>';
 
             fetch('/api/ums/models')
                 .then(r => r.json())
                 .then(data => {
                     if (data.status !== 'ok') {
-                        projSelect.innerHTML = `<option value="">載入失敗: ${data.message || '未知錯誤'}</option>`;
+                        if (projSelect) projSelect.innerHTML = `<option value="">載入失敗: ${data.message || '未知錯誤'}</option>`;
+                        if (isInitializing) {
+                            takeSnapshot();
+                            isInitializing = false;
+                            checkDirtyState();
+                        }
                         return;
                     }
                     umsProjectsData = data.projects || [];
@@ -1498,15 +2047,27 @@
                     } else if (document.getElementById('detail-ums-project-select')) {
                         populateDetailUmsProjects();
                     }
+
+                    if (isInitializing) {
+                        takeSnapshot();
+                        isInitializing = false;
+                        checkDirtyState();
+                    }
                 })
                 .catch(err => {
-                    projSelect.innerHTML = '<option value="">連線錯誤，無法載入 UMS 模型</option>';
+                    if (projSelect) projSelect.innerHTML = '<option value="">連線錯誤，無法載入 UMS 模型</option>';
                     console.error('Error fetching UMS models:', err);
+                    if (isInitializing) {
+                        takeSnapshot();
+                        isInitializing = false;
+                        checkDirtyState();
+                    }
                 });
         }
 
         function populateUmsProjects(targetModelName, targetVersion) {
             const projSelect = document.getElementById('ums-project-select');
+            if (!projSelect) return;
             projSelect.innerHTML = '<option value="">-- 請選擇 UMS 專案 --</option>';
 
             let matchedProjectId = null;
@@ -1534,6 +2095,7 @@
         function onUmsProjectChange(targetModelName, targetVersion) {
             const projSelect = document.getElementById('ums-project-select');
             const modelSelect = document.getElementById('ums-model-select');
+            if (!projSelect || !modelSelect) return;
             const pid = parseInt(projSelect.value, 10);
             const project = umsProjectsData.find(p => p.project_id === pid);
 
@@ -1568,8 +2130,9 @@
             const projSelect = document.getElementById('ums-project-select');
             const modelSelect = document.getElementById('ums-model-select');
             const verSelect = document.getElementById('ums-version-select');
+            if (!modelSelect || !verSelect) return;
 
-            const pid = parseInt(projSelect.value, 10);
+            const pid = projSelect ? parseInt(projSelect.value, 10) : NaN;
             const modelName = modelSelect.value;
             const project = umsProjectsData.find(p => p.project_id === pid);
             const model = project ? project.models.find(m => m.model_name === modelName) : null;
@@ -1596,8 +2159,12 @@
         function onUmsVersionChange() {
             const modelSelect = document.getElementById('ums-model-select');
             const verSelect = document.getElementById('ums-version-select');
-            document.getElementById('ums_model_name').value = modelSelect.value;
-            document.getElementById('ums_model_version').value = verSelect.value;
+            const isUms = document.getElementById('radio-source-ums').checked;
+            if (isUms && modelSelect && verSelect) {
+                document.getElementById('ums_model_name').value = modelSelect.value;
+                document.getElementById('ums_model_version').value = verSelect.value;
+            }
+            checkDirtyState();
         }
 
         // ── UMS Multi-Endpoint & FAB Presets Manager ──
@@ -1698,6 +2265,7 @@
             const matched = detectFabPreset(current);
             const select = document.getElementById('fab-preset-select');
             if (select) select.value = matched;
+            checkDirtyState();
         }
 
         function removeUmsEndpointRow(idx) {
@@ -1713,6 +2281,7 @@
             const matched = detectFabPreset(current);
             const select = document.getElementById('fab-preset-select');
             if (select) select.value = matched;
+            checkDirtyState();
         }
 
         function applyFabPreset(presetKey) {
@@ -1724,6 +2293,7 @@
                     statusEl.textContent = '已套用廠區預設端點，請點擊 [ 測試連線 ] 驗證';
                     statusEl.style.color = '#00e5ff';
                 }
+                checkDirtyState();
             }
         }
 
@@ -1864,6 +2434,7 @@
                     camInput.value = parsedCamId;
                 }
                 validateCameraIdConsistency();
+                checkDirtyState();
             }
         }
 
@@ -1880,6 +2451,7 @@
                 if (camInput) camInput.value = parsedCamId;
             }
             validateCameraIdConsistency();
+            checkDirtyState();
         }
 
         // ── Master-Detail Stream List Interaction Engine ──
@@ -1888,14 +2460,16 @@
                 streamsList = CONFIG_INITIAL_STREAMS.map(s => {
                     if (typeof s === 'string') {
                         const parsed = parseArgusCameraId(s);
-                        return { url: s, label: '', camera_id: parsed || '', auto_camera_id: parsed || '' };
+                        return { url: s, label: '', camera_id: parsed || '', auto_camera_id: parsed || '', model_format: 'auto' };
                     }
                     const parsed = parseArgusCameraId(s.url || '');
                     const camId = (s.camera_id !== undefined && s.camera_id !== null && s.camera_id !== '') ? s.camera_id : (parsed || '');
-                    return { ...s, camera_id: camId, auto_camera_id: parsed || '' };
+                    const item = { ...s, camera_id: camId, auto_camera_id: parsed || '' };
+                    if (!item.model_format) item.model_format = 'auto';
+                    return item;
                 });
             } else {
-                streamsList = [{ url: '', label: '', camera_id: '', auto_camera_id: '' }];
+                streamsList = [{ url: '', label: '', camera_id: '', auto_camera_id: '', model_format: 'auto' }];
             }
             renderMasterStreamList();
             selectStream(0);
@@ -1910,6 +2484,7 @@
             streamsList.forEach((s, idx) => {
                 const displayName = s.label ? `${s.label}` : (s.url ? s.url.replace(/^rtsp:\/\//, '') : '未命名串流');
                 const isSelected = (idx === selectedStreamIndex);
+                const isDirty = !isInitializing && initialStreamsSnapshot && (!initialStreamsSnapshot[idx] || !areStreamsEqual(s, initialStreamsSnapshot[idx]));
 
                 // Master List Item (Left)
                 const item = document.createElement('div');
@@ -1919,7 +2494,7 @@
                 item.innerHTML = `
                     <div class="master-stream-label" title="${escapeHtml(s.url || '')}">
                         <span style="color: ${isSelected ? 'var(--text)' : 'var(--text-dim)'}; font-weight:bold;">#${idx}</span>
-                        <span id="master-stream-name-${idx}">${escapeHtml(displayName)}</span>
+                        <span id="master-stream-name-${idx}">${escapeHtml(displayName)}${isDirty ? '<span class="stream-dirty-badge">*</span>' : ''}</span>
                     </div>
                     <button type="button" class="master-stream-del-btn" onclick="deleteMasterStream(event, ${idx})">[ ✕ ]</button>
                 `;
@@ -1935,12 +2510,39 @@
             });
         }
 
+        function setDetailModelSourceUI(src) {
+            const localRadio = document.getElementById('detail-radio-source-local');
+            const umsRadio = document.getElementById('detail-radio-source-ums');
+            const localBox = document.getElementById('detail-local-model-box');
+            const umsBox = document.getElementById('detail-ums-model-box');
+            const localLabel = document.getElementById('detail-label-source-local');
+            const umsLabel = document.getElementById('detail-label-source-ums');
+
+            if (!localRadio || !umsRadio) return;
+
+            if (src === 'ums') {
+                umsRadio.checked = true;
+                localRadio.checked = false;
+                if (localBox) localBox.style.display = 'none';
+                if (umsBox) umsBox.style.display = 'block';
+                if (localLabel) localLabel.className = 'radio-switch-item';
+                if (umsLabel) umsLabel.className = 'radio-switch-item active-cyan';
+            } else {
+                localRadio.checked = true;
+                umsRadio.checked = false;
+                if (localBox) localBox.style.display = 'block';
+                if (umsBox) umsBox.style.display = 'none';
+                if (localLabel) localLabel.className = 'radio-switch-item active';
+                if (umsLabel) umsLabel.className = 'radio-switch-item';
+            }
+        }
+
         function selectStream(idx) {
             if (idx < 0 || idx >= streamsList.length) {
                 idx = 0;
             }
             selectedStreamIndex = idx;
-            const currentItem = streamsList[idx] || { url: '', label: '', camera_id: '', auto_camera_id: '' };
+            const currentItem = streamsList[idx] || { url: '', label: '', camera_id: '', auto_camera_id: '', model_format: 'auto' };
 
             // Update Master List active styling
             const items = document.querySelectorAll('.master-stream-item');
@@ -1964,23 +2566,27 @@
             // Check and update Argus camera_id warning
             validateCameraIdConsistency();
 
-            const hasUmsModel = !!(currentItem.ums_model && currentItem.ums_model.name);
-            const hasLocalModel = !!(currentItem.model && currentItem.model.trim());
+            const hasUmsModel = Boolean(currentItem.ums_model && currentItem.ums_model.name);
+            const hasLocalModel = Boolean(currentItem.model && currentItem.model.trim());
 
             if (hasUmsModel) {
                 document.getElementById('detail-override-toggle').checked = true;
                 document.getElementById('detail-override-box').style.display = 'block';
-                selectDetailModelSource('ums');
-                populateDetailUmsProjects(currentItem.ums_model.name, currentItem.ums_model.version);
+                setDetailModelSourceUI('ums');
+                if (umsProjectsData.length > 0) {
+                    populateDetailUmsProjects(currentItem.ums_model.name, currentItem.ums_model.version);
+                } else if (!isInitializing) {
+                    loadUmsModels();
+                }
             } else if (hasLocalModel) {
                 document.getElementById('detail-override-toggle').checked = true;
                 document.getElementById('detail-override-box').style.display = 'block';
-                selectDetailModelSource('local');
+                setDetailModelSourceUI('local');
                 document.getElementById('detail-input-model').value = currentItem.model;
             } else {
                 document.getElementById('detail-override-toggle').checked = false;
                 document.getElementById('detail-override-box').style.display = 'none';
-                selectDetailModelSource('local');
+                setDetailModelSourceUI('local');
                 document.getElementById('detail-input-model').value = '';
             }
 
@@ -2037,26 +2643,15 @@
             if (field === 'camera_id') {
                 validateCameraIdConsistency();
             }
+
+            checkDirtyState();
         }
 
         function selectDetailModelSource(src) {
-            const localRadio = document.getElementById('detail-radio-source-local');
-            const umsRadio = document.getElementById('detail-radio-source-ums');
-            const localBox = document.getElementById('detail-local-model-box');
-            const umsBox = document.getElementById('detail-ums-model-box');
-            const localLabel = document.getElementById('detail-label-source-local');
-            const umsLabel = document.getElementById('detail-label-source-ums');
-
             if (!streamsList[selectedStreamIndex]) return;
+            setDetailModelSourceUI(src);
 
             if (src === 'ums') {
-                umsRadio.checked = true;
-                localRadio.checked = false;
-                localBox.style.display = 'none';
-                umsBox.style.display = 'block';
-                localLabel.className = 'radio-switch-item';
-                umsLabel.className = 'radio-switch-item active-cyan';
-
                 delete streamsList[selectedStreamIndex].model;
                 if (umsProjectsData.length === 0) {
                     loadUmsModels();
@@ -2068,19 +2663,13 @@
                 }
                 onDetailUmsVersionChange();
             } else {
-                localRadio.checked = true;
-                umsRadio.checked = false;
-                localBox.style.display = 'block';
-                umsBox.style.display = 'none';
-                localLabel.className = 'radio-switch-item active';
-                umsLabel.className = 'radio-switch-item';
-
                 delete streamsList[selectedStreamIndex].ums_model;
                 const val = document.getElementById('detail-input-model').value.trim();
                 if (val) {
                     streamsList[selectedStreamIndex].model = val;
                 }
             }
+            checkDirtyState();
         }
 
         function onDetailLocalModelChange(val) {
@@ -2092,6 +2681,7 @@
             } else {
                 delete streamsList[selectedStreamIndex].model;
             }
+            checkDirtyState();
         }
 
         function populateDetailUmsProjects(targetModelName, targetVersion) {
@@ -2196,6 +2786,7 @@
                     version: verSelect.value || 'latest'
                 };
             }
+            checkDirtyState();
         }
 
         function onDetailOverrideToggle(checked) {
@@ -2212,6 +2803,7 @@
                     selectDetailModelSource('local');
                 }
             }
+            checkDirtyState();
         }
 
         function addMasterStream() {
@@ -2228,6 +2820,7 @@
             if (urlInput) {
                 urlInput.focus();
             }
+            checkDirtyState();
         }
 
         function deleteMasterStream(event, idx) {
@@ -2242,6 +2835,7 @@
             }
             renderMasterStreamList();
             selectStream(selectedStreamIndex);
+            checkDirtyState();
         }
 
         function openDetailFullscreen() {
@@ -2323,11 +2917,27 @@
                 presetSelect.value = matchedPreset;
             }
 
-            if (CONFIG_INITIAL_UMS_MODEL && CONFIG_INITIAL_UMS_MODEL.name) {
+            const hasGlobalUms = Boolean(CONFIG_INITIAL_UMS_MODEL && CONFIG_INITIAL_UMS_MODEL.name);
+            const hasAnyStreamUms = Array.isArray(streamsList) && streamsList.some(s => s && s.ums_model && s.ums_model.name);
+
+            if (hasGlobalUms) {
                 selectModelSource('ums');
                 loadUmsModels(CONFIG_INITIAL_UMS_MODEL.name, CONFIG_INITIAL_UMS_MODEL.version);
             } else {
                 selectModelSource('local');
+                if (hasAnyStreamUms) {
+                    loadUmsModels();
+                } else {
+                    takeSnapshot();
+                    isInitializing = false;
+                    checkDirtyState();
+                }
+            }
+
+            const configForm = document.getElementById('config-panel');
+            if (configForm) {
+                configForm.addEventListener('input', () => checkDirtyState());
+                configForm.addEventListener('change', () => checkDirtyState());
             }
         });
 

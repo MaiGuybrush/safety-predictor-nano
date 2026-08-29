@@ -204,6 +204,145 @@ class TestEventProducer(unittest.TestCase):
         self.assertEqual(self._actions(), [])
 
 
+    def test_timestamp_format_with_valid_pts(self):
+        # PTS 1724916964.404 -> 2024-08-29T07:36:04.404Z
+        pts = 1724916964.404
+        event_producer.process_detections("s0", "CCD1", [_det("person")], 100, 100, pts=pts)
+        actions = self._actions()
+        self.assertEqual(len(actions), 2)
+        start = actions[0]
+        frame = actions[1]
+        self.assertEqual(start.timestamp, "2024-08-29T07:36:04.404Z")
+        self.assertEqual(frame.timestamp, "2024-08-29T07:36:04.404Z")
+
+    def test_timestamp_format_fallback_when_pts_invalid_or_none(self):
+        import re
+        iso_pattern = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        
+        # Test with pts=None
+        event_producer.process_detections("s0", "CCD1", [_det("person")], 100, 100, pts=None)
+        start = self._actions()[0]
+        self.assertRegex(start.timestamp, iso_pattern)
+
+        # Test with pts <= 0
+        event_producer._state.clear()
+        event_producer.process_detections("s0", "CCD1", [_det("person")], 100, 100, pts=0)
+        start = self._actions()[0]
+        self.assertRegex(start.timestamp, iso_pattern)
+
+        # Test with pts negative
+        event_producer._state.clear()
+        event_producer.process_detections("s0", "CCD1", [_det("person")], 100, 100, pts=-1.5)
+        start = self._actions()[0]
+        self.assertRegex(start.timestamp, iso_pattern)
+
+    def test_snapshot_taken_on_event_start_and_linked_in_metadata(self):
+        import numpy as np
+        import tempfile
+        import os
+        import time
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dummy_clean_frame = np.zeros((100, 100, 3), dtype=np.uint8)
+            pts = 1724916964.404
+
+            event_producer.process_detections(
+                "s0", "CCD1", [_det("person")], 100, 100,
+                pts=pts, clean_frame=dummy_clean_frame, base_dir=tmpdir
+            )
+            actions = self._actions()
+            start = actions[0]
+            
+            # 檢查 metadata snapshot_path
+            self.assertIsNotNone(start.meta.snapshot_path)
+            self.assertTrue(start.meta.snapshot_path.startswith("snapshots/1724916964.404_person_"))
+            self.assertTrue(start.meta.snapshot_path.endswith(".jpg"))
+
+            # 檢查 JSONL 序列化字典包含 snapshot_path
+            d = start.to_dict()
+            self.assertIn("snapshot_path", d["meta"])
+            self.assertEqual(d["meta"]["snapshot_path"], start.meta.snapshot_path)
+
+            # 等待非同步截圖寫入完成
+            expected_disk_path = os.path.join(tmpdir, "CCD1", start.meta.snapshot_path.replace("/", os.sep))
+            for _ in range(20):
+                if os.path.exists(expected_disk_path):
+                    break
+                time.sleep(0.05)
+            self.assertTrue(os.path.exists(expected_disk_path), f"截圖檔案應存在於 {expected_disk_path}")
+
+    def test_snapshot_deduplication_during_event_frames(self):
+        import numpy as np
+        import tempfile
+        import os
+        import time
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dummy_frame = np.zeros((100, 100, 3), dtype=np.uint8)
+            pts1 = 1724916964.404
+            pts2 = 1724916965.404
+
+            # First frame -> EventStart + Snapshot
+            event_producer.process_detections(
+                "s0", "CCD1", [_det("person")], 100, 100,
+                pts=pts1, clean_frame=dummy_frame, base_dir=tmpdir
+            )
+            start_actions = self._actions()
+            self.assertEqual([type(a).__name__ for a in start_actions], ["EventStart", "EventFrame"])
+
+            # Second frame -> EventFrame (No new snapshot created)
+            event_producer.process_detections(
+                "s0", "CCD1", [_det("person")], 100, 100,
+                pts=pts2, clean_frame=dummy_frame, base_dir=tmpdir
+            )
+            frame_actions = self._actions()
+            self.assertEqual([type(a).__name__ for a in frame_actions], ["EventFrame"])
+
+            time.sleep(0.1)
+            snapshots_dir = os.path.join(tmpdir, "CCD1", "snapshots")
+            self.assertTrue(os.path.exists(snapshots_dir))
+            files = os.listdir(snapshots_dir)
+            self.assertEqual(len(files), 1, "事件持續期間不應重複產生截圖")
+
+    def test_snapshot_retriggered_after_event_end(self):
+        import numpy as np
+        import tempfile
+        import os
+        import time
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dummy_frame = np.zeros((100, 100, 3), dtype=np.uint8)
+            pts1 = 1724916964.404
+
+            # Event 1 starts
+            event_producer.process_detections(
+                "s0", "CCD1", [_det("person")], 100, 100,
+                pts=pts1, clean_frame=dummy_frame, base_dir=tmpdir, tolerance=1
+            )
+            self._actions()
+
+            # Disappear -> EventEnd
+            event_producer.process_detections("s0", "CCD1", [], 100, 100, pts=pts1+1, tolerance=1)
+            event_producer.process_detections("s0", "CCD1", [], 100, 100, pts=pts1+2, tolerance=1)
+            end_actions = self._actions()
+            self.assertEqual([type(a).__name__ for a in end_actions], ["EventEnd"])
+
+            # Event 2 starts (new EventStart & new snapshot)
+            pts2 = 1724916970.000
+            event_producer.process_detections(
+                "s0", "CCD1", [_det("person")], 100, 100,
+                pts=pts2, clean_frame=dummy_frame, base_dir=tmpdir, tolerance=1
+            )
+            re_start_actions = self._actions()
+            self.assertEqual([type(a).__name__ for a in re_start_actions], ["EventStart", "EventFrame"])
+            self.assertIn("1724916970.000_person_", re_start_actions[0].meta.snapshot_path)
+
+            time.sleep(0.1)
+            snapshots_dir = os.path.join(tmpdir, "CCD1", "snapshots")
+            files = os.listdir(snapshots_dir)
+            self.assertEqual(len(files), 2, "結束後重新觸發應產生第二張截圖")
+
+
 if __name__ == "__main__":
     unittest.main()
 

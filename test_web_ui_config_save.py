@@ -307,6 +307,125 @@ class TestWebUiConfigSave(unittest.TestCase):
         self.assertIn('value="5"', html)
 
 
+    def test_ajax_post_with_x_requested_with(self):
+        initial = {
+            "mode": "rtsp",
+            "fps_limit": 2,
+            "cpu_cores": 4,
+        }
+        self.write_yaml(initial)
+
+        form_data = {
+            "fps_limit": "5",
+            "cpu_cores": "8",
+            "streams_json": json.dumps([{"url": "rtsp://127.0.0.1:8554/cam1", "label": "前端大門"}])
+        }
+
+        response = self.client.post('/', data=form_data, headers={"X-Requested-With": "XMLHttpRequest"})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.is_json)
+        data = response.get_json()
+        self.assertEqual(data["status"], "ok")
+        self.assertIn("設定已成功儲存並生效", data["message"])
+
+        saved = self.read_yaml()
+        self.assertEqual(saved["fps_limit"], 5)
+        self.assertEqual(saved["cpu_cores"], 8)
+        self.assertEqual(len(saved["streams"]), 1)
+        self.assertEqual(saved["streams"][0]["label"], "前端大門")
+
+    def test_ajax_post_with_accept_json(self):
+        initial = {
+            "mode": "rtsp",
+            "fps_limit": 2,
+        }
+        self.write_yaml(initial)
+
+        form_data = {
+            "fps_limit": "10",
+        }
+
+        response = self.client.post('/', data=form_data, headers={"Accept": "application/json"})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.is_json)
+        data = response.get_json()
+        self.assertEqual(data["status"], "ok")
+
+        saved = self.read_yaml()
+        self.assertEqual(saved["fps_limit"], 10)
+
+    def test_traditional_form_post_returns_html(self):
+        initial = {
+            "mode": "rtsp",
+            "fps_limit": 2,
+        }
+        self.write_yaml(initial)
+
+        form_data = {
+            "fps_limit": "6",
+        }
+
+        response = self.client.post('/', data=form_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.is_json)
+        html = response.get_data(as_text=True)
+        self.assertIn("ARGUS // PREDICTOR_NANO", html)
+
+        saved = self.read_yaml()
+        self.assertEqual(saved["fps_limit"], 6)
+
+    @patch("web_ui.save_config", side_effect=IOError("Permission denied"))
+    def test_ajax_post_error_handling(self, mock_save):
+        initial = {"mode": "rtsp"}
+        self.write_yaml(initial)
+
+        response = self.client.post('/', data={"fps_limit": "5"}, headers={"X-Requested-With": "XMLHttpRequest"})
+        self.assertEqual(response.status_code, 500)
+        self.assertTrue(response.is_json)
+        data = response.get_json()
+    def test_render_floating_action_bar_and_toast_components(self):
+        initial = {"mode": "rtsp"}
+        self.write_yaml(initial)
+
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+
+        # Floating Action Bar HTML & CSS
+        self.assertIn('id="floating-action-bar"', html)
+        self.assertIn('class="floating-action-bar"', html)
+        self.assertIn('fab-discard-btn', html)
+        self.assertIn('fab-save-btn', html)
+        self.assertIn('放棄變更', html)
+        self.assertIn('偵測到尚未儲存的設定變更', html)
+
+        # HUD Toast Container HTML & CSS
+        self.assertIn('id="hud-toast-container"', html)
+        self.assertIn('class="hud-toast-container"', html)
+        self.assertIn('showToast', html)
+        self.assertIn('.hud-toast.success', html)
+        self.assertIn('.hud-toast.error', html)
+
+    def test_render_dirty_state_tracking_elements(self):
+        initial = {"mode": "rtsp"}
+        self.write_yaml(initial)
+
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+
+        # Dirty state & snapshot logic
+        self.assertIn("takeSnapshot", html)
+        self.assertIn("checkDirtyState", html)
+        self.assertIn("discardChanges", html)
+        self.assertIn("submitConfigAjax", html)
+        self.assertIn("stream-dirty-badge", html)
+        self.assertIn("areStreamsEqual", html)
+        self.assertIn('onsubmit="return submitConfigAjax(event)"', html)
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
 

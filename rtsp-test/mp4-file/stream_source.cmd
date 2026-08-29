@@ -1,0 +1,2 @@
+@echo off
+ffmpeg -re -stream_loop -1 -fflags +genpts -i "./00__Video_20240505102430_000_CLOSE.avi" -vf "yadif=0:-1:0,scale=640:480,drawtext=fontfile='C\:/Windows/Fonts/arial.ttf':text='%%{localtime\:\%%Y-%%m-%%d %%T} | F# %%{n} | PTS %%{pts\:hms}':x=10:y=10:fontsize=16:fontcolor=white:box=1:boxcolor=black@0.6:boxborderw=4" -c:v libx264 -preset ultrafast -tune zerolatency -b:v 4000k -maxrate 4000k -bufsize 8000k -g 30 -keyint_min 15 -sc_threshold 0 -c:a aac -b:a 128k -f rtsp -rtsp_transport tcp %1

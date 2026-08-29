@@ -1,0 +1,21 @@
+streams:
+  # 定義一個名為 test_stream 的串流
+  # -re 代表以原始速率讀取（模擬直播）
+  # -stream_loop -1 代表無限循環播放
+  fake_camera:
+    # 原始設定（未縮放，保留供回復）
+    # - "exec:ffmpeg -re -stream_loop -1 -fflags +genpts -i \"D:/Projects/argus/safty-predictor-nano/00__Video_20240505102430_000_CLOSE.avi\" -vf yadif=0:-1:0 -c:v libx264 -preset ultrafast -tune zerolatency -b:v 4000k -maxrate 4000k -bufsize 8000k -g 30 -keyint_min 15 -sc_threshold 0 -c:a aac -b:a 128k -f rtsp -rtsp_transport tcp {output}"
+    # - "exec:ffmpeg -re -stream_loop -1 -fflags +genpts -i \"D:/Projects/argus/safty-predictor-nano/00__Video_20240505102430_000_CLOSE.avi\" -vf yadif=0:-1:0,scale=640:480 -c:v libx264 -preset ultrafast -tune zerolatency -b:v 4000k -maxrate 4000k -bufsize 8000k -g 30 -keyint_min 15 -sc_threshold 0 -c:a aac -b:a 128k -f rtsp -rtsp_transport tcp {output}"
+    - "exec:cmd /c .\\stream_source.cmd {output}"
+ffmpeg:
+  bin: ffmpeg
+
+# 強制 WebRTC 使用固定 Port (解決防火牆問題)
+webrtc:
+  listen: ":8655"       # WebRTC 訊號/數據 Port
+
+rtsp:
+  listen: ":8654"
+
+api:
+  listen: ":2084"       # 管理介面 Port
