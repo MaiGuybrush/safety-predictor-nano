@@ -70,11 +70,14 @@ def _get_base_dir():
     return os.path.normpath(os.path.join(exe_dir, 'recordings'))
 
 
+MIN_VALID_EPOCH_PTS = 946684800.0  # 2000-01-01 00:00:00 UTC
+
+
 def _format_timestamp(pts=None):
     """將 PTS (秒) 轉換為 ISO 8601 UTC 毫秒字串 (YYYY-MM-DDTHH:MM:SS.mmmZ)。
-    若 pts <= 0 或無效則 fallback 至系統時間。
+    若 pts 為無效、<= 0 或非絕對 Unix Epoch (例如串流相對秒數 < 946684800) 則 fallback 至系統時間。
     """
-    if pts is not None and isinstance(pts, (int, float)) and pts > 0:
+    if pts is not None and isinstance(pts, (int, float)) and pts >= MIN_VALID_EPOCH_PTS:
         dt = datetime.fromtimestamp(pts, tz=timezone.utc)
     else:
         dt = datetime.now(tz=timezone.utc)
@@ -217,7 +220,7 @@ def process_detections(stream_key, camera_id, detections, frame_w, frame_h,
         by_label.setdefault(det["label"], []).append(det)
 
     now = _format_timestamp(pts)
-    pts_val = float(pts) if (pts is not None and isinstance(pts, (int, float)) and pts > 0) else time.time()
+    pts_val = float(pts) if (pts is not None and isinstance(pts, (int, float)) and pts >= MIN_VALID_EPOCH_PTS) else time.time()
 
     for label, dets in by_label.items():
         key = (stream_key, label)

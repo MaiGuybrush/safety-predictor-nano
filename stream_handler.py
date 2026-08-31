@@ -76,7 +76,8 @@ class StreamHandler:
                     if ret and frame is not None:
                         last_retrieve_time = now
                         pts_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
-                        if isinstance(pts_ms, (int, float)) and pts_ms > 0:
+                        # 946684800000 ms = 2000-01-01 00:00:00 UTC
+                        if isinstance(pts_ms, (int, float)) and pts_ms >= 946684800000.0:
                             pts = float(pts_ms) / 1000.0
                         else:
                             pts = now

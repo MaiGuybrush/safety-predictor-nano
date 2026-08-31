@@ -236,6 +236,32 @@ class TestEventProducer(unittest.TestCase):
         start = self._actions()[0]
         self.assertRegex(start.timestamp, iso_pattern)
 
+        # Test with relative PTS (e.g. 3.652s or 109.966s from OpenCV CAP_PROP_POS_MSEC) -> must fallback to system time (not 1970)
+        event_producer._state.clear()
+        event_producer.process_detections("s0", "CCD1", [_det("person")], 100, 100, pts=3.652)
+        start = self._actions()[0]
+        self.assertRegex(start.timestamp, iso_pattern)
+        self.assertFalse(start.timestamp.startswith("1970"))
+
+        event_producer._state.clear()
+        event_producer.process_detections("s0", "CCD1", [_det("person")], 100, 100, pts=109.966)
+        start = self._actions()[0]
+        self.assertRegex(start.timestamp, iso_pattern)
+        self.assertFalse(start.timestamp.startswith("1970"))
+
+    def test_relative_pts_frame_sequence_fallback(self):
+        # Frame 1: pts=0 (fallback to system time)
+        event_producer.process_detections("s0", "CCD1", [_det("person")], 100, 100, pts=0)
+        actions = self._actions()
+        start = actions[0]
+        self.assertFalse(start.timestamp.startswith("1970"))
+
+        # Frame 2: relative pts=3.652s (must fallback to system time and not produce 1970)
+        event_producer.process_detections("s0", "CCD1", [_det("person")], 100, 100, pts=3.652)
+        actions = self._actions()
+        frame = actions[0]
+        self.assertFalse(frame.timestamp.startswith("1970"))
+
     def test_snapshot_taken_on_event_start_and_linked_in_metadata(self):
         import numpy as np
         import tempfile
