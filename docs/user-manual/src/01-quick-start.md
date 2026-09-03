@@ -181,3 +181,4 @@ http://<裝置-IP>:8188/
 - 深入模型格式與單路模型獨立覆蓋：請參閱 [第 4 章：AI 模型配置與 UMS 雲端同步](./04-model-management.md)。
 - 劃定目標警戒與禁止進入區域：請參閱 [第 5 章：ROI 偵測區域編輯與全螢幕即時監控](./05-roi-and-fullscreen.md)。
 - 調校推論幀率與進階系統效能：請參閱 [第 6 章：系統參數與進階設定](./06-system-settings.md)。
+- 配置 PPE 防護裝備與複合工安規則：請參閱 [第 7 章：電子圍籬與 PPE 工安防護規範](./07-ppe-and-compliance-rules.md)。

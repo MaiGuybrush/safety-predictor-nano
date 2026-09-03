@@ -1,4 +1,5 @@
 import unittest
+import unittest.mock
 import os
 import yaml
 import tempfile
@@ -292,6 +293,105 @@ class TestConfigManager(unittest.TestCase):
             self.assertIn("tncimweb1.cminl.oa", urls[0])
             self.assertIn("tncimweb2.cminl.oa", urls[1])
 
+    def test_get_ppe_class_mapping_default(self):
+        data = {}
+        self.write_yaml(data)
+        mgr = ConfigManager(self.tmp_path)
+        mapping = mgr.get_ppe_class_mapping()
+        self.assertEqual(mapping["person"], "person")
+        self.assertEqual(mapping["helmet"], "helmet")
+        self.assertEqual(mapping["vest"], "vest")
+        self.assertEqual(mapping["cone"], "cone")
+
+    def test_get_ppe_class_mapping_custom_override(self):
+        data = {
+            "ppe_class_mapping": {
+                "hard_hat": "helmet",
+                "safety_vest": "vest",
+                "person": "human",
+            }
+        }
+        self.write_yaml(data)
+        mgr = ConfigManager(self.tmp_path)
+        mapping = mgr.get_ppe_class_mapping()
+        self.assertEqual(mapping["hard_hat"], "helmet")
+        self.assertEqual(mapping["safety_vest"], "vest")
+        self.assertEqual(mapping["person"], "human")
+        self.assertEqual(mapping["cone"], "cone")  # Base mapping preserved
+
+    def test_get_external_states_empty(self):
+        data = {}
+        self.write_yaml(data)
+        mgr = ConfigManager(self.tmp_path)
+        self.assertEqual(mgr.get_external_states(), {})
+
+    def test_get_external_states_parsing_and_normalization(self):
+        data = {
+            "external_states": {
+                "stocker_01": {
+                    "url": "http://mes-api/status",
+                    "method": "get",
+                    "interval_seconds": 10,
+                    "json_path": "data.status",
+                    "timeout_seconds": 3,
+                    "fallback_value": "UNKNOWN",
+                },
+                "invalid_entry": "not-a-dict"
+            }
+        }
+        self.write_yaml(data)
+        mgr = ConfigManager(self.tmp_path)
+        states = mgr.get_external_states()
+        self.assertIn("stocker_01", states)
+        self.assertNotIn("invalid_entry", states)
+        self.assertEqual(states["stocker_01"]["method"], "GET")
+        self.assertEqual(states["stocker_01"]["interval_seconds"], 10)
+        self.assertEqual(states["stocker_01"]["timeout_seconds"], 3)
+        self.assertEqual(states["stocker_01"]["fallback_value"], "UNKNOWN")
+
+    def test_get_compliance_rules_filtering(self):
+        data = {
+            "compliance_rules": [
+                {
+                    "id": "rule_1",
+                    "enabled": True,
+                    "when": {"zone": "ZoneA"},
+                    "require_ppe": ["helmet"],
+                },
+                {
+                    "id": "rule_2",
+                    "enabled": False,
+                    "when": {"zone": "ZoneB"},
+                },
+                "not-a-rule-dict"
+            ]
+        }
+        self.write_yaml(data)
+        mgr = ConfigManager(self.tmp_path)
+        rules = mgr.get_compliance_rules()
+        self.assertEqual(len(rules), 1)
+        self.assertEqual(rules[0]["id"], "rule_1")
+
+    def test_save_zone_with_ppe_strategy_and_required_ppe(self):
+        data = {"model_path": "global.pt"}
+        self.write_yaml(data)
+        mgr = ConfigManager(self.tmp_path)
+        poly = [[0.1, 0.2], [0.5, 0.2], [0.5, 0.8], [0.1, 0.8]]
+        mgr.save_zone(
+            "rtsp://cam1",
+            poly,
+            "機台危險區",
+            trigger_mode="intersect",
+            sensitivity=0.25,
+            ppe_strategy="head_anchor",
+            required_ppe=["helmet", "vest"]
+        )
+
+        zone = mgr.get_zone("rtsp://cam1")
+        self.assertEqual(zone["ppe_strategy"], "head_anchor")
+        self.assertEqual(zone["required_ppe"], ["helmet", "vest"])
+        self.assertEqual(zone["trigger_mode"], "intersect")
+        self.assertEqual(zone["sensitivity"], 0.25)
 
 if __name__ == "__main__":
     unittest.main()

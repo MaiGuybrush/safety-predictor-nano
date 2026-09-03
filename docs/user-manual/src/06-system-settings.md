@@ -106,4 +106,5 @@ Argus Safety Predictor Nano 內建**透明請求層級容錯切換 (Failover)** 
 - **熱重載安全機制**：點擊 `「[ EXECUTE_UPDATE ]」` 後，系統會以原子寫入方式更新設定檔，若新設定包含 UMS 變更，系統會在背景非同步啟動模型同步，不中斷既有視訊串流推論。
 - **金鑰安全性**：UMS API Key 為敏感資料，在介面預設為隱藏狀態，輸入完成後請確認儲存。
 - **向下相容性**：既有使用單一 `ums_base_url` 或環境變數 `UMS_BASE_URL` 的舊版設定檔皆能向下相容自動升級。
+- **工安合規與 PPE 參數**：有關 `ppe_class_mapping`、`external_states` 與 `compliance_rules` 等進階工安規則參數之詳細設定方式，請參閱 [第 7 章：電子圍籬與 PPE 工安防護規範](./07-ppe-and-compliance-rules.md)。
 

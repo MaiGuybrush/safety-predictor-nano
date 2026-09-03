@@ -40,6 +40,9 @@ class TestWebUiManual(unittest.TestCase):
         """測試訪問手冊子章節頁面回傳 200"""
         response = self.client.get("/manual/01-quick-start.html")
         self.assertEqual(response.status_code, 200)
+        response7 = self.client.get("/manual/07-ppe-and-compliance-rules.html")
+        self.assertEqual(response7.status_code, 200)
+        self.assertIn("電子圍籬與 PPE 工安防護規範".encode("utf-8"), response7.data)
 
     def test_serve_manual_not_found(self):
         """測試訪問不存在的手冊檔案回傳 404"""

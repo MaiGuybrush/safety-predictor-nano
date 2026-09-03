@@ -10,3 +10,4 @@
 - [第 4 章：AI 模型配置與 UMS 雲端同步](./04-model-management.md)
 - [第 5 章：ROI 偵測區域編輯與全螢幕即時監控](./05-roi-and-fullscreen.md)
 - [第 6 章：系統參數與進階設定](./06-system-settings.md)
+- [第 7 章：電子圍籬與 PPE 工安防護規範](./07-ppe-and-compliance-rules.md)

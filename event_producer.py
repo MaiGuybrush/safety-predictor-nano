@@ -265,7 +265,7 @@ def process_detections(stream_key, camera_id, detections, frame_w, frame_h,
             detections=boxes,
         ))
 
-    tracked_labels = {label for (sk, label) in _state if sk == stream_key}
+    tracked_labels = {label for (sk, label) in _state if sk == stream_key and not label.startswith("compliance:")}
     for label in tracked_labels - set(by_label.keys()):
         key = (stream_key, label)
         st = _state[key]
@@ -278,3 +278,75 @@ def process_detections(stream_key, camera_id, detections, frame_w, frame_h,
                 reason=_END_REASON,
             ))
             del _state[key]
+
+def process_compliance_events(stream_key, camera_id, compliance_events, frame_w, frame_h,
+                              severity_map=None, tolerance=2, zone=None, pts=None,
+                              clean_frame=None, base_dir=None):
+    """把工安違規事件 (compliance_events) 轉成 argus-eventlog 的 EventStart/EventFrame/EventEnd。
+
+    compliance_events: [{"category": str, "severity": str, "rule_id": str, ...}, ...]
+    """
+    severity_map = severity_map or {}
+    roi = _FULL_FRAME_ROI
+    zone_name = None
+
+    if isinstance(zone, dict) and zone.get("polygon") and len(zone["polygon"]) >= 3:
+        roi = zone["polygon"]
+        zone_name = zone.get("zone_name")
+
+    now = _format_timestamp(pts)
+    pts_val = float(pts) if (pts is not None and isinstance(pts, (int, float)) and pts >= MIN_VALID_EPOCH_PTS) else time.time()
+
+    current_categories = {}
+    for evt in (compliance_events or []):
+        cat = evt.get("category", "compliance_violation")
+        sev = evt.get("severity") or severity_map.get(cat, "HIGH")
+        current_categories[cat] = sev
+
+    for cat, sev in current_categories.items():
+        key = (stream_key, f"compliance:{cat}")
+        if key not in _state:
+            event_ref = _new_event_ref(f"comp_{cat}")
+            snap_rel_path = f"snapshots/{pts_val:.3f}_{event_ref}.jpg"
+            if clean_frame is not None:
+                base = base_dir or _get_base_dir()
+                full_snap_path = os.path.join(base, camera_id, "snapshots", f"{pts_val:.3f}_{event_ref}.jpg")
+                enqueue_snapshot(full_snap_path, clean_frame.copy())
+                meta = EventMeta(roi=roi, zone_name=zone_name, snapshot_path=snap_rel_path)
+            else:
+                meta = EventMeta(roi=roi, zone_name=zone_name)
+
+            _state[key] = {"event_ref": event_ref, "absent": 0, "snapshotted": True}
+            event_queue.put(EventStart(
+                event_ref=event_ref,
+                category=cat,
+                camera_id=camera_id,
+                timestamp=now,
+                severity=sev,
+                meta=meta,
+            ))
+        else:
+            _state[key]["absent"] = 0
+
+        event_queue.put(EventFrame(
+            event_ref=_state[key]["event_ref"],
+            camera_id=camera_id,
+            timestamp=now,
+            detections=[],
+        ))
+
+    tracked_comp_keys = [label for (sk, label) in _state if sk == stream_key and label.startswith("compliance:")]
+    for label in tracked_comp_keys:
+        cat = label[len("compliance:"):]
+        if cat not in current_categories:
+            key = (stream_key, label)
+            st = _state[key]
+            st["absent"] += 1
+            if st["absent"] > tolerance:
+                event_queue.put(EventEnd(
+                    event_ref=st["event_ref"],
+                    camera_id=camera_id,
+                    timestamp=now,
+                    reason=_END_REASON,
+                ))
+                del _state[key]

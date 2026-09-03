@@ -2973,12 +2973,23 @@
             return '';
         }
 
-        function updateZoneBadge(isAlarm = false) {
+        function updateZoneBadge(isAlarm = false, compSummary = null) {
             const badge = document.getElementById('zone-status-badge');
             if (!badge) return;
             if (currentSavedZone && currentSavedZone.polygon && currentSavedZone.polygon.length >= 3) {
                 const name = currentSavedZone.zone_name ? ` (${currentSavedZone.zone_name})` : '';
-                if (isAlarm && !isEditingZone) {
+                if (compSummary && compSummary.status === "VIOLATION" && !isEditingZone) {
+                    const reason = (compSummary.missing_barriers && compSummary.missing_barriers.length > 0)
+                        ? `缺少阻隔物: ${compSummary.missing_barriers.join('/')}`
+                        : (compSummary.violations && compSummary.violations.length > 0 ? compSummary.violations.join('/') : '工安違規');
+                    badge.textContent = `警戒區：工安違規 [${reason}]${name}`;
+                    badge.style.color = '#ff1744';
+                    badge.style.fontWeight = 'bold';
+                } else if (compSummary && compSummary.status === "COMPLIANT" && !isEditingZone) {
+                    badge.textContent = `警戒區：工安合規${name}`;
+                    badge.style.color = '#00e676';
+                    badge.style.fontWeight = 'bold';
+                } else if (isAlarm && !isEditingZone) {
                     badge.textContent = `警戒區：觸發告警${name}`;
                     badge.style.color = '#ff3333';
                     badge.style.fontWeight = 'bold';
@@ -3409,15 +3420,36 @@
                 drawPolygon(ctx, savedPoly, true, false, currentSavedZone.zone_name, hasAlarmInZone);
             }
 
+            const compSummary = detObj ? detObj.compliance_summary : null;
+            const isViolation = compSummary && compSummary.status === "VIOLATION";
+
+            // Draw missing barrier banner on canvas if barriers missing
+            if (compSummary && compSummary.missing_barriers && compSummary.missing_barriers.length > 0 && savedPoly && !isEditingZone) {
+                ctx.save();
+                const warnText = `[ 警告: 缺失安全阻隔物 (${compSummary.missing_barriers.join(', ')}) ]`;
+                ctx.font = 'bold 12px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace';
+                const warnWidth = ctx.measureText(warnText).width;
+                const warnX = savedPoly[0][0] * canvas.width;
+                const warnY = Math.min(canvas.height - 20, Math.max(savedPoly[0][1] * canvas.height + 25, 40));
+                ctx.fillStyle = 'rgba(180, 0, 0, 0.9)';
+                ctx.fillRect(warnX, warnY - 14, warnWidth + 8, 20);
+                ctx.strokeStyle = '#ff1744';
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(warnX, warnY - 14, warnWidth + 8, 20);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(warnText, warnX + 4, warnY);
+                ctx.restore();
+            }
+
             // Update modal alarm-active CSS and badge
             if (modal) {
-                if (hasAlarmInZone && !isEditingZone) {
+                if ((hasAlarmInZone || isViolation) && !isEditingZone) {
                     modal.classList.add('alarm-active');
                 } else {
                     modal.classList.remove('alarm-active');
                 }
             }
-            updateZoneBadge(hasAlarmInZone);
+            updateZoneBadge(hasAlarmInZone, compSummary);
 
             // Draw bounding boxes
             evaluatedDetections.forEach(item => {
@@ -3427,61 +3459,116 @@
                 const w = (coords[2] - coords[0]) * scaleX;
                 const h = (coords[3] - coords[1]) * scaleY;
 
+                const hasViolation = det.violations && det.violations.length > 0;
+                const isPerson = (det.normalized_label === "person" || det.label === "person");
+                const isBarrierOrSafe = ["cone", "guardrail", "helmet", "vest"].includes(det.normalized_label || det.label);
+                const labelName = det.label || (det.cls !== undefined ? '類別 ' + det.cls : '物件');
+
                 ctx.save();
-                if (inZone) {
-                    // ALARM style
+                if (hasViolation) {
+                    // VIOLATION style (Bright Red)
                     ctx.lineWidth = 3;
                     if (isStale) {
                         ctx.setLineDash([5, 5]);
-                        ctx.strokeStyle = 'rgba(255, 51, 51, 0.8)';
+                        ctx.strokeStyle = 'rgba(255, 23, 68, 0.8)';
                     } else {
                         ctx.setLineDash([]);
-                        ctx.strokeStyle = '#ff3333';
+                        ctx.strokeStyle = '#ff1744';
                     }
                     ctx.strokeRect(x1, y1, w, h);
                     ctx.setLineDash([]);
 
                     const tag = isStale ? ' [抽樣]' : '';
-                    const labelText = `[告警] 類別 ${det.cls} (${(det.conf * 100).toFixed(0)}%)${tag}`;
+                    const violsText = det.violations.join(', ');
+                    const labelText = `[違規: ${violsText}] ${labelName} (${(det.conf * 100).toFixed(0)}%)${tag}`;
                     ctx.font = 'bold 13px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace';
                     const textWidth = ctx.measureText(labelText).width;
 
-                    ctx.fillStyle = isStale ? 'rgba(60, 0, 0, 0.9)' : 'rgba(80, 0, 0, 0.9)';
-                    ctx.fillRect(x1, Math.max(y1 - 20, 0), textWidth + 8, 20);
-                    ctx.strokeStyle = isStale ? 'rgba(255, 51, 51, 0.8)' : '#ff3333';
+                    ctx.fillStyle = 'rgba(180, 0, 0, 0.95)';
+                    ctx.fillRect(x1, Math.max(y1 - 22, 0), textWidth + 8, 22);
+                    ctx.strokeStyle = '#ff1744';
                     ctx.lineWidth = 1;
-                    ctx.strokeRect(x1, Math.max(y1 - 20, 0), textWidth + 8, 20);
+                    ctx.strokeRect(x1, Math.max(y1 - 22, 0), textWidth + 8, 22);
 
-                    ctx.fillStyle = isStale ? '#ff9999' : '#ffffff';
-                    ctx.fillText(labelText, x1 + 4, Math.max(y1 - 5, 14));
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillText(labelText, x1 + 4, Math.max(y1 - 6, 14));
+                } else if (inZone) {
+                    if (isPerson && det.is_compliant) {
+                        // COMPLIANT PERSON in Zone
+                        ctx.lineWidth = 2.5;
+                        ctx.strokeStyle = isStale ? 'rgba(0, 230, 118, 0.8)' : '#00e676';
+                        if (isStale) ctx.setLineDash([5, 5]);
+                        ctx.strokeRect(x1, y1, w, h);
+                        ctx.setLineDash([]);
+
+                        const tag = isStale ? ' [抽樣]' : '';
+                        const labelText = `[合規] ${labelName} (${(det.conf * 100).toFixed(0)}%)${tag}`;
+                        ctx.font = 'bold 13px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace';
+                        const textWidth = ctx.measureText(labelText).width;
+
+                        ctx.fillStyle = 'rgba(0, 60, 20, 0.9)';
+                        ctx.fillRect(x1, Math.max(y1 - 20, 0), textWidth + 8, 20);
+                        ctx.strokeStyle = '#00e676';
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(x1, Math.max(y1 - 20, 0), textWidth + 8, 20);
+
+                        ctx.fillStyle = '#00e676';
+                        ctx.fillText(labelText, x1 + 4, Math.max(y1 - 5, 14));
+                    } else {
+                        // Standard Intrusion Alarm
+                        ctx.lineWidth = 3;
+                        if (isStale) {
+                            ctx.setLineDash([5, 5]);
+                            ctx.strokeStyle = 'rgba(255, 51, 51, 0.8)';
+                        } else {
+                            ctx.setLineDash([]);
+                            ctx.strokeStyle = '#ff3333';
+                        }
+                        ctx.strokeRect(x1, y1, w, h);
+                        ctx.setLineDash([]);
+
+                        const tag = isStale ? ' [抽樣]' : '';
+                        const labelText = `[告警] ${labelName} (${(det.conf * 100).toFixed(0)}%)${tag}`;
+                        ctx.font = 'bold 13px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace';
+                        const textWidth = ctx.measureText(labelText).width;
+
+                        ctx.fillStyle = isStale ? 'rgba(60, 0, 0, 0.9)' : 'rgba(80, 0, 0, 0.9)';
+                        ctx.fillRect(x1, Math.max(y1 - 20, 0), textWidth + 8, 20);
+                        ctx.strokeStyle = isStale ? 'rgba(255, 51, 51, 0.8)' : '#ff3333';
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(x1, Math.max(y1 - 20, 0), textWidth + 8, 20);
+
+                        ctx.fillStyle = isStale ? '#ff9999' : '#ffffff';
+                        ctx.fillText(labelText, x1 + 4, Math.max(y1 - 5, 14));
+                    }
                 } else {
-                    // Normal style
+                    // Normal / Compliant style outside zone
+                    const boxColor = isBarrierOrSafe ? '#00e676' : '#00ff41';
                     ctx.lineWidth = 2;
                     if (isStale) {
                         ctx.setLineDash([5, 5]);
-                        ctx.strokeStyle = 'rgba(0, 255, 65, 0.75)';
+                        ctx.strokeStyle = isBarrierOrSafe ? 'rgba(0, 230, 118, 0.75)' : 'rgba(0, 255, 65, 0.75)';
                     } else {
                         ctx.setLineDash([]);
-                        ctx.strokeStyle = '#00ff41';
+                        ctx.strokeStyle = boxColor;
                     }
                     ctx.strokeRect(x1, y1, w, h);
                     ctx.setLineDash([]);
 
                     const tag = isStale ? ' [抽樣]' : '';
-                    const labelText = `類別 ${det.cls} (${(det.conf * 100).toFixed(0)}%)${tag}`;
+                    const labelText = `${labelName} (${(det.conf * 100).toFixed(0)}%)${tag}`;
                     ctx.font = '13px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace';
                     const textWidth = ctx.measureText(labelText).width;
 
                     ctx.fillStyle = isStale ? 'rgba(0, 40, 0, 0.9)' : 'rgba(0, 59, 0, 0.85)';
                     ctx.fillRect(x1, Math.max(y1 - 20, 0), textWidth + 8, 20);
 
-                    ctx.fillStyle = isStale ? '#85ffaa' : '#00ff41';
+                    ctx.fillStyle = isStale ? '#85ffaa' : boxColor;
                     ctx.fillText(labelText, x1 + 4, Math.max(y1 - 5, 14));
                 }
                 ctx.restore();
             });
         }
-
         window.addEventListener('resize', () => {
             if (activeStreamIndex !== null) {
                 syncCanvasSize();

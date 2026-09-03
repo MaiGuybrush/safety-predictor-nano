@@ -32,6 +32,7 @@
 | [ADR-014](ADR-014-argus-eventlog-integration.md) | 導入 argus-eventlog 輸出 ARGUS JSONL 事件（Argus Eventlog Integration） | 已接受 | 2026-08-16 |
 | [ADR-015](ADR-015-argus-agent-heartbeat-and-camera-id-parsing.md) | 導入 argus-agent Heartbeat 登錄與 RTSP URL Camera ID 自動解析 | 已接受 | 2026-08-16 |
 | [ADR-016](ADR-016-responsive-font-scaling-and-layout.md) | Web UI 響應式字級縮放與小螢幕佈局自適應架構 | 已接受 | 2026-08-21 |
+| [ADR-017](ADR-017-ppe-detection-and-conditional-compliance-rule-engine.md) | 人員裝備防護 (PPE) 檢測與條件式工安合規規則引擎架構 | 已接受 | 2026-09-03 |
 
 ## 新增 ADR
 

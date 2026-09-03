@@ -17,7 +17,8 @@ from stats_logger import StatsLogger, setup_system_logger, get_system_logger, co
 from grid_composer import annotate_frame, compose_grid
 import model_sync
 from retention_cleaner import RetentionCleanerService
-
+from state_poller import GLOBAL_STATE_POLLER
+from compliance_engine import ComplianceEngine
 import argus_eventlog
 from argus_eventlog import EventWriterService, HeartbeatService, get_event_output_path, parse_camera_id
 import event_producer
@@ -174,6 +175,30 @@ def _inference_worker(context):
                     for d in formatted_detections:
                         d["in_zone"] = False
 
+                compliance_engine = context.get("compliance_engine")
+                comp_summary = None
+                if compliance_engine is not None:
+                    ext_states = GLOBAL_STATE_POLLER.get_current_states()
+                    rules = config.get("compliance_rules", [])
+                    enriched_detections, compliance_events, comp_summary = compliance_engine.evaluate(
+                        formatted_detections,
+                        stream_zone=stream_zone,
+                        external_states=ext_states,
+                        rules=rules,
+                    )
+                    formatted_detections = enriched_detections
+                    web_ui.LATEST_COMPLIANCE_STATUS[unit_idx] = comp_summary
+                    if compliance_events:
+                        event_producer.process_compliance_events(
+                            unit_idx, unit.get("camera_id", "unknown"),
+                            compliance_events, w, h,
+                            config.get("event_severity", {}),
+                            config.get("event_absence_tolerance", 2),
+                            zone=stream_zone,
+                            pts=pts,
+                            clean_frame=frame,
+                        )
+
                 event_producer.process_detections(
                     unit_idx, unit.get("camera_id", "unknown"),
                     formatted_detections, w, h,
@@ -188,13 +213,13 @@ def _inference_worker(context):
                     "stream_index": unit_idx,
                     "label": label if label else url,
                     "detections": formatted_detections,
+                    "compliance_summary": comp_summary,
                     "frame_w": w,
                     "frame_h": h,
                     "ts": infer_done_ts,
                     "zone": stream_zone,
                 }
                 last_infer_times[unit_idx] = infer_done_ts
-
         rr_index = (rr_index + 1) % len(stream_units)
         time.sleep(0.01)
 
@@ -341,6 +366,10 @@ def initialize_runtime(config_mgr):
             }]
         }
 
+    compliance_engine = ComplianceEngine(config_mgr.get_ppe_class_mapping())
+    GLOBAL_STATE_POLLER.update_config(config_mgr.get_external_states())
+    GLOBAL_STATE_POLLER.start()
+
     return {
         "config": config,
         "logger": logger,
@@ -351,6 +380,7 @@ def initialize_runtime(config_mgr):
         "stream_units": stream_units,
         "video_handler": video_handler,
         "video_engine": video_engine,
+        "compliance_engine": compliance_engine,
     }
 
 
@@ -378,6 +408,7 @@ def main():
     stream_units = state["stream_units"]
     video_handler = state["video_handler"]
     video_engine = state["video_engine"]
+    compliance_engine = state.get("compliance_engine")
 
     video_camera_id = config.get("camera_id") or parse_camera_id(config.get("video_path", "")) or "video"
     heartbeat_services = start_heartbeat_services(config, stream_units, mode=mode, video_camera_id=video_camera_id)
@@ -387,6 +418,7 @@ def main():
         "config": config,
         "logger": logger,
         "mode": mode,
+        "compliance_engine": compliance_engine,
         "running": True
     }
 
@@ -483,11 +515,15 @@ def main():
                 log_interval = new_config.get("log_interval_seconds", 60)
                 config = new_config
                 
+                if compliance_engine:
+                    compliance_engine.set_mapping(config_mgr.get_ppe_class_mapping())
+                GLOBAL_STATE_POLLER.update_config(config_mgr.get_external_states())
+
                 context["stream_units"] = stream_units
                 context["config"] = config
                 context["logger"] = logger
                 context["mode"] = mode
-
+                context["compliance_engine"] = compliance_engine
             if mode == 'rtsp':
                 if stream_units:
                     for unit in stream_units:
@@ -542,6 +578,28 @@ def main():
                         else:
                             for d in formatted_detections:
                                 d["in_zone"] = False
+                        comp_summary = None
+                        if compliance_engine is not None:
+                            ext_states = GLOBAL_STATE_POLLER.get_current_states()
+                            rules = config.get("compliance_rules", [])
+                            enriched_detections, compliance_events, comp_summary = compliance_engine.evaluate(
+                                formatted_detections,
+                                stream_zone=video_zone,
+                                external_states=ext_states,
+                                rules=rules,
+                            )
+                            formatted_detections = enriched_detections
+                            web_ui.LATEST_COMPLIANCE_STATUS[0] = comp_summary
+                            if compliance_events:
+                                event_producer.process_compliance_events(
+                                    "video", video_camera_id,
+                                    compliance_events, w, h,
+                                    config.get("event_severity", {}),
+                                    config.get("event_absence_tolerance", 2),
+                                    zone=video_zone,
+                                    pts=pts,
+                                    clean_frame=frame,
+                                )
 
                         event_producer.process_detections(
                             "video", video_camera_id,
@@ -557,6 +615,7 @@ def main():
                             "stream_index": 0,
                             "label": "Video Stream",
                             "detections": formatted_detections,
+                            "compliance_summary": comp_summary,
                             "frame_w": w,
                             "frame_h": h,
                             "ts": infer_done_ts,

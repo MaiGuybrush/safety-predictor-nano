@@ -27,9 +27,13 @@ try:
     from failover_ums_client import FailoverUmsClient
 except ImportError:
     FailoverUmsClient = None
+from state_poller import GLOBAL_STATE_POLLER
 
 app = Flask(__name__)
 CONFIG_FILE = "config.yaml"
+
+CURRENT_EXTERNAL_STATES = {}
+LATEST_COMPLIANCE_STATUS = {}
 
 def load_config():
     with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -378,6 +382,40 @@ def post_zone(stream_url):
 def sync_models():
     report = model_sync.sync_all(ConfigManager(CONFIG_FILE))
     return jsonify(report)
+
+@app.route('/api/external_state', methods=['POST'])
+def post_external_state():
+    """接收外部系統 (MES/PLC/Webhook) 主動推送之設備狀態。"""
+    data = request.get_json(force=True, silent=True) or {}
+    source = data.get("source")
+    status = data.get("status")
+    if not source or status is None:
+        return jsonify({"status": "error", "message": "Missing 'source' or 'status' field"}), 400
+
+    ttl_seconds = data.get("ttl_seconds")
+    if ttl_seconds is not None:
+        try:
+            ttl_seconds = float(ttl_seconds)
+        except (ValueError, TypeError):
+            ttl_seconds = None
+
+    GLOBAL_STATE_POLLER.update_state(str(source), status, ttl_seconds=ttl_seconds)
+    CURRENT_EXTERNAL_STATES[str(source)] = status
+
+    return jsonify({
+        "status": "ok",
+        "source": str(source),
+        "value": status,
+        "ttl_seconds": ttl_seconds,
+    })
+
+@app.route('/api/compliance_status', methods=['GET'])
+def get_compliance_status():
+    """查詢當前所有串流之設備外部狀態與工安合規總覽。"""
+    return jsonify({
+        "external_states": GLOBAL_STATE_POLLER.get_current_states(),
+        "compliance": LATEST_COMPLIANCE_STATUS,
+    })
 
 @app.route('/api/logs', methods=['GET'])
 def get_logs():

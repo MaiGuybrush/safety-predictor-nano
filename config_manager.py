@@ -9,6 +9,17 @@ DEFAULT_UMS_BASE_URLS = [
     "http://tncimweb2.cminl.oa/umsapiproxy/fab4ums",
 ]
 
+DEFAULT_PPE_CLASS_MAPPING = {
+    "person": "person",
+    "head": "head",
+    "helmet": "helmet",
+    "no_helmet": "no_helmet",
+    "vest": "vest",
+    "no_vest": "no_vest",
+    "cone": "cone",
+    "guardrail": "guardrail",
+}
+
 _STREAM_MODEL_KEY_RE = re.compile(r"^streams\[(\d+)\]\.model$")
 
 
@@ -207,7 +218,7 @@ class ConfigManager:
             return None
         return self.get_zones().get(stream_url)
 
-    def save_zone(self, stream_url, polygon, zone_name=None, trigger_mode="center", sensitivity=0.0):
+    def save_zone(self, stream_url, polygon, zone_name=None, trigger_mode="center", sensitivity=0.0, ppe_strategy=None, required_ppe=None):
         if not stream_url:
             return
 
@@ -225,6 +236,10 @@ class ConfigManager:
                 zone_data["trigger_mode"] = str(trigger_mode)
             if sensitivity is not None:
                 zone_data["sensitivity"] = float(sensitivity)
+            if ppe_strategy:
+                zone_data["ppe_strategy"] = str(ppe_strategy)
+            if required_ppe is not None and isinstance(required_ppe, list):
+                zone_data["required_ppe"] = [str(x) for x in required_ppe]
             raw["zones"][stream_url] = zone_data
         else:
             raw["zones"].pop(stream_url, None)
@@ -240,6 +255,58 @@ class ConfigManager:
     def delete_zone(self, stream_url):
         self.save_zone(stream_url, [])
 
+    def get_ppe_class_mapping(self):
+        """取得自訂模型類別到標準 PPE 類別的映射字典。
+        以 DEFAULT_PPE_CLASS_MAPPING 為基準，並套用使用者自訂映射。
+        """
+        mapping = dict(DEFAULT_PPE_CLASS_MAPPING)
+        raw = self.config.get("ppe_class_mapping")
+        if isinstance(raw, dict):
+            for k, v in raw.items():
+                if isinstance(k, str) and isinstance(v, str):
+                    mapping[k] = v
+        return mapping
+
+    def get_external_states(self):
+        """取得外部設備狀態輪詢配置字典 (source_name -> config)。"""
+        raw = self.config.get("external_states")
+        if not isinstance(raw, dict):
+            return {}
+        normalized = {}
+        for source, cfg in raw.items():
+            if not isinstance(cfg, dict):
+                continue
+            try:
+                interval = max(1, int(cfg.get("interval_seconds", 5)))
+            except (ValueError, TypeError):
+                interval = 5
+            try:
+                timeout = max(1, int(cfg.get("timeout_seconds", 2)))
+            except (ValueError, TypeError):
+                timeout = 2
+            normalized[str(source)] = {
+                "url": str(cfg.get("url", "")),
+                "method": str(cfg.get("method", "GET")).upper(),
+                "interval_seconds": interval,
+                "json_path": str(cfg.get("json_path", "")),
+                "timeout_seconds": timeout,
+                "fallback_value": str(cfg.get("fallback_value", "UNKNOWN")),
+            }
+        return normalized
+
+    def get_compliance_rules(self):
+        """取得啟用中之複合工安條件規則清單。"""
+        raw = self.config.get("compliance_rules")
+        if not isinstance(raw, list):
+            return []
+        rules = []
+        for r in raw:
+            if not isinstance(r, dict):
+                continue
+            if not r.get("enabled", True):
+                continue
+            rules.append(r)
+        return rules
     def get_system_log_file(self):
         return self.config.get("system_log_file", "logs/system.log")
 
