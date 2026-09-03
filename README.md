@@ -103,3 +103,42 @@ pyinstaller --onefile \
 
 - 若模型檔案過大，封裝後的檔案體積會較大，確保樹莓派有足夠空間。
 - 執行時請確保 `config.yaml` 與 `argus_predictor` 在同一目錄。
+
+### 方案 C：打包成單一目錄 (`--onedir`)
+與方案 B 不同，`--onedir` 會產出一個**資料夾**（`dist/argus_predictor/`），內含執行檔與所有相依套件。優點是**啟動速度快**（不需要每次啟動時解壓到暫存目錄）、記憶體佔用較低，且更新時只需替換整個目錄即可。
+
+1. 在樹莓派本機上執行建置與打包指令：
+
+```bash
+# 1. 建置 mdBook 使用手冊
+mdbook build docs/user-manual
+
+# 2. 封裝為單一目錄
+pyinstaller --onedir \
+            --noupx \
+            --exclude-module triton \
+            --add-data "templates:templates" \
+            --add-data "config.yaml:." \
+            --add-data "docs/user-manual/book:docs/user-manual/book" \
+            --collect-all ultralytics \
+            --collect-all flask \
+            --collect-all argus_eventlog \
+            --collect-all ums_client \
+            --name argus_predictor \
+            main.py
+```
+
+*注意：*
+- *`--noupx`：停用 UPX 壓縮。UPX 壓縮後的二進位檔在 ARM64 (樹莓派) 上可能因壓縮格式不相容而無法啟動，停用可避免此問題。*
+- *`--exclude-module triton`：排除 `triton` 模組。`triton` 是 NVIDIA GPU 的 JIT 編譯器，本專案僅使用 CPU 推論，排除可大幅縮小打包體積並避免不必要的相依衝突。*
+
+2. 部署至樹莓派：
+   - 封裝完成後，`dist/` 下會產生 `argus_predictor/` **整個資料夾**，部署時需**完整複製整個目錄**（不可只複製執行檔）。
+   - 將你的模型檔案 (如 `yolo26.pt`) 及 `config.yaml` 放在該目錄內。
+   - 給予執行權限並執行：
+     ```bash
+     chmod +x argus_predictor/argus_predictor
+     ./argus_predictor/argus_predictor
+     ```
+
+- 更新版本時，直接以新的 `argus_predictor/` 目錄覆蓋舊目錄即可（`config.yaml` 與模型檔若放在目錄內，覆蓋前請先備份）。
