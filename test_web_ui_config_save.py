@@ -64,8 +64,7 @@ class TestWebUiConfigSave(unittest.TestCase):
             "conf_threshold": "0.3",
             "log_interval_seconds": "30",
             "log_file": "perf.log",
-            "detection_log_file": "det.log",
-            "ums_base_url": "http://ums.example.com",
+            "ums_fab": "fab1",
             "ums_api_key": "new_key_123",
             "heartbeat_enabled": "true",
             "heartbeat_agent_port": "8080",
@@ -95,7 +94,9 @@ class TestWebUiConfigSave(unittest.TestCase):
 
         # Verify Advanced parameters
         self.assertEqual(saved["event_absence_tolerance"], 3)
-        self.assertEqual(saved["ums_base_url"], "http://ums.example.com")
+        self.assertEqual(saved["ums_fab"], "fab1")
+        self.assertNotIn("ums_base_url", saved)
+        self.assertNotIn("ums_base_urls", saved)
         self.assertEqual(saved["ums_api_key"], "new_key_123")
 
         # Verify Non-destructive preservation
@@ -185,10 +186,10 @@ class TestWebUiConfigSave(unittest.TestCase):
         self.assertIn("detail-camid-warning", html)
         self.assertIn("parseArgusCameraId", html)
         self.assertIn("restoreArgusCameraId", html)
-        self.assertIn("fab-preset-select", html)
-        self.assertIn("ums-endpoints-container", html)
-        self.assertIn("applyFabPreset", html)
-        self.assertIn("renderUmsEndpointRows", html)
+        self.assertIn("ums-fab-select", html)
+        self.assertIn("ums-endpoints-preview", html)
+        self.assertIn("onFabChange", html)
+        self.assertIn("renderUmsEndpointsPreview", html)
 
     def test_save_argus_stream_with_custom_camera_id(self):
         initial = {
@@ -224,21 +225,19 @@ class TestWebUiConfigSave(unittest.TestCase):
         self.assertEqual(saved["streams"][0]["url"], "rtsp://127.0.0.1:8554/cam-0eb40kwvs74z")
         self.assertEqual(saved["streams"][0]["camera_id"], "CCD1")
 
-    def test_save_multi_ums_base_urls(self):
+    def test_save_ums_fab_clears_ums_base_urls(self):
         initial = {
             "mode": "rtsp",
             "model_path": "best.onnx",
             "ums_base_url": "http://old-single.ums",
+            "ums_base_urls": ["http://old-list.ums"],
         }
         self.write_yaml(initial)
 
         form_data = {
             "mode": "rtsp",
             "model_path": "best.onnx",
-            "ums_base_urls": [
-                "http://10.26.11.108/umsapiproxy/fab4ums",
-                "http://10.26.11.109/umsapiproxy/fab4ums"
-            ],
+            "ums_fab": "fab1",
             "ums_api_key": "secret_key_999",
         }
 
@@ -246,10 +245,8 @@ class TestWebUiConfigSave(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
 
         saved = self.read_yaml()
-        self.assertEqual(saved["ums_base_urls"], [
-            "http://10.26.11.108/umsapiproxy/fab4ums",
-            "http://10.26.11.109/umsapiproxy/fab4ums"
-        ])
+        self.assertEqual(saved["ums_fab"], "fab1")
+        self.assertNotIn("ums_base_urls", saved)
         self.assertNotIn("ums_base_url", saved)
         self.assertEqual(saved["ums_api_key"], "secret_key_999")
 

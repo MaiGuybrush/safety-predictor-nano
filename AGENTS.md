@@ -35,6 +35,7 @@ The system utilizes a multi-threaded Python architecture to decouple frame captu
   pyinstaller --onefile \
               --add-data "templates:templates" \
               --add-data "config.yaml:." \
+              --add-data "ums-api-config.json:." \
               --add-data "docs/user-manual/book:docs/user-manual/book" \
               --collect-all ultralytics \
               --collect-all flask \

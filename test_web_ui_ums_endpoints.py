@@ -172,5 +172,36 @@ class TestWebUiUmsEndpoints(unittest.TestCase):
         self.assertEqual(len(data["endpoints"]), 1)
 
 
+    @patch("web_ui.FailoverUmsClient")
+    def test_test_connection_by_fab(self, mock_failover_client_cls):
+        mock_client = mock_failover_client_cls.return_value
+        mock_client.test_endpoints.return_value = [
+            {"url": "http://10.26.11.108/umsapiproxy/fab4ums", "status": "ok", "models_count": 5, "message": "連線成功"},
+            {"url": "http://10.26.11.109/umsapiproxy/fab4ums", "status": "ok", "models_count": 5, "message": "連線成功"},
+        ]
+
+        response = self.client.post('/api/ums/test_connection', json={
+            "fab": "fab1",
+            "api_key": "valid_key"
+        })
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(data["status"], "ok")
+        self.assertEqual(len(data["endpoints"]), 2)
+        call_args = mock_failover_client_cls.call_args
+        base_urls = call_args[1].get("base_urls") if "base_urls" in call_args[1] else call_args[0][0]
+        self.assertIn("10.26.11.108", base_urls[0])
+
+    def test_get_ums_fabs_endpoint(self):
+        response = self.client.get('/api/ums/fabs')
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(data["status"], "ok")
+        self.assertIn("fabs", data)
+        self.assertIn("endpoints_map", data)
+        self.assertTrue(any(item["fab"] == "oa" for item in data["fabs"]))
+        self.assertTrue(any(item["fab"] == "fab1" for item in data["fabs"]))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -3,6 +3,7 @@ import yaml
 import os
 
 from argus_eventlog import parse_camera_id
+import ums_config
 
 DEFAULT_UMS_BASE_URLS = [
     "http://tncimweb1.cminl.oa/umsapiproxy/fab4ums",
@@ -24,10 +25,50 @@ _STREAM_MODEL_KEY_RE = re.compile(r"^streams\[(\d+)\]\.model$")
 
 
 class ConfigManager:
-    def __init__(self, config_path="config.yaml"):
+    def __init__(self, config_path="config.yaml", ums_api_config_path=None):
         self.config_path = config_path
+        self.ums_api_config_path = ums_api_config_path
         self.last_mtime = 0
         self.config = self.load_config()
+        self._ensure_ums_fab()
+
+    def get_ums_api_config(self):
+        config_dir = os.path.dirname(os.path.abspath(self.config_path)) if self.config_path else None
+        return ums_config.load_ums_api_config(config_dir=config_dir, file_path=self.ums_api_config_path)
+
+    def _ensure_ums_fab(self):
+        """當設定檔未配置 ums_fab 時，自動偵測所在廠區（未命中則為 oa）並立即持久化寫回，
+        同時清理舊版 ums_base_urls / ums_base_url 欄位。"""
+        if not isinstance(self.config, dict):
+            return
+
+        modified = False
+        ums_fab = self.config.get("ums_fab")
+        if ums_fab is None or not str(ums_fab).strip():
+            ips = ums_config.get_device_ipv4_addresses()
+            ums_api_cfg = self.get_ums_api_config()
+            detected_fab = ums_config.detect_fab_from_ips(ips, domain_define=ums_api_cfg.get("domainDefine"))
+            self.config["ums_fab"] = detected_fab
+            modified = True
+        else:
+            self.config["ums_fab"] = str(ums_fab).strip().lower()
+
+        if "ums_base_urls" in self.config:
+            self.config.pop("ums_base_urls", None)
+            modified = True
+        if "ums_base_url" in self.config:
+            self.config.pop("ums_base_url", None)
+            modified = True
+
+        if modified and self.config_path and os.path.isfile(self.config_path):
+            try:
+                temp_file = self.config_path + ".tmp"
+                with open(temp_file, "w", encoding="utf-8") as f:
+                    yaml.dump(self.config, f, allow_unicode=True)
+                os.replace(temp_file, self.config_path)
+                self.last_mtime = os.path.getmtime(self.config_path)
+            except Exception:
+                pass
 
     def check_for_updates(self):
         try:
@@ -149,14 +190,17 @@ class ConfigManager:
 
         return targets
 
+    def get_ums_fab(self):
+        """取得目前設定的廠區代碼（小寫），預設為 'oa'。"""
+        return str(self.config.get("ums_fab") or "oa").strip().lower()
+
     def get_ums_base_urls(self):
         """提供標準化的 UMS 端點 URL 清單。
 
         優先權：
         1. 環境變數 UMS_BASE_URL / UMS_BASE_URLS（支援逗號分隔）
-        2. config.yaml 的 ums_base_urls（列表）
-        3. 舊版 config.yaml 的 ums_base_url（單一字串）
-        4. Fallback 至預設 OA 端點清單
+        2. 根據目前設定的 ums_fab（若無則取 'oa'），自集中組態中查出對應的 api.<fab> 端點列表
+        3. Fallback 至預設 OA 端點清單
         """
         env_val = os.environ.get("UMS_BASE_URL") or os.environ.get("UMS_BASE_URLS")
         if env_val and isinstance(env_val, str):
@@ -164,15 +208,11 @@ class ConfigManager:
             if urls:
                 return urls
 
-        raw_list = self.config.get("ums_base_urls")
-        if isinstance(raw_list, list):
-            urls = [str(u).strip() for u in raw_list if str(u).strip()]
-            if urls:
-                return urls
-
-        raw_single = self.config.get("ums_base_url")
-        if raw_single and isinstance(raw_single, str) and raw_single.strip():
-            return [raw_single.strip()]
+        ums_fab = self.get_ums_fab()
+        ums_api_cfg = self.get_ums_api_config()
+        endpoints = ums_config.get_ums_endpoints_for_fab(ums_fab, ums_api_config=ums_api_cfg)
+        if endpoints:
+            return endpoints
 
         return list(DEFAULT_UMS_BASE_URLS)
 

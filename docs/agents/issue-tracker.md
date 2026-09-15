@@ -4,15 +4,15 @@ Issues for this repo are tracked on the internal Gitea server.
 
 ## Repository Information
 - **Server**: `http://tncimweb.cminl.oa/git-server` (or `http://tnvcimweb1.cminl.oa/git-server`)
-- **Repository Slug**: `guy.mai/safty-predictor-nano`
+- **Repository Slug**: `guy.mai/safety-predictor-nano`
 - **CLI Tool**: `tea` CLI (login: `guy.mai`)
 
 ## Conventions
-- **List issues**: `tea issues list --login guy.mai --repo guy.mai/safty-predictor-nano`
-- **View issue**: `tea issues <index> --login guy.mai --repo guy.mai/safty-predictor-nano`
-- **Create issue**: `tea issues create --login guy.mai --repo guy.mai/safty-predictor-nano --title "<title>" --description "<description>" --labels "ready-for-agent,Kind/Feature"`
-- **Edit issue**: `tea issues edit <index> --login guy.mai --repo guy.mai/safty-predictor-nano ...`
-- **Close issue**: `tea issues close <index> --login guy.mai --repo guy.mai/safty-predictor-nano`
+- **List issues**: `tea issues list --login guy.mai --repo guy.mai/safety-predictor-nano`
+- **View issue**: `tea issues <index> --login guy.mai --repo guy.mai/safety-predictor-nano`
+- **Create issue**: `tea issues create --login guy.mai --repo guy.mai/safety-predictor-nano --title "<title>" --description "<description>" --labels "ready-for-agent,Kind/Feature"`
+- **Edit issue**: `tea issues edit <index> --login guy.mai --repo guy.mai/safety-predictor-nano ...`
+- **Close issue**: `tea issues close <index> --login guy.mai --repo guy.mai/safety-predictor-nano`
 - Feature specs are also archived locally in `.scratch/<feature-slug>/spec.md`.
 
 ## Triage Labels

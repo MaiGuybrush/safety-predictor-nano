@@ -247,12 +247,9 @@ class TestConfigManager(unittest.TestCase):
         self.assertIsNotNone(mgr.config)
         self.assertIsInstance(mgr.config, dict)
 
-    def test_get_ums_base_urls_from_list(self):
+    def test_get_ums_base_urls_from_fab(self):
         data = {
-            "ums_base_urls": [
-                "http://10.26.11.108/umsapiproxy/fab4ums",
-                "http://10.26.11.109/umsapiproxy/fab4ums"
-            ]
+            "ums_fab": "fab1"
         }
         self.write_yaml(data)
         mgr = ConfigManager(self.tmp_path)
@@ -263,19 +260,58 @@ class TestConfigManager(unittest.TestCase):
                 "http://10.26.11.109/umsapiproxy/fab4ums"
             ])
 
-    def test_get_ums_base_urls_from_legacy_single_string(self):
+    @unittest.mock.patch("ums_config.get_device_ipv4_addresses", return_value=["10.26.15.8"])
+    def test_init_auto_detects_and_persists_ums_fab_when_missing(self, mock_ips):
         data = {
-            "ums_base_url": "http://legacy.ums/fab4ums"
+            "model_path": "best.onnx",
+            "cpu_cores": 4,
+            "ums_base_urls": ["http://legacy.server/fab4ums"]
         }
         self.write_yaml(data)
         mgr = ConfigManager(self.tmp_path)
-        with unittest.mock.patch.dict("os.environ", {}, clear=True):
-            urls = mgr.get_ums_base_urls()
-            self.assertEqual(urls, ["http://legacy.ums/fab4ums"])
+        self.assertEqual(mgr.config.get("ums_fab"), "fab1")
+        self.assertNotIn("ums_base_urls", mgr.config)
+
+        # Verify persisted on disk
+        with open(self.tmp_path, "r", encoding="utf-8") as f:
+            on_disk = yaml.safe_load(f)
+        self.assertEqual(on_disk.get("ums_fab"), "fab1")
+        self.assertNotIn("ums_base_urls", on_disk)
+        self.assertEqual(on_disk.get("model_path"), "best.onnx")
+
+    @unittest.mock.patch("ums_config.get_device_ipv4_addresses", return_value=["192.168.0.10"])
+    def test_init_auto_detects_fallback_oa_when_unmatched(self, mock_ips):
+        data = {
+            "model_path": "best.onnx"
+        }
+        self.write_yaml(data)
+        mgr = ConfigManager(self.tmp_path)
+        self.assertEqual(mgr.config.get("ums_fab"), "oa")
+
+        with open(self.tmp_path, "r", encoding="utf-8") as f:
+            on_disk = yaml.safe_load(f)
+        self.assertEqual(on_disk.get("ums_fab"), "oa")
+
+    def test_init_cleans_legacy_ums_base_urls_when_fab_already_present(self):
+        data = {
+            "ums_fab": "fab2",
+            "ums_base_urls": ["http://legacy.server/fab4ums"],
+            "ums_base_url": "http://legacy.server/single"
+        }
+        self.write_yaml(data)
+        mgr = ConfigManager(self.tmp_path)
+        self.assertEqual(mgr.config.get("ums_fab"), "fab2")
+        self.assertNotIn("ums_base_urls", mgr.config)
+        self.assertNotIn("ums_base_url", mgr.config)
+
+        with open(self.tmp_path, "r", encoding="utf-8") as f:
+            on_disk = yaml.safe_load(f)
+        self.assertNotIn("ums_base_urls", on_disk)
+        self.assertNotIn("ums_base_url", on_disk)
 
     def test_get_ums_base_urls_from_env_var_comma_separated(self):
         data = {
-            "ums_base_urls": ["http://config.ums/fab4ums"]
+            "ums_fab": "fab1"
         }
         self.write_yaml(data)
         mgr = ConfigManager(self.tmp_path)
@@ -283,8 +319,10 @@ class TestConfigManager(unittest.TestCase):
             urls = mgr.get_ums_base_urls()
             self.assertEqual(urls, ["http://env1.ums", "http://env2.ums"])
 
-    def test_get_ums_base_urls_fallback_defaults(self):
-        data = {}
+    def test_get_ums_base_urls_fallback_defaults_when_unknown_fab(self):
+        data = {
+            "ums_fab": "non_existent_fab"
+        }
         self.write_yaml(data)
         mgr = ConfigManager(self.tmp_path)
         with unittest.mock.patch.dict("os.environ", {}, clear=True):

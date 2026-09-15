@@ -12,6 +12,7 @@ def get_resource_path(relative_path):
 MANUAL_DIR = get_resource_path(os.path.join("docs", "user-manual", "book"))
 
 import model_sync
+import ums_config
 from config_manager import ConfigManager, DEFAULT_UMS_BASE_URLS
 from stats_logger import configure_werkzeug_logger
 import logging
@@ -156,33 +157,16 @@ def index():
                     ums_changed = True
 
             # 4. UMS settings
-            if "ums_base_urls" in request.form or "ums_base_urls[]" in request.form:
-                raw_urls = request.form.getlist("ums_base_urls") or request.form.getlist("ums_base_urls[]")
-                parsed_urls = []
-                for item in raw_urls:
-                    if not item:
-                        continue
-                    if item.startswith("[") and item.endswith("]"):
-                        try:
-                            sub_list = json.loads(item)
-                            if isinstance(sub_list, list):
-                                for u in sub_list:
-                                    if str(u).strip():
-                                        parsed_urls.append(str(u).strip())
-                                continue
-                        except Exception:
-                            pass
-                    for u in item.split(","):
-                        if u.strip():
-                            parsed_urls.append(u.strip())
-                if parsed_urls:
-                    new_config["ums_base_urls"] = parsed_urls
-                    new_config.pop("ums_base_url", None)
-            elif "ums_base_url" in request.form:
-                u_single = request.form["ums_base_url"].strip()
-                if u_single:
-                    new_config["ums_base_url"] = u_single
-                    new_config["ums_base_urls"] = [u_single]
+            if "ums_fab" in request.form:
+                new_fab = request.form["ums_fab"].strip().lower()
+                if new_fab:
+                    new_config["ums_fab"] = new_fab
+            elif "ums_fab" not in new_config and "ums_fab" in current:
+                new_config["ums_fab"] = current["ums_fab"]
+
+            # 確保完全排除舊有端點清單欄位
+            new_config.pop("ums_base_urls", None)
+            new_config.pop("ums_base_url", None)
 
             if "ums_api_key" in request.form:
                 new_config["ums_api_key"] = request.form["ums_api_key"].strip()
@@ -230,8 +214,32 @@ def index():
                 }), 500
             raise
     
-    config = load_config()
-    return render_template("index.html", config=config)
+    config = load_config() or {}
+    try:
+        mgr = ConfigManager(CONFIG_FILE)
+        ums_api_cfg = mgr.get_ums_api_config()
+        current_fab = mgr.get_ums_fab()
+    except Exception:
+        ums_api_cfg = ums_config.load_ums_api_config()
+        current_fab = str(config.get("ums_fab") or "oa").strip().lower()
+
+    fabs_map = ums_config.get_all_fabs_and_endpoints(ums_api_cfg)
+    available_fabs = [
+        {
+            "fab": f,
+            "display_name": ums_config.format_fab_display_name(f),
+            "endpoints": eps
+        }
+        for f, eps in fabs_map.items()
+    ]
+
+    return render_template(
+        "index.html",
+        config=config,
+        available_fabs=available_fabs,
+        ums_fabs_map=fabs_map,
+        current_fab=current_fab
+    )
 
 
 LATEST_FRAME = None
@@ -558,6 +566,33 @@ def get_ums_models():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
+@app.route('/api/ums/fabs', methods=['GET'])
+def get_ums_fabs():
+    """取得所有可用廠區清單與對應主備端點"""
+    try:
+        mgr = ConfigManager(CONFIG_FILE)
+        current_fab = mgr.get_ums_fab()
+        ums_api_cfg = mgr.get_ums_api_config()
+    except Exception:
+        current_fab = "oa"
+        ums_api_cfg = ums_config.load_ums_api_config()
+
+    fabs_map = ums_config.get_all_fabs_and_endpoints(ums_api_cfg)
+    fabs_list = [
+        {
+            "fab": f,
+            "display_name": ums_config.format_fab_display_name(f),
+            "endpoints": eps
+        }
+        for f, eps in fabs_map.items()
+    ]
+    return jsonify({
+        "status": "ok",
+        "current_fab": current_fab,
+        "fabs": fabs_list,
+        "endpoints_map": fabs_map
+    })
+
 @app.route('/api/ums/test_connection', methods=['POST'])
 def test_ums_connection():
     if FailoverUmsClient is None and UmsApiClient is None:
@@ -570,7 +605,14 @@ def test_ums_connection():
         return jsonify({"status": "error", "message": "API Key 不得為空"})
     
     candidate_urls = []
-    if "base_urls" in data:
+    if "fab" in data and data["fab"]:
+        try:
+            mgr = ConfigManager(CONFIG_FILE)
+            ums_api_cfg = mgr.get_ums_api_config()
+        except Exception:
+            ums_api_cfg = ums_config.load_ums_api_config()
+        candidate_urls = ums_config.get_ums_endpoints_for_fab(data["fab"], ums_api_config=ums_api_cfg)
+    elif "base_urls" in data:
         raw_val = data["base_urls"]
         if isinstance(raw_val, list):
             candidate_urls = [str(u).strip() for u in raw_val if str(u).strip()]

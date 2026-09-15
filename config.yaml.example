@@ -27,11 +27,10 @@ streams:
     label: "後門走廊"
     camera_id: "cam-02"
 
-# 4. UMS 模型伺服器連線與多端點容錯備援 (UMS Failover Settings)
-ums_base_urls:                   # UMS 平台 API 服務端點清單 (主備自動容錯切換)
-  - "http://10.26.11.108/umsapiproxy/fab4ums"  # src1 主要端點 (Primary)
-  - "http://10.26.11.109/umsapiproxy/fab4ums"  # src2 備援端點 (Backup)
-ums_api_key: "ums_xxxxxxxxxxxxxxxx"             # UMS 平台 API 金鑰
+# 4. UMS 模型伺服器連線與廠區配置 (UMS Settings)
+ums_fab: "oa"                    # 廠區代碼 (例如: "oa", "fab1", "fab2", "fab3", "fab4", "fab5", "fab6", "fab7", "fab8", "fabt1", "fabt2", "fabt3", "fabt6", "fabts1", "lcm")
+                                 # 開機時若未設定，系統將依網卡 IP 自動判定廠區；亦可手動指定
+ums_api_key: "ums_xxxxxxxxxxxxxxxx" # UMS 平台 API 金鑰
 
 # 5. UMS 模型自動下載與同步宣告 (全域設定)
 ums_model:
