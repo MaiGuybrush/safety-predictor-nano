@@ -1,9 +1,9 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('templates', 'templates'), ('config.yaml', '.'), ('docs/user-manual/book', 'docs/user-manual/book')]
+datas = [('templates', 'templates'), ('config.yaml', '.'), ('ums-api-config.json', '.'), ('docs/user-manual/book', 'docs/user-manual/book')]
 binaries = []
-hiddenimports = []
+hiddenimports = ['report_issue', 'diagnostic_collector', 'issue_service_client']
 tmp_ret = collect_all('ultralytics')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('flask')

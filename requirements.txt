@@ -6,4 +6,5 @@ flask
 ncnn
 git+http://tncimweb.cminl.oa/git-server/guy.mai/argus-eventlog.git@master
 git+http://tncimweb.cminl.oa/git-server/guy.mai/ums-client.git@master
+requests
 

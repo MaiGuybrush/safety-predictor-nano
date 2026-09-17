@@ -36,3 +36,15 @@ config.yaml
 
 /build
 /dist
+
+# Diagnostic issue bundles
+issue-bundles/
+
+# Test & Coverage caches
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build artifacts
+docs/user-manual/book/
+

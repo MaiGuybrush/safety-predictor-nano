@@ -106,10 +106,71 @@ Argus Safety Predictor Nano 支援**集中式廠區管理、開機網卡自動�
 
 ---
 
+### 6. 問題診斷與異常回報 (Issue Reporter)
+
+當系統發生推論異常、串流中斷或崩潰問題時，Argus 提供「**Web UI 在線即時回報**」與「**獨立離線 CLI 工具**」雙重診斷回報管道。系統會自動收集系統日誌、效能指標、環境規格與 Crash Traceback，並自動執行敏感憑證脫敏後打包上傳至 API Gateway，並在 Gitea 專案自動建立追蹤 Issue。
+
+#### (1) Web UI 在線回報
+
+1. 點擊頂部狀態列右側的 `「[ 回報問題 REPORT ]」` 按鈕（或以鍵盤快速鍵開啟）。
+2. 畫面中央將彈出 Cyberpunk 風格的「診斷封包與問題回報」對話框（支援按 `ESC` 鍵或點擊黑色遮罩關閉）。
+3. 填寫以下欄位：
+   - **問題標題 (ISSUE_TITLE)**：簡述問題現象（必填，例如：`CCD_01 RTSP 串流頻繁斷線`）。
+   - **嚴重等級 (SEVERITY)**：從下拉選單選擇問題影響層級：
+     - `CRITICAL`：系統完全崩潰或無法啟動推論。
+     - `HIGH`：主要功能異常、特定攝影機無法解析。
+     - `NORMAL`：一般功能異常、偶發性誤報。
+     - `LOW`：畫面微調、文字修正或改善建議。
+   - **問題詳細狀況說明 (DESCRIPTION)**：詳細說明發生狀況、環境條件與可觀察到的徵兆。
+   - **重現步驟 (STEPS_TO_REPRODUCE)**：選填，條列引發異常的步驟（如：切換解析度 -> 點擊更新）。
+4. 點擊 `「🚀 送出問題與診斷封包」`。
+5. 前端按鈕將自動切換為 Loading 鎖定狀態防止重複提交。
+6. 後端將自動完成：
+   - 打包日誌檔案（`system.log`、`performance.log`、`detections.log` 以及未捕捉崩潰產生的 `crash.log`）。
+   - 動態提取主機名稱、OS、Python 版本、網卡 IPv4、CPU/RAM/磁碟等規格至 `sysinfo.json`。
+   - 安全脫敏：自動遮蔽 `config.yaml` 中的 `ums_api_key` 與所有 RTSP 串流網址帳密。
+   - 透過 API Gateway 上傳至 `FileServiceCore`，並呼叫 Gitea API 建立 Issue。
+7. 送出成功後，對話框將呈現完成畫面，提供已建立的 **Gitea Issue 超連結**、**診斷封包下載連結** 以及 **Report ID**。
+
+#### (2) 獨立離線 CLI 手動回報（Web UI 無法開啟時）
+
+當邊緣端裝置因配置檔嚴重損毀、Python 套件相依性衝突或 Port 衝突導致 Web UI 無法啟動時，維運人員可直接在終端下透過獨立 CLI 工具手動打包與回報：
+
+- **使用獨立腳本 (開發/原始碼模式)**：
+  ```bash
+  # 互動模式（自動引導輸入標題與問題描述）
+  python report_issue.py
+
+  # 一行指令非互動模式
+  python report_issue.py --title "相機無法連線" --desc "RTSP 連線逾時" --non-interactive
+  ```
+
+- **使用單一二進位執行檔 (PyInstaller 發布版)**：
+  ```bash
+  # 互動模式
+  ./argus_predictor --report-issue
+
+  # 帶參數模式
+  ./argus_predictor --report-issue --title "硬體重啟後服務異常" --desc "記憶體耗盡重啟" --non-interactive
+  ```
+
+#### (3) 網路斷線與離線封包留存機制
+
+若現場邊緣設備暫時無法連線至工廠 API Gateway 或外部網路：
+- 系統會提示上傳失敗警告，但**診斷封包不會遺失**。
+- 打包完成的 ZIP 檔案將安全儲存於本地 `issue-bundles/` 目錄（檔名如 `diagnostic_YYYYMMDD_HHMMSS.zip`）。
+- 終端或介面會明確標示本機保存路徑，維運人員可透過 USB 隨身碟或 SCP 手動取出分析。
+
+#### (4) 全域崩潰日誌攔截 (Crash Handler)
+
+系統已於進入點全域註冊 `sys.excepthook` 崩潰攔截器。若程式遭遇未捕獲之重大例外或致命崩潰，系統將第一時間攔截並輸出完整的例外堆疊資訊、發生時間戳記至 `logs/crash.log`。於後續執行問題回報時，崩潰日誌將自動被納入診斷封包中供研發團隊即時定位根因。
+
+---
+
 ## 注意事項
 
 - **熱重載安全機制**：點擊 `「[ EXECUTE_UPDATE ]」` 後，系統會以原子寫入方式更新設定檔，若新設定包含 UMS 變更，系統會在背景非同步啟動模型同步，不中斷既有視訊串流推論。
-- **金鑰安全性**：UMS API Key 為敏感資料，在介面預設為隱藏狀態，輸入完成後請確認儲存。
+- **金鑰安全性**：UMS API Key 為敏感資料，在介面預設為隱藏狀態，輸入完成後請確認儲存。於產生診斷封包時系統亦會自動進行去敏遮蔽，確保資訊安全。
 - **向下相容性**：既有使用單一 `ums_base_url` 或環境變數 `UMS_BASE_URL` 的舊版設定檔皆能向下相容自動升級。
 - **工安合規與 PPE 參數**：有關 `ppe_class_mapping`、`external_states` 與 `compliance_rules` 等進階工安規則參數之詳細設定方式，請參閱 [第 7 章：電子圍籬與 PPE 工安防護規範](./07-ppe-and-compliance-rules.md)。
 

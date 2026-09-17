@@ -22,6 +22,9 @@ from compliance_engine import ComplianceEngine
 import argus_eventlog
 from argus_eventlog import EventWriterService, HeartbeatService, get_event_output_path, parse_camera_id
 import event_producer
+from diagnostic_collector import install_crash_handler
+
+install_crash_handler("logs")
 
 argus_eventlog.writer.DEFAULT_PROG = "SafetyNano"
 
@@ -640,6 +643,13 @@ def main():
         event_writer.stop()
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if "--report-issue" in sys.argv or "-r" in sys.argv:
+        import report_issue
+        cli_args = [arg for arg in sys.argv[1:] if arg not in ("--report-issue", "-r")]
+        sys.exit(report_issue.run_cli(cli_args))
+    else:
+        main()
+
 
 

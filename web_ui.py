@@ -18,6 +18,17 @@ from stats_logger import configure_werkzeug_logger
 import logging
 
 configure_werkzeug_logger(logging.WARNING)
+logger = logging.getLogger("web_ui")
+
+try:
+    import diagnostic_collector
+except ImportError:
+    diagnostic_collector = None
+
+try:
+    import issue_service_client
+except ImportError:
+    issue_service_client = None
 
 try:
     from ums_client import UmsApiClient
@@ -660,6 +671,90 @@ def test_ums_connection():
             "message": f"所有端點皆連線失敗: {err_msg}",
             "endpoints": endpoints_results
         })
+
+@app.route('/api/issue/report', methods=['POST'])
+def report_issue_api():
+    """接收 Web UI 回報問題表單，打包診斷封包並上傳至 API Gateway 與建立 Gitea Issue。"""
+    if diagnostic_collector is None or issue_service_client is None:
+        return jsonify({
+            "status": "error",
+            "message": "診斷回報服務模組 (diagnostic_collector 或 issue_service_client) 未載入。"
+        }), 500
+
+    try:
+        data = request.get_json(force=True, silent=True) or request.form.to_dict() or {}
+
+        raw_title = str(data.get("title") or "").strip()
+        description = str(data.get("description") or "").strip()
+        severity = str(data.get("severity") or "normal").strip().lower()
+        steps = str(data.get("steps") or "").strip()
+
+        if not raw_title:
+            raw_title = "Web UI 使用者回報系統異常"
+
+        severity_labels = {
+            "critical": "緊急 (Critical)",
+            "high": "高 (High)",
+            "normal": "一般 (Normal)",
+            "low": "低 (Low)",
+        }
+        severity_display = severity_labels.get(severity, severity.capitalize())
+
+        title = f"[{severity.upper()}] {raw_title}" if severity in ("critical", "high") else raw_title
+
+        desc_sections = []
+        desc_sections.append(f"**嚴重程度**: {severity_display}\n")
+        desc_sections.append(f"### 問題描述\n{description if description else '(無詳細描述)'}\n")
+        if steps:
+            desc_sections.append(f"### 異常重現步驟\n{steps}\n")
+
+        full_description = "\n".join(desc_sections).strip()
+
+        # 1. 收集診斷封包
+        bundle_info = diagnostic_collector.collect_diagnostic_bundle()
+        zip_path = bundle_info["zip_path"]
+        report_id = bundle_info["report_id"]
+        zip_filename = bundle_info["zip_filename"]
+        sysinfo = bundle_info["sysinfo"]
+
+        # 2. 上傳封包至 API Gateway FileServiceCore
+        client = issue_service_client.IssueServiceClient()
+        upload_result = client.upload_diagnostic_file(
+            zip_path=zip_path,
+            report_id=report_id,
+        )
+        download_url = upload_result["download_url"]
+
+        # 3. 建立 Gitea Issue
+        issue_result = client.create_gitea_issue(
+            title=title,
+            description=full_description,
+            download_url=download_url,
+            sysinfo=sysinfo,
+            report_id=report_id,
+            zip_filename=zip_filename,
+        )
+
+        issue_number = issue_result.get("issue_number")
+        issue_url = issue_result.get("issue_url")
+
+        return jsonify({
+            "status": "ok",
+            "issue_id": issue_number,
+            "issue_number": issue_number,
+            "issue_url": issue_url,
+            "download_url": download_url,
+            "report_id": report_id,
+            "zip_filename": zip_filename,
+            "message": f"問題回報成功！已建立 Issue #{issue_number}"
+        })
+
+    except Exception as e:
+        logger.exception(f"[WebUI] 回報問題失敗: {e}")
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
 
 @app.route('/video_feed')
 def video_feed():

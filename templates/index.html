@@ -698,6 +698,154 @@
         }
         .lv-close-btn:hover { color: var(--danger); }
 
+        /* ===== Report Issue Modal ===== */
+        #report-issue-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 9000;
+            align-items: center;
+            justify-content: center;
+        }
+        #report-issue-overlay.open {
+            display: flex;
+        }
+        #report-issue-modal {
+            width: 85vw;
+            max-width: 760px;
+            max-height: 88vh;
+            background: #050505;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 40px rgba(255, 170, 0, 0.2);
+        }
+        #report-issue-titlebar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem 0.8rem;
+            border-bottom: 1px solid var(--border);
+            background: #0a0a0a;
+            flex-shrink: 0;
+        }
+        #report-issue-titlebar .ri-title {
+            color: var(--warn);
+            font-size: 0.75rem;
+            letter-spacing: 2px;
+            font-weight: bold;
+        }
+        .ri-close-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            font-size: 1.2rem;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0 0.3rem;
+            font-family: inherit;
+        }
+        .ri-close-btn:hover { color: var(--danger); }
+        #report-issue-content {
+            padding: 0.9rem 1.1rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+        .ri-field {
+            margin-bottom: 0.8rem;
+        }
+        .ri-field label {
+            display: block;
+            font-size: 0.72rem;
+            color: var(--text-dim);
+            margin-bottom: 0.3rem;
+            letter-spacing: 0.5px;
+        }
+        .ri-scope-note {
+            font-size: 0.68rem;
+            color: var(--cyan-dim);
+            border: 1px dashed var(--border-cyan);
+            padding: 0.45rem 0.6rem;
+            background: rgba(0, 229, 255, 0.03);
+            line-height: 1.35;
+        }
+        .ri-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.8rem;
+            margin-top: 1rem;
+        }
+        .ri-error-banner {
+            padding: 0.6rem 0.8rem;
+            background: rgba(255, 51, 51, 0.15);
+            border: 1px solid var(--danger);
+            color: var(--danger);
+            font-size: 0.75rem;
+            margin-top: 0.6rem;
+            word-break: break-all;
+        }
+        .ri-success-banner {
+            padding: 0.8rem 1rem;
+            background: rgba(0, 255, 65, 0.1);
+            border: 1px solid var(--text);
+            color: var(--text);
+            font-size: 0.85rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+        }
+        .ri-result-box {
+            border: 1px solid var(--border);
+            background: #0a0a0a;
+            padding: 0.8rem 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+        .ri-result-row {
+            display: flex;
+            align-items: baseline;
+            gap: 0.5rem;
+            font-size: 0.78rem;
+        }
+        .ri-result-label {
+            color: var(--text-dim);
+            min-width: 130px;
+            font-weight: bold;
+        }
+        .ri-result-val {
+            color: var(--text);
+            word-break: break-all;
+        }
+        .ri-link {
+            color: var(--cyan);
+            text-decoration: underline;
+        }
+        .ri-link:hover {
+            color: #fff;
+            text-shadow: 0 0 8px var(--cyan);
+        }
+        .ri-spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid var(--warn);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: ri-spin 0.8s linear infinite;
+        }
+        @keyframes ri-spin {
+            to { transform: rotate(360deg); }
+        }
+        #ri-status-bar {
+            padding: 0.25rem 0.8rem;
+            border-top: 1px dashed var(--border);
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            background: #0a0a0a;
+            flex-shrink: 0;
+        }
+
         /* ===== Global Floating Action Bar (Issue #39) ===== */
         .floating-action-bar {
             position: fixed;
@@ -1080,6 +1228,90 @@
         </div>
     </div>
 
+    <!-- ===== Report Issue Modal ===== -->
+    <div id="report-issue-overlay" onclick="handleReportIssueOverlayClick(event)">
+        <div id="report-issue-modal" role="dialog" aria-modal="true" aria-labelledby="report-issue-heading">
+            <div id="report-issue-titlebar">
+                <span class="ri-title" id="report-issue-heading">◈ ARGUS // 診斷封包與問題回報 (ISSUE REPORTER)</span>
+                <button class="ri-close-btn" onclick="closeReportIssueModal()" title="關閉 (ESC)">✕</button>
+            </div>
+            <div id="report-issue-content">
+                <!-- Form View -->
+                <form id="report-issue-form" onsubmit="submitIssueReport(event)">
+                    <div class="ri-field">
+                        <label for="ri-title-input">問題標題 / 摘要 <span style="color:var(--danger)">*</span></label>
+                        <input type="text" id="ri-title-input" placeholder="例如：RTSP 串流偶發中斷 / 推論延遲過高" required maxlength="120">
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem;">
+                        <div class="ri-field">
+                            <label for="ri-severity-select">嚴重程度</label>
+                            <select id="ri-severity-select">
+                                <option value="normal">一般 (Normal)</option>
+                                <option value="high">高 (High - 功能受損)</option>
+                                <option value="critical">緊急 (Critical - 系統無法運作)</option>
+                                <option value="low">低 (Low - 建議或優化)</option>
+                            </select>
+                        </div>
+                        <div class="ri-field">
+                            <label>診斷封包範圍</label>
+                            <div class="ri-scope-note">自動打包系統與推論日誌、脫敏設定檔、崩潰堆疊與主機規格。</div>
+                        </div>
+                    </div>
+
+                    <div class="ri-field">
+                        <label for="ri-desc-input">問題詳細說明 <span style="color:var(--danger)">*</span></label>
+                        <textarea id="ri-desc-input" rows="4" placeholder="請詳細描述異常現象、出現時間、系統狀態或相關錯誤訊息..." required></textarea>
+                    </div>
+
+                    <div class="ri-field">
+                        <label for="ri-steps-input">異常重現步驟 (選填)</label>
+                        <textarea id="ri-steps-input" rows="2" placeholder="1. 點擊...&#10;2. 觸發...&#10;3. 出現..."></textarea>
+                    </div>
+
+                    <div id="ri-error-msg" class="ri-error-banner" style="display:none;"></div>
+
+                    <div class="ri-actions">
+                        <button type="button" class="btn-exec" style="width:auto; padding: 0.5rem 1.2rem; border-color: var(--border); color: var(--text-dim);" onclick="closeReportIssueModal()">取消</button>
+                        <button type="submit" class="btn-exec" id="ri-submit-btn" style="width:auto; padding: 0.5rem 1.5rem; border-color: var(--warn); color: var(--warn); display: inline-flex; align-items: center; gap: 0.5rem;">
+                            <span id="ri-submit-text">📦 打包並發布至 GITEA</span>
+                            <span id="ri-spinner" class="ri-spinner" style="display:none;"></span>
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Result View (Hidden until success) -->
+                <div id="report-issue-result" style="display:none;">
+                    <div class="ri-success-banner">
+                        ✓ 診斷封包已成功上傳並建立 GITEA ISSUE！
+                    </div>
+                    <div class="ri-result-box">
+                        <div class="ri-result-row">
+                            <span class="ri-result-label">GITEA ISSUE：</span>
+                            <span class="ri-result-val"><a id="ri-res-issue-link" href="#" target="_blank" class="ri-link">#0 (查看 Issue)</a></span>
+                        </div>
+                        <div class="ri-result-row">
+                            <span class="ri-result-label">封包下載連結：</span>
+                            <span class="ri-result-val"><a id="ri-res-download-link" href="#" target="_blank" class="ri-link">點此下載診斷封包 ZIP</a></span>
+                        </div>
+                        <div class="ri-result-row">
+                            <span class="ri-result-label">回報識別碼：</span>
+                            <span class="ri-result-val" id="ri-res-report-id">---</span>
+                        </div>
+                        <div class="ri-result-row">
+                            <span class="ri-result-label">封包檔案：</span>
+                            <span class="ri-result-val" id="ri-res-filename">---</span>
+                        </div>
+                    </div>
+                    <div class="ri-actions" style="margin-top: 1.2rem; justify-content: flex-end;">
+                        <button type="button" class="btn-exec" style="width:auto; padding: 0.5rem 1.5rem;" onclick="closeReportIssueModal()">完成關閉</button>
+                    </div>
+                </div>
+            </div>
+            <div id="ri-status-bar">--- 就緒 ---</div>
+        </div>
+    </div>
+
     <div class="top-container">
         <header class="sys-header">
             <div style="display: flex; align-items: center;">
@@ -1089,6 +1321,7 @@
             <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
                 <a href="/manual/" target="_blank" class="btn-exec" style="text-decoration:none; margin:0; width:auto; padding: 0.4rem 0.8rem; font-size:0.75rem; display:inline-flex; align-items:center;">📖 使用手冊</a>
                 <button type="button" class="btn-exec" id="log-viewer-btn" style="margin:0; width:auto; padding: 0.4rem 0.8rem; font-size:0.75rem;" onclick="openLogViewer()">[ 日誌檢視 LOGS ]</button>
+                <button type="button" class="btn-exec" id="report-issue-btn" style="margin:0; width:auto; padding: 0.4rem 0.8rem; font-size:0.75rem; border-color: var(--warn); color: var(--warn);" onclick="openReportIssueModal()">[ 回報問題 REPORT ]</button>
                 <button type="button" class="btn-exec" style="margin:0; width:auto; padding: 0.4rem 0.8rem; font-size:0.75rem;" onclick="document.getElementById('sys-core').classList.toggle('hide-config')">切換面板</button>
             </div>
         </header>
@@ -3598,9 +3831,13 @@
 
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
-                const overlay = document.getElementById('log-viewer-overlay');
-                if (overlay.classList.contains('open')) {
+                const logOverlay = document.getElementById('log-viewer-overlay');
+                if (logOverlay && logOverlay.classList.contains('open')) {
                     closeLogViewer();
+                }
+                const issueOverlay = document.getElementById('report-issue-overlay');
+                if (issueOverlay && issueOverlay.classList.contains('open')) {
+                    closeReportIssueModal();
                 }
             }
         });
@@ -3644,6 +3881,129 @@
             }).catch(() => {
                 btn.textContent = '✗ 失敗';
                 setTimeout(() => { btn.textContent = '⎘ 複製'; }, 1500);
+            });
+        }
+
+        // ===== Issue Reporter Modal =====
+        function openReportIssueModal() {
+            const overlay = document.getElementById('report-issue-overlay');
+            const form = document.getElementById('report-issue-form');
+            const resultView = document.getElementById('report-issue-result');
+            const errBanner = document.getElementById('ri-error-msg');
+            const statusBar = document.getElementById('ri-status-bar');
+            const submitBtn = document.getElementById('ri-submit-btn');
+            const submitText = document.getElementById('ri-submit-text');
+            const spinner = document.getElementById('ri-spinner');
+
+            form.reset();
+            form.style.display = 'block';
+            resultView.style.display = 'none';
+            errBanner.style.display = 'none';
+            errBanner.textContent = '';
+            submitBtn.disabled = false;
+            submitText.textContent = '📦 打包並發布至 GITEA';
+            spinner.style.display = 'none';
+            statusBar.textContent = '--- 就緒 ---';
+
+            overlay.classList.add('open');
+            setTimeout(() => {
+                const titleInput = document.getElementById('ri-title-input');
+                if (titleInput) titleInput.focus();
+            }, 50);
+        }
+
+        function closeReportIssueModal() {
+            const overlay = document.getElementById('report-issue-overlay');
+            if (overlay) {
+                overlay.classList.remove('open');
+            }
+        }
+
+        function handleReportIssueOverlayClick(event) {
+            if (event.target === document.getElementById('report-issue-overlay')) {
+                closeReportIssueModal();
+            }
+        }
+
+        function submitIssueReport(event) {
+            event.preventDefault();
+
+            const title = document.getElementById('ri-title-input').value.trim();
+            const severity = document.getElementById('ri-severity-select').value;
+            const description = document.getElementById('ri-desc-input').value.trim();
+            const steps = document.getElementById('ri-steps-input').value.trim();
+
+            const submitBtn = document.getElementById('ri-submit-btn');
+            const submitText = document.getElementById('ri-submit-text');
+            const spinner = document.getElementById('ri-spinner');
+            const errBanner = document.getElementById('ri-error-msg');
+            const statusBar = document.getElementById('ri-status-bar');
+            const form = document.getElementById('report-issue-form');
+            const resultView = document.getElementById('report-issue-result');
+
+            // 進入 Loading 狀態
+            submitBtn.disabled = true;
+            submitText.textContent = '正在打包日誌與上傳至 Gateway...';
+            spinner.style.display = 'inline-block';
+            errBanner.style.display = 'none';
+            errBanner.textContent = '';
+            statusBar.textContent = '處理中：收集日誌與系統資訊...';
+
+            fetch('/api/issue/report', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    title: title,
+                    severity: severity,
+                    description: description,
+                    steps: steps
+                })
+            })
+            .then(async response => {
+                const data = await response.json().catch(() => ({ status: 'error', message: '解析伺服器回應失敗' }));
+                if (!response.ok && data.status !== 'error') {
+                    data.status = 'error';
+                }
+                return data;
+            })
+            .then(data => {
+                if (data.status === 'ok') {
+                    // 成功畫面切換
+                    form.style.display = 'none';
+                    resultView.style.display = 'block';
+
+                    const issueLink = document.getElementById('ri-res-issue-link');
+                    issueLink.href = data.issue_url || '#';
+                    issueLink.textContent = `#${data.issue_number || data.issue_id} (查看 Gitea Issue)`;
+
+                    const downloadLink = document.getElementById('ri-res-download-link');
+                    downloadLink.href = data.download_url || '#';
+                    downloadLink.textContent = data.zip_filename ? `下載 ${data.zip_filename}` : '下載診斷封包 ZIP';
+
+                    document.getElementById('ri-res-report-id').textContent = data.report_id || '---';
+                    document.getElementById('ri-res-filename').textContent = data.zip_filename || '---';
+
+                    statusBar.textContent = `回報完成 | Issue #${data.issue_number || data.issue_id} 已建立 (${new Date().toLocaleTimeString()})`;
+                } else {
+                    // 錯誤狀態處理
+                    errBanner.textContent = `回報失敗: ${data.message || '未知錯誤'}`;
+                    errBanner.style.display = 'block';
+                    submitBtn.disabled = false;
+                    submitText.textContent = '📦 重試打包並發布至 GITEA';
+                    spinner.style.display = 'none';
+                    statusBar.textContent = '回報失敗，請檢視錯誤訊息或使用離線 CLI 工具。';
+                }
+            })
+            .catch(err => {
+                errBanner.textContent = `網路連線異常: ${err.message || err}`;
+                errBanner.style.display = 'block';
+                submitBtn.disabled = false;
+                submitText.textContent = '📦 重試打包並發布至 GITEA';
+                spinner.style.display = 'none';
+                statusBar.textContent = '連線失敗，請檢視錯誤訊息或使用離線 CLI 工具。';
             });
         }
     </script>

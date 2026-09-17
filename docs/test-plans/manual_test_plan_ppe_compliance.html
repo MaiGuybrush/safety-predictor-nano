@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>手動測試計畫與驗收規範書 - PPE 防護與工安合規規則引擎 (Commit 71dbd13)</title>
+    <style>
+        :root {
+            --primary: #1e3a8a;
+            --primary-light: #3b82f6;
+            --success: #16a34a;
+            --warning: #d97706;
+            --danger: #dc2626;
+            --dark: #0f172a;
+            --gray-50: #f8fafc;
+            --gray-100: #f1f5f9;
+            --gray-200: #e2e8f0;
+            --gray-300: #cbd5e1;
+            --gray-700: #334155;
+            --gray-900: #0f172a;
+            --border: #cbd5e1;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans TC", sans-serif;
+            color: var(--gray-900);
+            background-color: #f8fafc;
+            line-height: 1.6;
+            padding: 24px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #ffffff;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+        }
+
+        /* 標題與文件資訊 */
+        .doc-header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%);
+            color: #ffffff;
+            padding: 32px;
+            border-bottom: 3px solid #3b82f6;
+        }
+
+        .doc-header h1 {
+            font-size: 26px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .doc-header .subtitle {
+            font-size: 15px;
+            color: #93c5fd;
+            margin-bottom: 20px;
+        }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.08);
+            padding: 16px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .meta-item strong {
+            color: #cbd5e1;
+            display: inline-block;
+            width: 90px;
+        }
+
+        .meta-item span {
+            color: #ffffff;
+            font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+        }
+
+        /* 簽核與審查區塊 */
+        .signoff-section {
+            padding: 20px 32px;
+            background-color: #f8fafc;
+            border-bottom: 1px solid var(--gray-200);
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+        }
+
+        .signoff-box {
+            background: #ffffff;
+            border: 1px solid var(--gray-200);
+            border-radius: 6px;
+            padding: 12px 16px;
+        }
+
+        .signoff-box h4 {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--gray-700);
+            margin-bottom: 6px;
+        }
+
+        .signoff-line {
+            height: 28px;
+            border-bottom: 1px dashed var(--gray-300);
+            margin-top: 4px;
+        }
+
+        /* 主內容排版 */
+        .doc-body {
+            padding: 32px;
+        }
+
+        h2.section-title {
+            font-size: 20px;
+            color: var(--primary);
+            border-left: 5px solid var(--primary);
+            padding-left: 12px;
+            margin: 32px 0 16px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        h2.section-title:first-of-type {
+            margin-top: 0;
+        }
+
+        p, ul, ol {
+            font-size: 14px;
+            color: var(--gray-700);
+            margin-bottom: 12px;
+        }
+
+        ul, ol {
+            padding-left: 24px;
+        }
+
+        li {
+            margin-bottom: 6px;
+        }
+
+        /* 標籤 Badge */
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            font-size: 11px;
+            font-weight: 600;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+        .badge-p0 { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+        .badge-p1 { background: #fef3c7; color: #b45309; border: 1px solid #fcd34d; }
+        .badge-p2 { background: #e0e7ff; color: #3730a3; border: 1px solid #c7d2fe; }
+        .badge-edge { background: #ede9fe; color: #6d28d9; border: 1px solid #ddd6fe; }
+        .badge-ui { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+
+        /* 程式碼與指令框 */
+        pre, code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        code {
+            background-color: var(--gray-100);
+            color: #b91c1c;
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        pre {
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 14px 18px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 12.5px;
+            line-height: 1.5;
+            margin-bottom: 16px;
+            border: 1px solid #1e293b;
+        }
+
+        pre .comment { color: #64748b; font-style: italic; }
+        pre .keyword { color: #38bdf8; font-weight: 600; }
+        pre .string { color: #4ade80; }
+        pre .cmd { color: #facc15; }
+
+        /* 表格排版 */
+        table.test-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 24px;
+            font-size: 13px;
+            page-break-inside: avoid;
+        }
+
+        table.test-table th, table.test-table td {
+            border: 1px solid var(--border);
+            padding: 10px 12px;
+            vertical-align: top;
+        }
+
+        table.test-table th {
+            background-color: #f1f5f9;
+            color: var(--gray-900);
+            font-weight: 600;
+            text-align: left;
+        }
+
+        table.test-table tr:hover {
+            background-color: #f8fafc;
+        }
+
+        .col-id { width: 95px; font-weight: 600; }
+        .col-priority { width: 65px; text-align: center; }
+        .col-title { width: 180px; font-weight: 600; }
+        .col-pre { width: 220px; }
+        .col-steps { width: 260px; }
+        .col-expected { width: 240px; }
+        .col-status { width: 100px; text-align: center; }
+
+        .checkbox-group {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .checkbox-group label {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+
+        /* 警示與提示卡片 */
+        .callout {
+            border-left: 4px solid var(--primary-light);
+            background-color: #eff6ff;
+            padding: 12px 16px;
+            border-radius: 0 6px 6px 0;
+            margin-bottom: 18px;
+            font-size: 13.5px;
+        }
+
+        .callout.warning {
+            border-left-color: var(--warning);
+            background-color: #fffbeb;
+        }
+
+        .callout.success {
+            border-left-color: var(--success);
+            background-color: #f0fdf4;
+        }
+
+        .callout strong {
+            display: block;
+            margin-bottom: 4px;
+            color: var(--gray-900);
+        }
+
+        /* 列印最適化樣式 (Print friendly) */
+        @media print {
+            body {
+                background: #ffffff;
+                padding: 0;
+                color: #000000;
+            }
+
+            .container {
+                border: none;
+                box-shadow: none;
+                max-width: 100%;
+            }
+
+            .doc-header {
+                background: #ffffff !important;
+                color: #000000 !important;
+                border-bottom: 2px solid #000000;
+                padding: 16px 0;
+            }
+
+            .doc-header h1 {
+                color: #000000;
+            }
+
+            .doc-header .subtitle {
+                color: #4b5563;
+            }
+
+            .meta-grid {
+                background: #ffffff;
+                border: 1px solid #d1d5db;
+            }
+
+            .meta-item strong {
+                color: #374151;
+            }
+
+            .meta-item span {
+                color: #000000;
+            }
+
+            pre {
+                background: #f3f4f6 !important;
+                color: #111827 !important;
+                border: 1px solid #d1d5db;
+                white-space: pre-wrap;
+            }
+
+            pre .comment { color: #4b5563; }
+            pre .keyword { color: #1e3a8a; }
+            pre .string { color: #065f46; }
+            pre .cmd { color: #92400e; }
+
+            table.test-table {
+                page-break-inside: auto;
+            }
+
+            tr {
+                page-break-inside: avoid;
+                page-break-after: auto;
+            }
+
+            thead {
+                display: table-header-group;
+            }
+
+            .badge {
+                border: 1px solid #9ca3af;
+                background: #ffffff !important;
+                color: #000000 !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- 文件標頭 -->
+    <header class="doc-header">
+        <h1>Argus Safety Predictor Nano - 手動測試計畫與驗收規範書</h1>
+        <div class="subtitle">人員裝備防護 (PPE) 檢測、條件式工安合規規則引擎、外部狀態同步與 Web UI 視覺化驗收</div>
+        
+        <div class="meta-grid">
+            <div class="meta-item"><strong>目標 Commit:</strong> <span>71dbd1347e3fa82e455cba9a251892d5138244af</span></div>
+            <div class="meta-item"><strong>分支/標籤:</strong> <span>feature/ppe-compliance-engine</span></div>
+            <div class="meta-item"><strong>文件編號:</strong> <span>MTP-ARGUS-PPE-20260909</span></div>
+            <div class="meta-item"><strong>測試環境:</strong> <span>混合環境 (PC 模擬串流/Mock API + Pi 5 實機)</span></div>
+            <div class="meta-item"><strong>文件版本:</strong> <span>1.0.0 (Release-Ready)</span></div>
+            <div class="meta-item"><strong>建立日期:</strong> <span>2026-09-09</span></div>
+        </div>
+    </header>
+
+    <!-- 驗收簽核與執行結果摘要 -->
+    <section class="signoff-section">
+        <div class="signoff-box">
+            <h4>測試執行人員 (Tester)</h4>
+            <div style="font-size: 13px; color: var(--gray-700);">簽名與日期：</div>
+            <div class="signoff-line"></div>
+        </div>
+        <div class="signoff-box">
+            <h4>工安/品保審查主管 (QA Lead)</h4>
+            <div style="font-size: 13px; color: var(--gray-700);">審查確認與日期：</div>
+            <div class="signoff-line"></div>
+        </div>
+        <div class="signoff-box">
+            <h4>驗收判定 (Overall Verdict)</h4>
+            <div class="checkbox-group" style="margin-top: 8px;">
+                <label><input type="checkbox"> [ PASS ] 合格核准</label>
+                <label><input type="checkbox"> [ CONDITIONAL ] 條件通過</label>
+                <label><input type="checkbox"> [ FAIL ] 駁回修正</label>
+            </div>
+        </div>
+    </section>
+
+    <!-- 文件本文 -->
+    <main class="doc-body">
+        
+        <!-- 1. 測試目標與範疇 -->
+        <h2 class="section-title">1. 測試目標與範圍說明</h2>
+        <p>本手動測試計畫專門針對 Git Commit <code>71dbd1347e3fa82e455cba9a251892d5138244af</code> 所引入之完整工安功能進行驗收。涵蓋的核心功能包含：</p>
+        <ul>
+            <li><strong>配置架構與熱載入 (Config Hot-Reload)</strong>：支援 <code>ppe_class_mapping</code>、<code>external_states</code> 與 <code>compliance_rules</code> 宣告式矩陣，檔案異動即刻熱生效。</li>
+            <li><strong>外部設備狀態雙軌同步 (Dual-Track State Sync)</strong>：包含背景 HTTP GET 輪詢（支援 JSON 點路徑解析與斷網降級）與 <code>POST /api/external_state</code> Webhook 主動推送。</li>
+            <li><strong>PPE 雙模防護裝備比對演算法</strong>：直接負類別判定 (<code>direct_negative</code>) 與頭部錨點寬鬆空間包含比對 (<code>head_anchor</code>)，特別驗證人員彎腰或蹲下作業抗誤報能力。</li>
+            <li><strong>條件式工安合規引擎 (Compliance Rule Engine)</strong>：依外部狀態（如 <code>MAINTENANCE</code>）、區域與物件，驗證 <code>require_any</code>（如三角錐/護欄阻隔）、<code>require_all</code>、<code>require_ppe</code>。</li>
+            <li><strong>Web UI 畫布即時視覺回饋</strong>：全螢幕綠框（合規人員/阻隔物）、亮紅框與違規標籤（違規人員）、阻隔物缺失橫幅（Missing Barriers Banner）與警戒區動態 Badge。</li>
+            <li><strong>事件日誌與快照留存 (EventLog & Snapshot)</strong>：違規觸發 <code>EventStart</code> 與 <code>.jpg</code> 快照寫入，違規解除自動拋出 <code>EventEnd</code>。</li>
+            <li><strong>邊緣硬體實機驗收 (Raspberry Pi 5)</strong>：二進位部署、推論幀率（2~5 FPS）與長時運行資源消耗驗證。</li>
+        </ul>
+
+        <!-- 2. 測試前置準備與 Mock 工具 -->
+        <h2 class="section-title">2. 測試前置準備與即用型輔助工具</h2>
+        <div class="callout">
+            <strong>測試執行模式說明：</strong>
+            優先於 PC 開發環境搭配 Mock MES API、PowerShell 指令與本機測試視訊完成邏輯與 UI 驗收；通過後部署至 Raspberry Pi 5 邊緣機執行實機功能與幀率審核。
+        </div>
+
+        <h3 style="font-size: 15px; margin: 16px 0 8px 0; color: var(--primary);">2.1 快速啟動輕量 Mock MES API 服務 (Python 內建)</h3>
+        <p>外部狀態輪詢功能需要一個 REST API 回應 JSON 格式的設備狀態。於終端機執行以下單行指令即可啟動 Mock API 伺服器（監聽 <code>8081</code> 埠）：</p>
+        <pre><span class="comment"># 建立 mock_mes.py 並啟動在 8081 埠 (PowerShell / CMD 皆適用)</span>
+<span class="cmd">python -c "
+import http.server, json
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        response = {'data': {'equipment': {'status': 'MAINTENANCE'}}, 'code': 0}
+        self.wfile.write(json.dumps(response).encode('utf-8'))
+http.server.HTTPServer(('127.0.0.1', 8081), Handler).serve_forever()
+"</span></pre>
+
+        <h3 style="font-size: 15px; margin: 16px 0 8px 0; color: var(--primary);">2.2 Webhook 狀態推送指令範例 (PowerShell / cURL)</h3>
+        <p>測試人員可透過以下指令，主動模擬 MES / SCADA 發送 Webhook 覆寫機台狀態：</p>
+        <pre><span class="comment"># 方式 A：Windows PowerShell (Invoke-RestMethod)</span>
+<span class="cmd">Invoke-RestMethod -Uri "http://127.0.0.1:8188/api/external_state" -Method Post `
+  -ContentType "application/json" `
+  -Body '{"source": "stocker_01", "status": "MAINTENANCE", "ttl_seconds": 60}'</span>
+
+<span class="comment"># 方式 B：cURL (Linux / macOS / Git Bash)</span>
+<span class="cmd">curl -X POST http://127.0.0.1:8188/api/external_state \
+  -H "Content-Type: application/json" \
+  -d '{"source": "stocker_01", "status": "MAINTENANCE", "ttl_seconds": 60}'</span></pre>
+
+        <h3 style="font-size: 15px; margin: 16px 0 8px 0; color: var(--primary);">2.3 驗收專用 config.yaml 完整參考範例</h3>
+        <pre><span class="keyword">ppe_class_mapping:</span>
+  person: "person"
+  head: "head"
+  helmet: "helmet"
+  no_helmet: "no_helmet"
+  vest: "vest"
+  no_vest: "no_vest"
+  cone: "cone"
+  guardrail: "guardrail"
+
+<span class="keyword">external_states:</span>
+  stocker_01:
+    url: "http://127.0.0.1:8081/api/v1/equipment/status"
+    method: "GET"
+    interval_seconds: 5
+    json_path: "data.equipment.status"
+    timeout_seconds: 2
+    fallback_value: "UNKNOWN"
+
+<span class="keyword">compliance_rules:</span>
+  - id: "maintenance_barrier_rule"
+    name: "機台維護阻隔防護規範"
+    enabled: true
+    when:
+      external_state:
+        stocker_01: "MAINTENANCE"
+      zone: "維護警戒區"
+      detected: ["person"]
+    require_any:
+      - "cone"
+      - "guardrail"
+    require_ppe:
+      - "helmet"
+      - "vest"
+    on_violation:
+      severity: "HIGH"
+      category: "safety_barrier_missing"
+
+<span class="keyword">streams:</span>
+  - url: "rtsp://127.0.0.1:8554/cam1" <span class="comment"># 或測試影片本機路徑</span>
+    label: "Stocker02"
+    zone:
+      zone_name: "維護警戒區"
+      polygon: [[0.15, 0.20], [0.85, 0.20], [0.85, 0.85], [0.15, 0.85]]
+      trigger_mode: "center"
+      ppe_strategy: "head_anchor"
+      required_ppe: ["helmet", "vest"]</pre>
+
+        <!-- 3. 詳細測試案例矩陣 -->
+        <h2 class="section-title">3. 詳細測試案例矩陣 (Test Case Specifications)</h2>
+
+        <!-- Module 1: Configuration & Hot Reload -->
+        <h3 style="font-size: 15px; margin: 20px 0 8px 0; color: var(--gray-900);">模組 A：配置定義與即時熱載入驗證 (Configuration & Hot Reload)</h3>
+        <table class="test-table">
+            <thead>
+                <tr>
+                    <th class="col-id">案例編號</th>
+                    <th class="col-priority">優先級</th>
+                    <th class="col-title">測試項目</th>
+                    <th class="col-pre">前置條件</th>
+                    <th class="col-steps">執行步驟</th>
+                    <th class="col-expected">預期結果</th>
+                    <th class="col-status">測試結果</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="col-id">TC-CFG-01</td>
+                    <td class="col-priority"><span class="badge badge-p0">P0</span></td>
+                    <td class="col-title">自訂 PPE 類別名稱映射與熱載入</td>
+                    <td class="col-pre">
+                        1. 系統運行中。<br>
+                        2. 終端觀察即時日誌。
+                    </td>
+                    <td class="col-steps">
+                        1. 開啟 <code>config.yaml</code>。<br>
+                        2. 修改 <code>ppe_class_mapping</code> 將 <code>helmet</code> 映射為 <code>hard_hat</code>。<br>
+                        3. 儲存檔案。<br>
+                        4. 觀察終端機日誌。
+                    </td>
+                    <td class="col-expected">
+                        1. 系統偵測到檔案變更，輸出熱重載日誌。<br>
+                        2. <code>ComplianceEngine</code> 成功載入新映射表。<br>
+                        3. 程式不崩潰且推論無間斷。
+                    </td>
+                    <td class="col-status">
+                        <div class="checkbox-group">
+                            <label><input type="checkbox"> P</label>
+                            <label><input type="checkbox"> F</label>
+                            <label><input type="checkbox"> B</label>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="col-id">TC-CFG-02</td>
+                    <td class="col-priority"><span class="badge badge-p1">P1</span></td>
+                    <td class="col-title">配置格式錯誤防護 (Fault-Tolerant Reload)</td>
+                    <td class="col-pre">系統正常運行中。</td>
+                    <td class="col-steps">
+                        1. 故意破壞 <code>config.yaml</code> 語法（例如產生無效的縮排或標點）。<br>
+                        2. 儲存檔案。<br>
+                        3. 觀察系統反應。
+                    </td>
+                    <td class="col-expected">
+                        1. 系統捕獲 YAML 解析異常並印出 Warning。<br>
+                        2. 引擎維持原有正確配置繼續運行，不崩潰退出現程。
+                    </td>
+                    <td class="col-status">
+                        <div class="checkbox-group">
+                            <label><input type="checkbox"> P</label>
+                            <label><input type="checkbox"> F</label>
+                            <label><input type="checkbox"> B</label>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Module 2: State Poller & Webhook -->
+        <h3 style="font-size: 15px; margin: 20px 0 8px 0; color: var(--gray-900);">模組 B：外部狀態雙軌同步與異常降級 (External State Poller & Webhook)</h3>
+        <table class="test-table">
+            <thead>
+                <tr>
+                    <th class="col-id">案例編號</th>
+                    <th class="col-priority">優先級</th>
+                    <th class="col-title">測試項目</th>
+                    <th class="col-pre">前置條件</th>
+                    <th class="col-steps">執行步驟</th>
+                    <th class="col-expected">預期結果</th>
+                    <th class="col-status">測試結果</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="col-id">TC-STA-01</td>
+                    <td class="col-priority"><span class="badge badge-p0">P0</span></td>
+                    <td class="col-title">背景 HTTP 輪詢與 JSON 點路徑解析</td>
+                    <td class="col-pre">啟動 2.1 節之 Mock MES API (8081 埠)。</td>
+                    <td class="col-steps">
+                        1. 配置 <code>external_states</code> 指向 8081 埠。<br>
+                        2. 設定 <code>json_path: "data.equipment.status"</code>。<br>
+                        3. 透過瀏覽器或 curl 請求 <code>GET /api/compliance_status</code>。
+                    </td>
+                    <td class="col-expected">
+                        1. API 回傳 <code>"external_states": {"stocker_01": "MAINTENANCE"}</code>。<br>
+                        2. 輪詢背景執行緒每隔 5 秒正常拉取，無連線異常錯誤。
+                    </td>
+                    <td class="col-status">
+                        <div class="checkbox-group">
+                            <label><input type="checkbox"> P</label>
+                            <label><input type="checkbox"> F</label>
+                            <label><input type="checkbox"> B</label>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="col-id">TC-STA-02</td>
+                    <td class="col-priority"><span class="badge badge-p0">P0</span></td>
+                    <td class="col-title">Webhook 主動推送與 TTL 過期驗證</td>
+                    <td class="col-pre">系統正常運行中。</td>
+                    <td class="col-steps">
+                        1. 發送 <code>POST /api/external_state</code>，內容：<code>{"source": "stocker_01", "status": "RUNNING", "ttl_seconds": 10}</code>。<br>
+                        2. 立即檢查 <code>GET /api/compliance_status</code>。<br>
+                        3. 等候 11 秒後再次檢查狀態。
+                    </td>
+                    <td class="col-expected">
+                        1. POST 回傳 HTTP 200 且 status 為 "ok"。<br>
+                        2. 步驟 2 查詢之狀態即刻變更為 "RUNNING"。<br>
+                        3. 步驟 3 過期後狀態清除或自動回到 Poller 輪詢值。
+                    </td>
+                    <td class="col-status">
+                        <div class="checkbox-group">
+                            <label><input type="checkbox"> P</label>
+                            <label><input type="checkbox"> F</label>
+                            <label><input type="checkbox"> B</label>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="col-id">TC-STA-03</td>
+                    <td class="col-priority"><span class="badge badge-p1">P1</span></td>
+                    <td class="col-title">外部服務中斷與 Fallback 平滑降級</td>
+                    <td class="col-pre">Mock MES API 正常提供狀態中。</td>
+                    <td class="col-steps">
+                        1. 強制關閉 Mock MES API 伺服器進程。<br>
+                        2. 等候輪詢間隔與逾時 (約 5~7 秒)。<br>
+                        3. 呼叫 <code>GET /api/compliance_status</code> 檢查狀態值。
+                    </td>
+                    <td class="col-expected">
+                        1. 系統日誌記錄連線失敗警告。<br>
+                        2. <code>stocker_01</code> 狀態自動平滑降級為預設值 <code>UNKNOWN</code>。<br>
+                        3. 引擎不拋出未捕獲例外，主迴圈推論正常運行。
+                    </td>
+                    <td class="col-status">
+                        <div class="checkbox-group">
+                            <label><input type="checkbox"> P</label>
+                            <label><input type="checkbox"> F</label>
+                            <label><input type="checkbox"> B</label>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Module 3: PPE Detection Strategies -->
+        <h3 style="font-size: 15px; margin: 20px 0 8px 0; color: var(--gray-900);">模組 C：PPE 雙模檢測與抗誤報演算法 (PPE Detection & Anti-False-Positive)</h3>
+        <table class="test-table">
+            <thead>
+                <tr>
+                    <th class="col-id">案例編號</th>
+                    <th class="col-priority">優先級</th>
+                    <th class="col-title">測試項目</th>
+                    <th class="col-pre">前置條件</th>
+                    <th class="col-steps">執行步驟</th>
+                    <th class="col-expected">預期結果</th>
+                    <th class="col-status">測試結果</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="col-id">TC-PPE-01</td>
+                    <td class="col-priority"><span class="badge badge-p0">P0</span></td>
+                    <td class="col-title">直接負類別模式 (direct_negative)</td>
+                    <td class="col-pre">設定 Zone <code>ppe_strategy: direct_negative</code>，<code>required_ppe: ["helmet"]</code>。</td>
+                    <td class="col-steps">
+                        1. 測試人員配戴安全帽進入警戒區。<br>
+                        2. 測試人員脫下安全帽（露出 <code>no_helmet</code> 標籤）。
+                    </td>
+                    <td class="col-expected">
+                        1. 戴帽時：判定合規，人員標籤為 <code>[合規] person</code>。<br>
+                        2. 脫帽時：立即判定違規，人員標籤為 <code>[違規: missing_helmet] person</code>，邊框呈亮紅色。
+                    </td>
+                    <td class="col-status">
+                        <div class="checkbox-group">
+                            <label><input type="checkbox"> P</label>
+                            <label><input type="checkbox"> F</label>
+                            <label><input type="checkbox"> B</label>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="col-id">TC-PPE-02</td>
+                    <td class="col-priority"><span class="badge badge-p0">P0</span></td>
+                    <td class="col-title">頭部錨點比對模式 (head_anchor)</td>
+                    <td class="col-pre">設定 Zone <code>ppe_strategy: head_anchor</code>。</td>
+                    <td class="col-steps">
+                        1. 測試人員戴安全帽，正向進入區域（模型檢測出 <code>head</code> 與 <code>helmet</code>，交集 IoU ≥ 0.15）。<br>
+                        2. 觀察 UI 畫布框線與狀態。
+                    </td>
+                    <td class="col-expected">
+                        1. 頭部與安全帽空間幾何高度重疊。<br>
+                        2. 判定人員合規 (<code>is_compliant: True</code>)，無誤告警產生。
+                    </td>
+                    <td class="col-status">
+                        <div class="checkbox-group">
+                            <label><input type="checkbox"> P</label>
+                            <label><input type="checkbox"> F</label>
+                            <label><input type="checkbox"> B</label>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="col-id">TC-PPE-03</td>
+                    <td class="col-priority"><span class="badge badge-p0">P0</span></td>
+                    <td class="col-title">人員彎腰/蹲下作業抗誤報驗證 (Loose Box Containment)</td>
+                    <td class="col-pre">設定 Zone <code>ppe_strategy: head_anchor</code>。</td>
+                    <td class="col-steps">
+                        1. 測試人員戴安全帽進入警戒區。<br>
+                        2. 模擬現場設備檢修姿勢：大幅彎腰（人體與頭部外觀形變）、蹲下或背向攝影機作業。<br>
+                        3. 保持作業姿勢持續 15 秒。
+                    </td>
+                    <td class="col-expected">
+                        1. 寬鬆空間包含度比對（Containment ≥ 0.4）持續生效。<br>
+                        2. 系統正確將安全帽關聯至人體。<br>
+                        3. <strong>全程維持合規綠框，絕不因彎腰或蹲下產生未戴安全帽之工安誤報</strong>。
+                    </td>
+                    <td class="col-status">
+                        <div class="checkbox-group">
+                            <label><input type="checkbox"> P</label>
+                            <label><input type="checkbox"> F</label>
+                            <label><input type="checkbox"> B</label>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Module 4: Conditional Compliance Rules -->
+        <h3 style="font-size: 15px; margin: 20px 0 8px 0; color: var(--gray-900);">模組 D：條件式工安合規規則矩陣評估 (Conditional Compliance Rule Engine)</h3>
+        <table class="test-table">
+            <thead>
+                <tr>
+                    <th class="col-id">案例編號</th>
+                    <th class="col-priority">優先級</th>
+                    <th class="col-title">測試項目</th>
+                    <th class="col-pre">前置條件</th>
+                    <th class="col-steps">執行步驟</th>
+                    <th class="col-expected">預期結果</th>
+                    <th class="col-status">測試結果</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="col-id">TC-RUL-01</td>
+                    <td class="col-priority"><span class="badge badge-p0">P0</span></td>
+                    <td class="col-title">機台維護狀態與阻隔物缺失檢驗 (require_any)</td>
+                    <td class="col-pre">
+                        1. 機台狀態設定為 <code>MAINTENANCE</code>。<br>
+                        2. 規則配置 <code>require_any: ["cone", "guardrail"]</code>。<br>
+                        3. 現場未放置任何三角錐或護欄。
+                    </td>
+                    <td class="col-steps">
+                        1. 作業人員穿戴合格 PPE 進入「維護警戒區」。<br>
+                        2. 觀察畫布即時渲染與警示。<br>
+                        3. 隨後於現場放置三角錐 (<code>cone</code>)。
+                    </td>
+                    <td class="col-expected">
+                        1. 步驟 1：觸發 <code>safety_barrier_missing</code> 違規，頂部顯示醒目橫幅 <code>[ 警告: 缺失安全阻隔物 (cone, guardrail) ]</code>。<br>
+                        2. 步驟 3：偵測到三角錐後，阻隔物缺失警告即刻解除。
+                    </td>
+                    <td class="col-status">
+                        <div class="checkbox-group">
+                            <label><input type="checkbox"> P</label>
+                            <label><input type="checkbox"> F</label>
+                            <label><input type="checkbox"> B</label>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="col-id">TC-RUL-02</td>
+                    <td class="col-priority"><span class="badge badge-p0">P0</span></td>
+                    <td class="col-title">設備非維護狀態時豁免阻隔物檢驗</td>
+                    <td class="col-pre">透過 Webhook 將 <code>stocker_01</code> 設為 <code>RUNNING</code>。</td>
+                    <td class="col-steps">
+                        1. 現場無三角錐與護欄。<br>
+                        2. 作業人員穿戴合格 PPE 進入區域。
+                    </td>
+                    <td class="col-expected">
+                        1. <code>when.external_state</code> 條件不滿足，規則不啟用。<br>
+                        2. 畫布不跳出缺失阻隔物警告。
+                    </td>
+                    <td class="col-status">
+                        <div class="checkbox-group">
+                            <label><input type="checkbox"> P</label>
+                            <label><input type="checkbox"> F</label>
+                            <label><input type="checkbox"> B</label>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="col-id">TC-RUL-03</td>
+                    <td class="col-priority"><span class="badge badge-p1">P1</span></td>
+                    <td class="col-title">多條件複合需求檢驗 (require_ppe + require_all)</td>
+                    <td class="col-pre">規則設定 <code>require_ppe: ["helmet", "vest"]</code>。</td>
+                    <td class="col-steps">
+                        1. 外部狀態符合維護中。<br>
+                        2. 人員進入區域，僅配戴安全帽，未穿反光背心。
+                    </td>
+                    <td class="col-expected">
+                        1. 規則引擎生成 <code>missing_vest</code> 違規事件。<br>
+                        2. 人員標註紅色違規邊框。
+                    </td>
+                    <td class="col-status">
+                        <div class="checkbox-group">
+                            <label><input type="checkbox"> P</label>
+                            <label><input type="checkbox"> F</label>
+                            <label><input type="checkbox"> B</label>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Module 5: Web UI Visual Feedback -->
+        <h3 style="font-size: 15px; margin: 20px 0 8px 0; color: var(--gray-900);">模組 E：Web UI 畫布即時視覺回饋與互動 (Web UI Visual Feedback)</h3>
+        <table class="test-table">
+            <thead>
+                <tr>
+                    <th class="col-id">案例編號</th>
+                    <th class="col-priority">優先級</th>
+                    <th class="col-title">測試項目</th>
+                    <th class="col-pre">前置條件</th>
+                    <th class="col-steps">執行步驟</th>
+                    <th class="col-expected">預期結果</th>
+                    <th class="col-status">測試結果</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="col-id">TC-UI-01</td>
+                    <td class="col-priority"><span class="badge badge-p0">P0</span></td>
+                    <td class="col-title">全螢幕畫布雙色框線與標籤顯示</td>
+                    <td class="col-pre">瀏覽器開啟 Web UI (<code>http://&lt;IP&gt;:8188</code>)，點選進入全螢幕監控。</td>
+                    <td class="col-steps">
+                        1. 畫面同時存在合規人員（戴安全帽、穿背心）與違規人員。<br>
+                        2. 檢視畫布邊界框顏色與標籤文字。
+                    </td>
+                    <td class="col-expected">
+                        1. 合規人員：綠色框線 (<code>#00e676</code>)，標註 <code>[合規] person (95%)</code>。<br>
+                        2. 違規人員：亮紅色框線 (<code>#ff1744</code>)，標註 <code>[違規: missing_helmet] person (95%)</code>。<br>
+                        3. 阻隔物（三角錐/護欄）：綠色框線 (<code>#00e676</code>)。
+                    </td>
+                    <td class="col-status">
+                        <div class="checkbox-group">
+                            <label><input type="checkbox"> P</label>
+                            <label><input type="checkbox"> F</label>
+                            <label><input type="checkbox"> B</label>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="col-id">TC-UI-02</td>
+                    <td class="col-priority"><span class="badge badge-p1">P1</span></td>
+                    <td class="col-title">警戒區 Badge 與邊框呼吸燈連動</td>
+                    <td class="col-pre">全螢幕畫布模式中。</td>
+                    <td class="col-steps">
+                        1. 無違規時觀察右上角/區域標籤。<br>
+                        2. 觸發違規（未戴帽子或缺失阻隔物）。
+                    </td>
+                    <td class="col-expected">
+                        1. 正常時：標註 <code>[ 警戒區: 維護警戒區 ]</code>。<br>
+                        2. 違規時：標籤變更為 <code>[ 警戒區: 維護警戒區 - 侵入告警 ]</code> 或缺失警告，全螢幕視窗外圍觸發紅色邊框呼吸告警樣式。
+                    </td>
+                    <td class="col-status">
+                        <div class="checkbox-group">
+                            <label><input type="checkbox"> P</label>
+                            <label><input type="checkbox"> F</label>
+                            <label><input type="checkbox"> B</label>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Module 6: EventLog & Snapshots -->
+        <h3 style="font-size: 15px; margin: 20px 0 8px 0; color: var(--gray-900);">模組 F：工安事件日誌與高解析快照留存 (EventLog & Snapshots)</h3>
+        <table class="test-table">
+            <thead>
+                <tr>
+                    <th class="col-id">案例編號</th>
+                    <th class="col-priority">優先級</th>
+                    <th class="col-title">測試項目</th>
+                    <th class="col-pre">前置條件</th>
+                    <th class="col-steps">執行步驟</th>
+                    <th class="col-expected">預期結果</th>
+                    <th class="col-status">測試結果</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="col-id">TC-EVT-01</td>
+                    <td class="col-priority"><span class="badge badge-p0">P0</span></td>
+                    <td class="col-title">違規觸發 EventStart 與乾淨影像快照</td>
+                    <td class="col-pre">確認 <code>recordings/</code> 目錄具備寫入權限。</td>
+                    <td class="col-steps">
+                        1. 觸發人員未戴安全帽違規。<br>
+                        2. 檢查 <code>recordings/&lt;label&gt;/events/</code>。<br>
+                        3. 檢查 <code>recordings/&lt;label&gt;/snapshots/</code>。
+                    </td>
+                    <td class="col-expected">
+                        1. 事件檔案記錄 <code>EventStart</code>，包含 <code>category: "missing_helmet"</code> 與 <code>severity: "HIGH"</code>。<br>
+                        2. 快照目錄生成當下無畫布框線干擾之乾淨高解析度現場 <code>.jpg</code> 快照檔案。
+                    </td>
+                    <td class="col-status">
+                        <div class="checkbox-group">
+                            <label><input type="checkbox"> P</label>
+                            <label><input type="checkbox"> F</label>
+                            <label><input type="checkbox"> B</label>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="col-id">TC-EVT-02</td>
+                    <td class="col-priority"><span class="badge badge-p1">P1</span></td>
+                    <td class="col-title">違規解除後拋出 EventEnd 結束事件</td>
+                    <td class="col-pre">接續 TC-EVT-01 處於違規狀態。</td>
+                    <td class="col-steps">
+                        1. 現場人員戴上安全帽（或人員離開區域）。<br>
+                        2. 違規狀態消除，檢查事件日誌。
+                    </td>
+                    <td class="col-expected">
+                        1. 事件管線自動寫入 <code>EventEnd</code> 事件。<br>
+                        2. 告警狀態正確閉環結束。
+                    </td>
+                    <td class="col-status">
+                        <div class="checkbox-group">
+                            <label><input type="checkbox"> P</label>
+                            <label><input type="checkbox"> F</label>
+                            <label><input type="checkbox"> B</label>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Module 7: Raspberry Pi 5 Edge Sign-off -->
+        <h2 class="section-title">4. 邊緣硬體實機驗收專章 (Raspberry Pi 5 Hardware Sign-off)</h2>
+        <div class="callout warning">
+            <strong>Raspberry Pi 5 驗收規範：</strong>
+            本系統主打邊緣 CPU 輕量端到端推論。在完成 PC 開發機各項邏輯與 UI 功能驗證後，必須於實體 Raspberry Pi 5 裝置上執行打包二進位檔案進行效能與穩定度驗收。
+        </div>
+
+        <table class="test-table">
+            <thead>
+                <tr>
+                    <th class="col-id">案例編號</th>
+                    <th class="col-priority">優先級</th>
+                    <th class="col-title">測試項目</th>
+                    <th class="col-pre">前置條件</th>
+                    <th class="col-steps">執行步驟</th>
+                    <th class="col-expected">預期結果</th>
+                    <th class="col-status">測試結果</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="col-id">TC-PI5-01</td>
+                    <td class="col-priority"><span class="badge badge-edge">實機</span></td>
+                    <td class="col-title">Pi 5 二進位執行檔啟動與部署驗證</td>
+                    <td class="col-pre">在 ARM64 Pi 5 環境中，執行 <code>./argus_predictor</code>。</td>
+                    <td class="col-steps">
+                        1. 確認同目錄下具備 <code>config.yaml</code> 與 YOLO 模型。<br>
+                        2. 執行二進位程式。<br>
+                        3. 從區域網路瀏覽器開啟 <code>http://&lt;Pi5-IP&gt;:8188</code>。
+                    </td>
+                    <td class="col-expected">
+                        1. 程式成功啟動，無缺少依賴函式庫報錯。<br>
+                        2. Web UI 與 MJPEG 串流正常顯示。
+                    </td>
+                    <td class="col-status">
+                        <div class="checkbox-group">
+                            <label><input type="checkbox"> P</label>
+                            <label><input type="checkbox"> F</label>
+                            <label><input type="checkbox"> B</label>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="col-id">TC-PI5-02</td>
+                    <td class="col-priority"><span class="badge badge-edge">實機</span></td>
+                    <td class="col-title">Pi 5 CPU 負載與推論幀率驗收</td>
+                    <td class="col-pre">單路 1080p RTSP 串流連接，啟用合規引擎與全螢幕畫布。</td>
+                    <td class="col-steps">
+                        1. 終端執行 <code>htop</code> 監控 CPU 與 RAM。<br>
+                        2. 連續運行 30 分鐘。<br>
+                        3. 檢視效能日誌 (Performance Logs) 中的推論時間。
+                    </td>
+                    <td class="col-expected">
+                        1. 單幀推論延遲穩定於 200~450ms（維持 2~5 FPS 工安即時要求）。<br>
+                        2. 4 核心 CPU 負載均衡，無過熱降頻或記憶體洩漏現象。
+                    </td>
+                    <td class="col-status">
+                        <div class="checkbox-group">
+                            <label><input type="checkbox"> P</label>
+                            <label><input type="checkbox"> F</label>
+                            <label><input type="checkbox"> B</label>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- 5. 異常排查與常見問題清單 -->
+        <h2 class="section-title">5. 常見問題與異常排除指南 (Troubleshooting)</h2>
+        <ul>
+            <li><strong>外部狀態持續為 <code>UNKNOWN</code></strong>：請檢查 Mock MES API 是否已正常啟動、埠號是否被佔用，或 <code>json_path</code> 格式是否與 JSON 鍵值相符。</li>
+            <li><strong>彎腰作業時偶發未戴安全帽告警</strong>：請確認該電子圍籬設定為 <code>ppe_strategy: head_anchor</code>。預設之 <code>direct_negative</code> 模式僅適用於俯視視角。</li>
+            <li><strong>全螢幕畫布無任何綠框或紅框</strong>：請確認模型是否輸出對應之類別名稱，或於 <code>config.yaml</code> 的 <code>ppe_class_mapping</code> 進行類別映射校正。</li>
+        </ul>
+
+    </main>
+</div>
+
+</body>
+</html>
