@@ -9,7 +9,7 @@ import threading
 
 import web_ui
 from web_ui import app
-from config_manager import ConfigManager
+from config_manager import ConfigManager, resolve_camera_id, sanitize_camera_id
 from stream_handler import StreamHandler
 from video_handler import VideoHandler
 from inference_engine import InferenceEngine
@@ -29,7 +29,7 @@ install_crash_handler("logs")
 argus_eventlog.writer.DEFAULT_PROG = "SafetyNano"
 
 
-def start_heartbeat_services(config, stream_units, mode="rtsp", video_camera_id="video"):
+def start_heartbeat_services(config, stream_units, mode="rtsp", video_camera_id="simu-video"):
     """根據 config 與當前串流單元為各 stream / video 啟動 HeartbeatService 實例列表。"""
     hb_cfg = config.get("heartbeat", {})
     if not isinstance(hb_cfg, dict):
@@ -46,7 +46,7 @@ def start_heartbeat_services(config, stream_units, mode="rtsp", video_camera_id=
     services = []
     if mode == "rtsp":
         for unit in stream_units:
-            cam_id = unit.get("camera_id", "unknown")
+            cam_id = sanitize_camera_id(unit.get("camera_id", "unknown"), fallback="stream")
             events_dir, _ = get_event_output_path(unit.get("url", ""))
             if f"/{cam_id}/events" not in events_dir.replace("\\", "/"):
                 import sys
@@ -66,14 +66,15 @@ def start_heartbeat_services(config, stream_units, mode="rtsp", video_camera_id=
             services.append(svc)
     elif mode == "video":
         import sys
+        safe_video_cam = sanitize_camera_id(video_camera_id, fallback="simu-video")
         exe_dir = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.path.dirname(os.path.abspath(sys.argv[0]))
-        events_dir = os.path.normpath(os.path.join(exe_dir, "recordings", video_camera_id, "events"))
+        events_dir = os.path.normpath(os.path.join(exe_dir, "recordings", safe_video_cam, "events"))
         svc = HeartbeatService(
             ap_name=ap_name,
-            instance=video_camera_id,
+            instance=safe_video_cam,
             version=version,
             event_output_path=events_dir,
-            camera_id=video_camera_id,
+            camera_id=safe_video_cam,
             interval_seconds=interval,
             agent_port=agent_port,
         )
@@ -249,8 +250,17 @@ def build_stream_units(stream_configs, cpu_cores=4, fps_limit=5, existing_engine
             new_engine_cache[cache_key] = engine
         else:
             print(f"[EngineCache] Loading InferenceEngine for model: {model_path} (threads: {cpu_cores})")
-            engine = InferenceEngine(model_path=model_path, num_threads=cpu_cores, model_format=model_format)
-            new_engine_cache[cache_key] = engine
+            try:
+                engine = InferenceEngine(model_path=model_path, num_threads=cpu_cores, model_format=model_format)
+            except Exception as e:
+                print(f"[EngineCache Error] 載入模型失敗 ({model_path}): {e}，嘗試 fallback 至預設模型 yolov8n.pt")
+                try:
+                    engine = InferenceEngine(model_path="yolov8n.pt", num_threads=cpu_cores, model_format="auto")
+                except Exception as fb_err:
+                    print(f"[EngineCache Error] Fallback 模型亦失敗: {fb_err}")
+                    engine = None
+            if engine is not None:
+                new_engine_cache[cache_key] = engine
 
         print(f"[Stream] Stream #{idx} ({camera_id}) -> Config: {model_path} ({model_format}) -> Resolved: {getattr(engine, 'actual_model_path', model_path)} [{getattr(engine, 'model_type', 'Unknown')}]")
 
@@ -340,22 +350,42 @@ def initialize_runtime(config_mgr):
             video_handler.start()
         video_model_path = config.get("model_path", "yolov8n.pt")
         video_model_format = config.get("model_format", "auto")
-        video_engine = InferenceEngine(
-            model_path=video_model_path,
-            num_threads=cpu_cores,
-            model_format=video_model_format
+        try:
+            video_engine = InferenceEngine(
+                model_path=video_model_path,
+                num_threads=cpu_cores,
+                model_format=video_model_format
+            )
+        except Exception as e:
+            sys_logger.error(f"[InferenceEngine Error] 載入影片模型失敗 ({video_model_path}): {e}，嘗試 fallback 至預設模型 yolov8n.pt")
+            try:
+                video_engine = InferenceEngine(
+                    model_path="yolov8n.pt",
+                    num_threads=cpu_cores,
+                    model_format="auto"
+                )
+            except Exception as fb_err:
+                sys_logger.error(f"[InferenceEngine Error] Fallback 預設模型亦失敗: {fb_err}")
+                video_engine = None
+
+        video_camera_id = resolve_camera_id(
+            url_or_path=video_path,
+            explicit_id=config.get("camera_id"),
+            mode="video",
+            fallback="simu-video"
         )
-        video_camera_id = config.get("camera_id") or parse_camera_id(video_path) or "video"
-        print(f"[Stream] Video Stream ({video_camera_id}) -> Config: {video_model_path} ({video_model_format}) -> Resolved: {getattr(video_engine, 'actual_model_path', video_model_path)} [{video_engine.model_type}]")
+        print(f"[Stream] Video Stream ({video_camera_id}) -> Config: {video_model_path} ({video_model_format}) -> Resolved: {getattr(video_engine, 'actual_model_path', video_model_path)} [{getattr(video_engine, 'model_type', 'Error')}]")
         web_ui.STREAM_UNITS = [{
             "handler": video_handler,
             "url": video_path,
             "label": "Video Stream",
             "latest_raw_frame": None
         }]
+        v_type = getattr(video_engine, "model_type", "Error") if video_engine else "Error"
+        v_path = getattr(video_engine, "actual_model_path", video_model_path) if video_engine else video_model_path
         web_ui.MODEL_INFO = {
-            "type": video_engine.model_type,
-            "path": getattr(video_engine, "actual_model_path", video_engine.model_path),
+            "type": v_type,
+            "path": v_path,
             "cpu_cores": cpu_cores,
             "streams": [{
                 "stream_index": 0,
@@ -364,8 +394,8 @@ def initialize_runtime(config_mgr):
                 "label": "Video Stream",
                 "configured_model": video_model_path,
                 "model_format": video_model_format,
-                "resolved_model_path": getattr(video_engine, "actual_model_path", video_model_path),
-                "model_type": video_engine.model_type,
+                "resolved_model_path": v_path,
+                "model_type": v_type,
             }]
         }
 
@@ -413,7 +443,12 @@ def main():
     video_engine = state["video_engine"]
     compliance_engine = state.get("compliance_engine")
 
-    video_camera_id = config.get("camera_id") or parse_camera_id(config.get("video_path", "")) or "video"
+    video_camera_id = resolve_camera_id(
+        url_or_path=config.get("video_path", ""),
+        explicit_id=config.get("camera_id"),
+        mode=mode,
+        fallback="simu-video"
+    )
     heartbeat_services = start_heartbeat_services(config, stream_units, mode=mode, video_camera_id=video_camera_id)
 
     context = {
@@ -487,9 +522,26 @@ def main():
                     
                     model_path = new_config.get("model_path", "yolov8n.pt")
                     model_format = new_config.get("model_format", "auto")
-                    video_engine = InferenceEngine(model_path=model_path, num_threads=cpu_cores, model_format=model_format)
-                    video_camera_id = new_config.get("camera_id") or parse_camera_id(new_config.get("video_path", "")) or "video"
-                    print(f"[Stream] Video Stream ({video_camera_id}) -> Config: {model_path} ({model_format}) -> Resolved: {getattr(video_engine, 'actual_model_path', model_path)} [{video_engine.model_type}]")
+                    try:
+                        new_video_engine = InferenceEngine(model_path=model_path, num_threads=cpu_cores, model_format=model_format)
+                        video_engine = new_video_engine
+                    except Exception as e:
+                        sys_logger.error(f"[InferenceEngine Error] 熱重載載入影片模型失敗 ({model_path}): {e}，維持原模型或嘗試預設模型")
+                        if video_engine is None:
+                            try:
+                                video_engine = InferenceEngine(model_path="yolov8n.pt", num_threads=cpu_cores, model_format="auto")
+                            except Exception:
+                                pass
+
+                    video_camera_id = resolve_camera_id(
+                        url_or_path=video_path,
+                        explicit_id=new_config.get("camera_id"),
+                        mode="video",
+                        fallback="simu-video"
+                    )
+                    v_type = getattr(video_engine, "model_type", "Error") if video_engine else "Error"
+                    v_path = getattr(video_engine, "actual_model_path", model_path) if video_engine else model_path
+                    print(f"[Stream] Video Stream ({video_camera_id}) -> Config: {model_path} ({model_format}) -> Resolved: {v_path} [{v_type}]")
                     web_ui.STREAM_UNITS = [{
                         "handler": video_handler,
                         "url": video_path,
@@ -497,8 +549,8 @@ def main():
                         "latest_raw_frame": None
                     }]
                     web_ui.MODEL_INFO = {
-                        "type": video_engine.model_type,
-                        "path": getattr(video_engine, "actual_model_path", video_engine.model_path),
+                        "type": v_type,
+                        "path": v_path,
                         "cpu_cores": cpu_cores,
                         "streams": [{
                             "stream_index": 0,
@@ -507,12 +559,17 @@ def main():
                             "label": "Video Stream",
                             "configured_model": model_path,
                             "model_format": model_format,
-                            "resolved_model_path": getattr(video_engine, "actual_model_path", model_path),
-                            "model_type": video_engine.model_type,
+                            "resolved_model_path": v_path,
+                            "model_type": v_type,
                         }]
                     }
                     
-                video_camera_id = new_config.get("camera_id") or parse_camera_id(new_config.get("video_path", "")) or "video"
+                video_camera_id = resolve_camera_id(
+                    url_or_path=new_config.get("video_path", ""),
+                    explicit_id=new_config.get("camera_id"),
+                    mode=mode,
+                    fallback="simu-video"
+                )
                 heartbeat_services = start_heartbeat_services(new_config, stream_units, mode=mode, video_camera_id=video_camera_id)
 
                 log_interval = new_config.get("log_interval_seconds", 60)
@@ -567,8 +624,13 @@ def main():
                         
                         formatted_detections = format_detections(detections)
                         h, w = frame.shape[:2]
-                        video_camera_id = config.get("camera_id") or "video"
                         video_url = config.get("video_path", "")
+                        video_camera_id = resolve_camera_id(
+                            url_or_path=video_url,
+                            explicit_id=config.get("camera_id"),
+                            mode="video",
+                            fallback="simu-video"
+                        )
                         zones_cfg = config.get("zones") if isinstance(config.get("zones"), dict) else {}
                         video_zone = zones_cfg.get(video_url)
 

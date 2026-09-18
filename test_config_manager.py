@@ -431,7 +431,70 @@ class TestConfigManager(unittest.TestCase):
         self.assertEqual(zone["trigger_mode"], "intersect")
         self.assertEqual(zone["sensitivity"], 0.25)
 
+    def test_sanitize_camera_id_strips_paths_and_special_chars(self):
+        from config_manager import sanitize_camera_id
+        self.assertEqual(sanitize_camera_id("cam-01"), "cam-01")
+        self.assertEqual(sanitize_camera_id("/home/pi/Downloads/Profile1.avi"), "Profile1")
+        self.assertEqual(sanitize_camera_id("D:\\videos\\test_stream.mp4"), "test_stream")
+        self.assertEqual(sanitize_camera_id("camera with spaces & symbols#"), "camera_with_spaces___symbols")
+        self.assertEqual(sanitize_camera_id("", fallback="fallback_cam"), "fallback_cam")
+        self.assertEqual(sanitize_camera_id("///", fallback="default_cam"), "default_cam")
+
+    def test_resolve_camera_id_video_mode(self):
+        from config_manager import resolve_camera_id
+        # Video mode adds simu- prefix to clean stem
+        res = resolve_camera_id(url_or_path="/home/pi/Downloads/Profile1_20260828_103117.avi", mode="video")
+        self.assertEqual(res, "simu-Profile1_20260828_103117")
+
+        # Explicit camera_id overrides
+        res_explicit = resolve_camera_id(url_or_path="/path/test.avi", explicit_id="custom_cam", mode="video")
+        self.assertEqual(res_explicit, "custom_cam")
+
+        # Fallback when path is empty
+        res_empty = resolve_camera_id(url_or_path="", mode="video")
+        self.assertEqual(res_empty, "simu-video")
+
+    def test_resolve_camera_id_stream_mode(self):
+        from config_manager import resolve_camera_id
+        # RTSP URL with camera ID in query or path
+        res1 = resolve_camera_id(url_or_path="rtsp://127.0.0.1:8554/cam-0eb40kwvs74z", mode="rtsp")
+        self.assertEqual(res1, "cam-0eb40kwvs74z")
+
+        # RTSP without cam ID falls back
+        res2 = resolve_camera_id(url_or_path="rtsp://127.0.0.1:8554/stream1", mode="rtsp", fallback="stream0")
+        self.assertEqual(res2, "stream0")
+
+        # Local file path provided in RTSP mode (Issue #54 edge case)
+        res3 = resolve_camera_id(url_or_path="/home/pi/Downloads/test.avi", mode="rtsp", fallback="stream0")
+        self.assertEqual(res3, "simu-test")
+
+    def test_parse_stream_list_with_local_file_path(self):
+        data = {
+            "model_path": "global.pt",
+            "streams": ["/home/pi/Downloads/Profile1_20260828_103117.avi"]
+        }
+        self.write_yaml(data)
+        mgr = ConfigManager(self.tmp_path)
+        configs = mgr.get_stream_configs()
+        self.assertEqual(len(configs), 1)
+        self.assertEqual(configs[0]["camera_id"], "simu-Profile1_20260828_103117")
+        self.assertNotIn("/", configs[0]["camera_id"])
+
+    def test_parse_stream_list_sanitizes_dirty_camera_id(self):
+        data = {
+            "model_path": "global.pt",
+            "streams": [
+                {"url": "rtsp://cam1", "camera_id": "/bad/path/cam_id/"}
+            ]
+        }
+        self.write_yaml(data)
+        mgr = ConfigManager(self.tmp_path)
+        configs = mgr.get_stream_configs()
+        self.assertEqual(configs[0]["camera_id"], "cam_id")
+
+
 if __name__ == "__main__":
     unittest.main()
+
 
 

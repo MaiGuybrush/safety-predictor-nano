@@ -18,6 +18,11 @@ class InferenceEngine:
 
         actual_model_path = model_path
 
+        # 1. 檢查明確目錄語法是否不存在
+        clean_path = str(model_path).replace("\\", "/")
+        if clean_path.endswith("/") and not os.path.exists(model_path):
+            raise FileNotFoundError(f"模型目錄不存在: '{model_path}'")
+
         if os.path.isdir(model_path):
             files = os.listdir(model_path)
             onnx_files = [f for f in files if f.lower().endswith(".onnx")]
@@ -53,12 +58,32 @@ class InferenceEngine:
                     self.model_type = "NCNN"
                     actual_model_path = model_path
                 else:
-                    self.model_type = "PyTorch"
-                    actual_model_path = model_path
+                    raise FileNotFoundError(f"模型目錄 '{model_path}' 中找不到有效的模型檔案 (.onnx, .pt 或 NCNN 模型)")
         elif model_path.lower().endswith(".onnx") or self.model_format == "onnx":
             self.model_type = "ONNX"
         else:
             self.model_type = "PyTorch"
+
+        # 2. 若為 ONNX 模型，預先檢查 ONNX Runtime 依賴，避免觸發 AutoUpdate 導致 process 崩潰
+        if getattr(self, "model_type", None) == "ONNX" or str(actual_model_path).lower().endswith(".onnx"):
+            self.model_type = "ONNX"
+            import sys
+            has_ort = False
+            if "onnxruntime" in sys.modules:
+                has_ort = sys.modules["onnxruntime"] is not None
+            else:
+                try:
+                    import importlib
+                    ort = importlib.import_module("onnxruntime")
+                    has_ort = ort is not None
+                except (ImportError, Exception):
+                    has_ort = False
+
+            if not has_ort:
+                raise RuntimeError(
+                    f"環境缺少 onnxruntime 套件，無法載入 ONNX 模型 '{actual_model_path}'。"
+                    "請先安裝 onnxruntime 或改用 PyTorch (.pt) / NCNN 模型。"
+                )
 
         self.actual_model_path = actual_model_path
         self.model = YOLO(actual_model_path)

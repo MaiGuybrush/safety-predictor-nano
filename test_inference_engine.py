@@ -151,6 +151,50 @@ class TestInferenceEngineLabel(unittest.TestCase):
                 import shutil
                 shutil.rmtree(tmp_dir)
 
+    def test_nonexistent_directory_raises_filenotfounderror(self):
+        from inference_engine import InferenceEngine
+        # Models with trailing slash or nonexistent paths should fail fast with FileNotFoundError
+        with self.assertRaises(FileNotFoundError) as ctx:
+            InferenceEngine(model_path="models/person_detector/", num_threads=1)
+        self.assertIn("不存在", str(ctx.exception))
+
+    def test_empty_directory_raises_filenotfounderror(self):
+        import tempfile
+        import os
+        from inference_engine import InferenceEngine
+
+        tmp_dir = tempfile.mkdtemp()
+        try:
+            with self.assertRaises(FileNotFoundError) as ctx:
+                InferenceEngine(model_path=tmp_dir, num_threads=1)
+            self.assertIn("找不到有效的模型檔案", str(ctx.exception))
+        finally:
+            if os.path.exists(tmp_dir):
+                import shutil
+                shutil.rmtree(tmp_dir)
+
+    def test_onnx_without_onnxruntime_raises_runtimeerror(self):
+        import tempfile
+        import os
+        import sys
+        from unittest.mock import patch
+        from inference_engine import InferenceEngine
+
+        tmp_dir = tempfile.mkdtemp()
+        try:
+            onnx_file = os.path.join(tmp_dir, "test.onnx")
+            open(onnx_file, "w").close()
+
+            with patch.dict(sys.modules, {"onnxruntime": None}):
+                with self.assertRaises(RuntimeError) as ctx:
+                    InferenceEngine(model_path=onnx_file, num_threads=1)
+                self.assertIn("onnxruntime", str(ctx.exception))
+        finally:
+            if os.path.exists(tmp_dir):
+                import shutil
+                shutil.rmtree(tmp_dir)
+
 
 if __name__ == "__main__":
     unittest.main()
+

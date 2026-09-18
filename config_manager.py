@@ -2,6 +2,7 @@ import re
 import yaml
 import os
 
+from pathlib import Path
 from argus_eventlog import parse_camera_id
 import ums_config
 
@@ -22,6 +23,71 @@ DEFAULT_PPE_CLASS_MAPPING = {
 }
 
 _STREAM_MODEL_KEY_RE = re.compile(r"^streams\[(\d+)\]\.model$")
+
+
+def sanitize_camera_id(raw_id: str, fallback: str = "stream0") -> str:
+    """清理並確保 camera_id 安全：
+    - 去除首尾空白
+    - 若包含路徑分隔符號 (/ 或 \\)，取最末段並去除副檔名
+    - 將非安全字元替換為底線，避免破壞目錄結構
+    - 若結果為空則回傳 fallback
+    """
+    if raw_id is None:
+        return fallback
+    s = str(raw_id).strip()
+    if not s:
+        return fallback
+
+    s = s.replace("\\", "/").rstrip("/")
+    if "/" in s:
+        s = s.split("/")[-1]
+
+    # 去除常見副檔名
+    stem = Path(s).stem
+    if stem:
+        s = stem
+
+    cleaned = re.sub(r'[^a-zA-Z0-9_.-]', '_', s).strip("._")
+    if not cleaned:
+        return fallback
+    return cleaned
+
+
+def resolve_camera_id(url_or_path: str = "", explicit_id: str = None, mode: str = "rtsp", fallback: str = "stream0") -> str:
+    """解析並回傳安全的 camera_id：
+    - 若有明確指定的 explicit_id，消毒後回傳。
+    - 若為影片模式 (mode == 'video') 或 url_or_path 不含 '://' (本機檔案)：
+        - 取檔案主檔名，加上 'simu-' 前綴並消毒
+        - 若無檔名則回傳 'simu-video'
+    - 若為一般串流 (含 '://')：
+        - 嘗試透過 parse_camera_id 解析
+        - 若有值，消毒後回傳
+        - 若無，回傳消毒後的 fallback
+    """
+    if explicit_id and str(explicit_id).strip():
+        sanitized = sanitize_camera_id(str(explicit_id).strip(), fallback="")
+        if sanitized:
+            return sanitized
+
+    url = str(url_or_path or "").strip()
+    is_url = "://" in url
+
+    if mode == "video" or not is_url:
+        if url:
+            raw_stem = Path(url.replace("\\", "/").rstrip("/")).stem
+            cleaned_stem = sanitize_camera_id(raw_stem, fallback="")
+            if cleaned_stem:
+                return f"simu-{cleaned_stem}"
+        return "simu-video"
+
+    parsed = parse_camera_id(url)
+    if parsed:
+        sanitized = sanitize_camera_id(parsed, fallback="")
+        if sanitized:
+            return sanitized
+
+    return sanitize_camera_id(fallback, fallback="stream0")
+
 
 
 class ConfigManager:
@@ -108,8 +174,17 @@ class ConfigManager:
                 url = url.strip()
                 model = item.get("model") or global_model
                 label = item.get("label") or ""
-                parsed_cam = parse_camera_id(url)
-                camera_id = item.get("camera_id") or parsed_cam or label or f"stream{idx}"
+                explicit_cam = item.get("camera_id")
+                if explicit_cam:
+                    camera_id = sanitize_camera_id(explicit_cam, fallback=label or f"stream{idx}")
+                elif "://" in url:
+                    parsed_cam = parse_camera_id(url)
+                    camera_id = sanitize_camera_id(parsed_cam, fallback="") if parsed_cam else (label or f"stream{idx}")
+                elif label and "/" not in label and "\\" not in label:
+                    camera_id = label
+                else:
+                    camera_id = resolve_camera_id(url_or_path=url, mode="rtsp", fallback=f"stream{idx}")
+
                 cfg = {
                     "url": url,
                     "model": model,
@@ -125,8 +200,7 @@ class ConfigManager:
                 url = item.strip()
                 if not url:
                     continue
-                parsed_cam = parse_camera_id(url)
-                camera_id = parsed_cam or f"stream{idx}"
+                camera_id = resolve_camera_id(url_or_path=url, mode="rtsp", fallback=f"stream{idx}")
                 cfg = {
                     "url": url,
                     "model": global_model,
