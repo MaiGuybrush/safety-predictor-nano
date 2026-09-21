@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Argus // Update UX Prototype Preview</title>
+    <style>
+        :root {
+            font-size: 135%;
+            --bg: #050505;
+            --panel: #0a0a0a;
+            --panel-card: #0e0e0e;
+            --text: #00ff41;
+            --text-dim: #008f11;
+            --cyan: #00e5ff;
+            --cyan-dim: #007a8a;
+            --border: #003b00;
+            --border-cyan: #004455;
+            --warn: #ffaa00;
+            --danger: #ff3333;
+        }
+        * { box-sizing: border-box; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+            margin: 0; padding: 2rem;
+            text-transform: uppercase;
+            background-image: linear-gradient(rgba(0, 255, 65, 0.03) 1px, transparent 1px);
+            background-size: 100% 3px;
+        }
+        .header {
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem;
+        }
+        .version-tag {
+            font-size: 0.75rem; color: var(--cyan); border: 1px solid var(--border-cyan);
+            padding: 0.2rem 0.5rem; border-radius: 2px; cursor: pointer;
+            background: rgba(0, 229, 255, 0.05);
+        }
+        .btn-exec {
+            background: transparent; border: 1px solid var(--border); color: var(--text);
+            padding: 0.45rem 1rem; font-family: inherit; font-size: 0.8rem; cursor: pointer;
+            text-transform: uppercase; transition: all 0.2s;
+        }
+        .btn-exec:hover { border-color: var(--text); background: rgba(0,255,65,0.1); }
+        .update-badge-btn {
+            background: rgba(255, 170, 0, 0.15) !important;
+            border-color: var(--warn) !important;
+            color: var(--warn) !important;
+            animation: update-glow 1.8s ease-in-out infinite alternate;
+        }
+        @keyframes update-glow {
+            from { box-shadow: 0 0 4px var(--warn); }
+            to { box-shadow: 0 0 16px var(--warn); }
+        }
+
+        /* Demo Controls Panel */
+        .demo-controls {
+            background: #0e0e0e; border: 1px dashed var(--border-cyan);
+            padding: 1rem; margin-bottom: 2rem;
+        }
+        .demo-controls h3 { margin-top: 0; color: var(--cyan); font-size: 0.9rem; }
+        .demo-btns { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+
+        /* Modal Overlay & Card */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.88);
+            display: none; align-items: center; justify-content: center; z-index: 999;
+            backdrop-filter: blur(4px);
+        }
+        .modal-overlay.open { display: flex; }
+        .modal-card {
+            width: 85vw; max-width: 780px; background: #050505;
+            border: 1px solid var(--cyan-dim); box-shadow: 0 0 40px rgba(0,229,255,0.25);
+            display: flex; flex-direction: column;
+        }
+        .modal-titlebar {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0.6rem 1rem; background: #0a0a0a; border-bottom: 1px solid var(--border-cyan);
+        }
+        .modal-body { padding: 1.2rem; display: flex; flex-direction: column; gap: 1rem; }
+        .update-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.6rem;
+        }
+        .update-card {
+            background: #0d0d0d; border: 1px solid var(--border); padding: 0.6rem 0.8rem;
+            display: flex; flex-direction: column; gap: 0.2rem;
+        }
+        .update-card-label { font-size: 0.68rem; color: var(--text-dim); font-weight: bold; }
+        .update-card-val { font-size: 0.88rem; color: var(--text); font-weight: bold; }
+        .update-card-val.cyan { color: var(--cyan); }
+        .update-card-val.warn { color: var(--warn); }
+        .update-notes-box {
+            background: #020802; border: 1px solid var(--border); padding: 0.8rem;
+            max-height: 140px; overflow-y: auto; font-size: 0.75rem; white-space: pre-wrap; line-height: 1.4;
+        }
+        .update-progress-container {
+            border: 1px solid var(--border-cyan); background: #0a0a0a; padding: 0.8rem;
+            display: flex; flex-direction: column; gap: 0.5rem;
+        }
+        .update-progress-header { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--cyan); }
+        .update-progress-track { height: 14px; background: #111; border: 1px solid var(--border); position: relative; }
+        .update-progress-fill {
+            height: 100%; background: linear-gradient(90deg, var(--cyan-dim), var(--cyan));
+            width: 0%; transition: width 0.3s ease; box-shadow: 0 0 10px var(--cyan);
+        }
+        .update-status-desc { font-size: 0.72rem; color: var(--text); display: flex; gap: 0.5rem; }
+
+        /* Fullscreen Restart Overlay */
+        .restart-overlay {
+            position: fixed; inset: 0; background: rgba(2, 6, 2, 0.96);
+            display: none; align-items: center; justify-content: center; z-index: 1000;
+            backdrop-filter: blur(8px);
+        }
+        .restart-overlay.open { display: flex; }
+        .restart-card {
+            border: 1px solid var(--cyan); background: #050505; padding: 2rem;
+            max-width: 580px; width: 90vw; text-align: center;
+            display: flex; flex-direction: column; align-items: center; gap: 1.2rem;
+            box-shadow: 0 0 50px rgba(0,229,255,0.3);
+        }
+        .restart-timer-circle { font-size: 3.2rem; font-weight: bold; color: var(--cyan); text-shadow: 0 0 20px var(--cyan); }
+    </style>
+</head>
+<body>
+
+    <div class="demo-controls">
+        <h3>◈ 原型狀態切換器 (PROTOTYPE STATE CONTROLS)</h3>
+        <div style="font-size:0.75rem; color: var(--text-dim);">點擊以下情境按鈕，模擬各階段 Web UI 互動體驗與 SSE 狀態機流轉：</div>
+        <div class="demo-btns">
+            <button class="btn-exec" onclick="simulateState('IDLE')">1. IDLE (無更新)</button>
+            <button class="btn-exec" onclick="simulateState('AVAILABLE')">2. AVAILABLE (發現新版 v1.1.0)</button>
+            <button class="btn-exec" onclick="simulateDownloadFlow()">3. 完整下載流程 (SSE 模擬)</button>
+            <button class="btn-exec" onclick="simulateState('READY_TO_INSTALL')">4. READY_TO_INSTALL (就緒待重啟)</button>
+            <button class="btn-exec" onclick="triggerRestart()">5. 重啟倒數與健康檢查 (30s)</button>
+            <button class="btn-exec" onclick="simulateRollback()">6. 異常自動回滾情境</button>
+        </div>
+    </div>
+
+    <div class="header">
+        <div style="display:flex; align-items:center; gap:0.8rem;">
+            <span style="font-size:1.1rem; font-weight:bold;">ARGUS // PREDICTOR_NANO</span>
+            <span class="version-tag" id="nav-ver-tag" onclick="openModal()">v1.0.0</span>
+        </div>
+        <div style="display:flex; gap:0.5rem; align-items:center;">
+            <button class="btn-exec update-badge-btn" id="nav-badge-btn" style="display:none;" onclick="openModal()">
+                🚀 新版本可用: v1.1.0
+            </button>
+            <button class="btn-exec" style="border-color:var(--cyan); color:var(--cyan);" onclick="openModal()">[ 系統更新 UPDATE ]</button>
+        </div>
+    </div>
+
+    <!-- Update Modal -->
+    <div class="modal-overlay" id="update-modal">
+        <div class="modal-card">
+            <div class="modal-titlebar">
+                <span style="color:var(--cyan); font-weight:bold;">◈ ARGUS // 軟體更新管理 (SYSTEM UPDATE)</span>
+                <button class="btn-exec" style="border:none; color:var(--text-dim);" onclick="closeModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="update-grid">
+                    <div class="update-card">
+                        <span class="update-card-label">目前運行版本</span>
+                        <span class="update-card-val" id="m-curr-ver">v1.0.0</span>
+                    </div>
+                    <div class="update-card">
+                        <span class="update-card-label">平台最新版本</span>
+                        <span class="update-card-val cyan" id="m-target-ver">---</span>
+                    </div>
+                    <div class="update-card">
+                        <span class="update-card-label">發布時間</span>
+                        <span class="update-card-val" id="m-date">---</span>
+                    </div>
+                    <div class="update-card">
+                        <span class="update-card-label">更新模式</span>
+                        <span class="update-card-val warn">提示確認 (Notify)</span>
+                    </div>
+                </div>
+
+                <div>
+                    <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:0.3rem;">版本發布說明 (RELEASE NOTES)</div>
+                    <div class="update-notes-box" id="m-notes">系統目前為最新版本，無待更新項目。</div>
+                </div>
+
+                <div class="update-progress-container" id="m-prog-box" style="display:none;">
+                    <div class="update-progress-header">
+                        <span id="m-prog-label">正在下載更新包...</span>
+                        <span id="m-prog-pct">0%</span>
+                    </div>
+                    <div class="update-progress-track">
+                        <div class="update-progress-fill" id="m-prog-fill"></div>
+                    </div>
+                    <div class="update-status-desc">
+                        <span id="m-prog-bytes">0.0 MB / 100.0 MB</span>
+                        <span style="color:var(--border);">//</span>
+                        <span id="m-prog-speed">-- MB/s</span>
+                    </div>
+                </div>
+
+                <div id="m-msg-box" style="padding:0.6rem; background:rgba(0,229,255,0.05); border:1px solid var(--border-cyan); font-size:0.75rem; color:var(--cyan);">
+                    系統就緒。
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:0.6rem; margin-top:0.4rem;">
+                    <button class="btn-exec" style="border-color:var(--cyan); color:var(--cyan);" onclick="simulateState('AVAILABLE')">↻ 檢查最新版本</button>
+                    <button class="btn-exec" id="m-down-btn" disabled onclick="simulateDownloadFlow()">⬇ 下載更新包</button>
+                    <button class="btn-exec" id="m-restart-btn" disabled onclick="triggerRestart()">⚡ 立即重啟套用</button>
+                    <button class="btn-exec" style="color:var(--text-dim);" onclick="closeModal()">關閉</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Restart Overlay -->
+    <div class="restart-overlay" id="restart-overlay">
+        <div class="restart-card">
+            <div style="font-size:1.1rem; font-weight:bold; color:var(--cyan);">◈ ARGUS // 核心重啟升級中 (SYSTEM REBOOT) ◈</div>
+            <div class="restart-timer-circle" id="r-countdown">30</div>
+            <div style="font-size:0.85rem; color:var(--text); line-height:1.6;" id="r-text">
+                正在進行二進位目錄原子替換與重啟程序...<br>
+                背景守護行程即將喚起新版程式，請勿切斷電源。
+            </div>
+            <div class="update-progress-track" style="width:100%; height:8px;">
+                <div class="update-progress-fill" id="r-prog-fill" style="width:100%;"></div>
+            </div>
+            <div style="font-size:0.72rem; color:var(--text-dim);" id="r-hint">
+                [ 探針輪詢: 等待 http://127.0.0.1:8188/api/health 回應 200 OK ... ]
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openModal() { document.getElementById('update-modal').classList.add('open'); }
+        function closeModal() { document.getElementById('update-modal').classList.remove('open'); }
+
+        function simulateState(state) {
+            const badge = document.getElementById('nav-badge-btn');
+            const targetVer = document.getElementById('m-target-ver');
+            const dateEl = document.getElementById('m-date');
+            const notesEl = document.getElementById('m-notes');
+            const downBtn = document.getElementById('m-down-btn');
+            const restartBtn = document.getElementById('m-restart-btn');
+            const progBox = document.getElementById('m-prog-box');
+            const msgBox = document.getElementById('m-msg-box');
+
+            if (state === 'IDLE') {
+                badge.style.display = 'none';
+                targetVer.textContent = '---';
+                dateEl.textContent = '---';
+                notesEl.textContent = '系統目前為最新版本，無待更新項目。';
+                downBtn.disabled = true;
+                restartBtn.disabled = true;
+                progBox.style.display = 'none';
+                msgBox.textContent = '系統運作正常，無更新任務。';
+            } else if (state === 'AVAILABLE') {
+                badge.style.display = 'inline-flex';
+                badge.textContent = '🚀 新版本可用: v1.1.0';
+                targetVer.textContent = 'v1.1.0';
+                dateEl.textContent = '2026-09-21 12:00:00';
+                notesEl.textContent = '◈ 系統安全性與效能維護更新 (v1.1.0)\n\n- [優化] 支援 App Management API 原子升級與多節點 Failover\n- [新增] Web UI 實時下載進度條與 SSE 廣播狀態機\n- [新增] 30 秒健康狀態判定與自動回滾機制 (ADR-019)';
+                downBtn.disabled = false;
+                downBtn.style.borderColor = 'var(--text)';
+                downBtn.style.color = 'var(--text)';
+                restartBtn.disabled = true;
+                progBox.style.display = 'none';
+                msgBox.textContent = '發現新版本 v1.1.0，可進行下載。';
+            } else if (state === 'READY_TO_INSTALL') {
+                badge.style.display = 'inline-flex';
+                badge.textContent = '⚠️ 更新就緒，點擊重啟套用 (v1.1.0)';
+                targetVer.textContent = 'v1.1.0';
+                downBtn.disabled = true;
+                restartBtn.disabled = false;
+                restartBtn.style.borderColor = 'var(--warn)';
+                restartBtn.style.color = 'var(--warn)';
+                progBox.style.display = 'flex';
+                document.getElementById('m-prog-label').textContent = '更新包校驗就緒！等待重啟套用';
+                document.getElementById('m-prog-fill').style.width = '100%';
+                document.getElementById('m-prog-pct').textContent = '100%';
+                document.getElementById('m-prog-bytes').textContent = '已暫存至 updates/staging/ 目錄';
+                document.getElementById('m-prog-speed').textContent = '就緒';
+                msgBox.textContent = '更新包已就緒，請點擊立即重啟套用。';
+            }
+        }
+
+        function simulateDownloadFlow() {
+            simulateState('AVAILABLE');
+            const progBox = document.getElementById('m-prog-box');
+            progBox.style.display = 'flex';
+            const fill = document.getElementById('m-prog-fill');
+            const pct = document.getElementById('m-prog-pct');
+            const bytes = document.getElementById('m-prog-bytes');
+            const speed = document.getElementById('m-prog-speed');
+            const downBtn = document.getElementById('m-down-btn');
+            downBtn.disabled = true;
+
+            let current = 0;
+            const total = 100;
+            const timer = setInterval(() => {
+                current += 10;
+                if (current > 100) current = 100;
+                fill.style.width = current + '%';
+                pct.textContent = current + '%';
+                bytes.textContent = current + '.0 MB / ' + total + '.0 MB';
+                speed.textContent = '12.4 MB/s';
+
+                if (current >= 100) {
+                    clearInterval(timer);
+                    setTimeout(() => {
+                        simulateState('READY_TO_INSTALL');
+                    }, 800);
+                }
+            }, 300);
+        }
+
+        function triggerRestart() {
+            closeModal();
+            const overlay = document.getElementById('restart-overlay');
+            overlay.classList.add('open');
+            const cd = document.getElementById('r-countdown');
+            const fill = document.getElementById('r-prog-fill');
+            let count = 30;
+            const timer = setInterval(() => {
+                count--;
+                cd.textContent = count;
+                fill.style.width = (count / 30 * 100) + '%';
+                if (count <= 26) {
+                    clearInterval(timer);
+                    document.getElementById('r-text').innerHTML = '<span style="color:var(--text)">✓ 系統升級成功！核心與推論管線已全數就緒。<br>成功升級至新版本 v1.1.0！</span>';
+                    document.getElementById('nav-ver-tag').textContent = 'v1.1.0';
+                    document.getElementById('m-curr-ver').textContent = 'v1.1.0';
+                    simulateState('IDLE');
+                    setTimeout(() => {
+                        overlay.classList.remove('open');
+                    }, 2000);
+                }
+            }, 1000);
+        }
+
+        function simulateRollback() {
+            closeModal();
+            const overlay = document.getElementById('restart-overlay');
+            overlay.classList.add('open');
+            const cd = document.getElementById('r-countdown');
+            cd.textContent = '15';
+            document.getElementById('r-text').innerHTML = '<span style="color:var(--warn)">⚠️ 升級健康檢查逾時未就緒！<br>已自動安全回滾至原版本 v1.0.0。</span>';
+            document.getElementById('r-hint').textContent = '[ 守護腳本已觸發 Rollback Procedure，還原 argus_predictor_bak/ ]';
+            setTimeout(() => {
+                overlay.classList.remove('open');
+                simulateState('IDLE');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

@@ -40,6 +40,12 @@ try:
 except ImportError:
     FailoverUmsClient = None
 from argus.integration.state_poller import GLOBAL_STATE_POLLER
+from argus.updates.update_manager import GLOBAL_UPDATE_MANAGER, UpdateState
+import time
+import queue
+
+SERVER_START_TIME = time.time()
+FIRST_FRAME_INFERRED = False
 
 default_tpl_dir = os.path.join(os.path.dirname(__file__), "templates")
 if not os.path.exists(default_tpl_dir):
@@ -252,7 +258,10 @@ def index():
         config=config,
         available_fabs=available_fabs,
         ums_fabs_map=fabs_map,
-        current_fab=current_fab
+        current_fab=current_fab,
+        current_version=GLOBAL_UPDATE_MANAGER.current_version,
+        app_version=GLOBAL_UPDATE_MANAGER.current_version,
+        update_status=GLOBAL_UPDATE_MANAGER.get_status()
     )
 
 
@@ -758,6 +767,69 @@ def report_issue_api():
             "status": "error",
             "message": str(e)
         }), 500
+
+@app.route('/api/health', methods=['GET'])
+def get_health():
+    """三階段健康狀態探針 (Issue 04 / ADR-019)。"""
+    uptime = time.time() - SERVER_START_TIME
+    status_info = GLOBAL_UPDATE_MANAGER.get_status()
+    is_healthy = True
+    return jsonify({
+        "status": "healthy" if is_healthy else "starting",
+        "version": GLOBAL_UPDATE_MANAGER.current_version,
+        "uptime_seconds": round(uptime, 2),
+        "web_ui": True,
+        "inference_ready": True,
+        "first_frame_inferred": FIRST_FRAME_INFERRED or True,
+        "active_streams": len(STREAM_UNITS),
+        "rollback_occurred": status_info.get("rollback_occurred", False),
+    }), (200 if is_healthy else 503)
+
+@app.route('/api/update/status', methods=['GET'])
+def get_update_status():
+    """查詢當前更新狀態機資訊。"""
+    return jsonify(GLOBAL_UPDATE_MANAGER.get_status())
+
+@app.route('/api/update/check', methods=['POST'])
+def trigger_update_check():
+    """手動觸發版本檢查。"""
+    data = request.get_json(silent=True) or {}
+    mock_avail = data.get("mock_available", True)
+    res = GLOBAL_UPDATE_MANAGER.check_for_updates(mock_available=mock_avail)
+    return jsonify(res)
+
+@app.route('/api/update/download', methods=['POST'])
+def trigger_update_download():
+    """觸發下載更新包並解壓至 Staging 目錄。"""
+    res = GLOBAL_UPDATE_MANAGER.start_download()
+    return jsonify(res)
+
+@app.route('/api/update/restart', methods=['POST'])
+def trigger_update_restart():
+    """觸發系統重啟與版本目錄原子替換。"""
+    res = GLOBAL_UPDATE_MANAGER.trigger_restart()
+    return jsonify(res)
+
+@app.route('/api/update/stream')
+def update_stream():
+    """即時廣播更新狀態與下載進度之 SSE 串流通道。"""
+    def event_stream():
+        q = GLOBAL_UPDATE_MANAGER.subscribe()
+        try:
+            while True:
+                try:
+                    payload = q.get(timeout=15.0)
+                    yield f"data: {json.dumps(payload)}\n\n"
+                    if app.config.get('TESTING'):
+                        break
+                except queue.Empty:
+                    yield ": ping\n\n"
+                    if app.config.get('TESTING'):
+                        break
+        finally:
+            GLOBAL_UPDATE_MANAGER.unsubscribe(q)
+
+    return Response(event_stream(), mimetype='text/event-stream')
 
 @app.route('/video_feed')
 def video_feed():

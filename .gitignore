@@ -55,3 +55,11 @@ htmlcov/
 # Build artifacts
 docs/user-manual/book/
 
+# Update markers & staging
+.update_in_progress
+.rollback_alert
+/updates/
+argus_predictor_bak/
+argus_predictor_failed_*/
+
+

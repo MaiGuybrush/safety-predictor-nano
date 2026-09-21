@@ -440,3 +440,61 @@ class ConfigManager:
         except (ValueError, TypeError):
             return 30
 
+    def get_auto_update_config(self):
+        """取得自動更新與安全升級設定字典，提供安全預設值與邊界防禦。"""
+        raw = self.config.get("auto_update")
+        if not isinstance(raw, dict):
+            raw = {}
+
+        try:
+            interval = max(300, int(raw.get("check_interval_seconds", 3600)))
+        except (ValueError, TypeError):
+            interval = 3600
+
+        try:
+            mode = int(raw.get("mode", 2))
+            if mode not in (1, 2):
+                mode = 2
+        except (ValueError, TypeError):
+            mode = 2
+
+        try:
+            timeout = max(5, int(raw.get("timeout_seconds", 30)))
+        except (ValueError, TypeError):
+            timeout = 30
+
+        try:
+            retries = max(1, int(raw.get("max_retries", 3)))
+        except (ValueError, TypeError):
+            retries = 3
+
+        try:
+            chunk_size = max(65536, int(raw.get("download_chunk_size", 1048576)))
+        except (ValueError, TypeError):
+            chunk_size = 1048576
+
+        base_urls = raw.get("base_urls")
+        if isinstance(base_urls, str):
+            base_urls = [u.strip() for u in base_urls.split(",") if u.strip()]
+        elif not isinstance(base_urls, list):
+            base_urls = []
+
+        return {
+            "enabled": bool(raw.get("enabled", True)),
+            "app_id": str(raw.get("app_id", "safety-predictor-nano")).strip() or "safety-predictor-nano",
+            "base_url_path": str(raw.get("base_url_path", "AppManagementApi")).strip() or "AppManagementApi",
+            "base_urls": base_urls,
+            "channel": str(raw.get("channel", "stable")).strip().lower(),
+            "check_interval_seconds": interval,
+            "check_on_startup": bool(raw.get("check_on_startup", True)),
+            "mode": mode,
+            "api_key": str(raw.get("api_key", "")).strip(),
+            "timeout_seconds": timeout,
+            "max_retries": retries,
+            "download_chunk_size": chunk_size,
+            "staging_dir": str(raw.get("staging_dir", "updates/staging")).strip(),
+            "backup_dir": str(raw.get("backup_dir", "argus_predictor_bak")).strip(),
+            "healthcheck_timeout_seconds": max(10, int(raw.get("healthcheck_timeout_seconds", 30))),
+        }
+
+
