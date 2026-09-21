@@ -1,0 +1,4030 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Argus // System Config</title>
+    <style>
+        :root {
+            font-size: 135%;
+            --bg: #050505;
+            --panel: #0a0a0a;
+            --panel-card: #0e0e0e;
+            --text: #00ff41; /* Terminal Green */
+            --text-dim: #008f11;
+            --cyan: #00e5ff;
+            --cyan-dim: #007a8a;
+            --border: #003b00;
+            --border-cyan: #004455;
+            --warn: #ffaa00;
+            --danger: #ff3333;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        html, body {
+            height: 100vh;
+            width: 100vw;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: var(--bg);
+            color: var(--text);
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+            text-transform: uppercase;
+            line-height: 1.35;
+            /* Scanline effect */
+            background-image: linear-gradient(rgba(0, 255, 65, 0.03) 1px, transparent 1px);
+            background-size: 100% 3px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Top Header & Status Bar (Fixed Top) */
+        .top-container {
+            flex-shrink: 0;
+            padding: 0.6rem 1.2rem 0.4rem 1.2rem;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg);
+        }
+        .sys-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.4rem;
+        }
+        .blink {
+            width: 10px; height: 10px;
+            background: var(--text);
+            margin-right: 12px;
+            animation: blink 1.2s step-end infinite;
+            box-shadow: 0 0 8px var(--text);
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+        h1 {
+            font-size: clamp(1rem, 2vw, 1.4rem);
+            margin: 0;
+            letter-spacing: 2px;
+        }
+        .model-status-bar {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-size: 0.72rem;
+            flex-wrap: wrap;
+        }
+        .status-label { color: var(--text-dim); }
+        .status-value { color: var(--text); font-weight: bold; }
+        .status-sep { color: var(--border); }
+
+        /* Main Viewport Grid (100% Remaining Height, No Window Scroll) */
+        .sys-core {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            gap: 0.8rem;
+            padding: 0.6rem 1.2rem 0.8rem 1.2rem;
+            overflow: hidden;
+            min-height: 0;
+        }
+        .sys-core.hide-config {
+            grid-template-columns: 1fr;
+        }
+        .sys-core.hide-config #config-panel {
+            display: none !important;
+        }
+
+        /* Left Master Panel (Internal Scrollable) */
+        .panel {
+            border: 1px solid var(--border);
+            background: var(--panel);
+            padding: 0.8rem;
+            position: relative;
+            height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+            min-height: 0;
+        }
+        .panel-frame-title {
+            font-size: 0.75rem;
+            font-weight: bold;
+            color: var(--text-dim);
+            letter-spacing: 1.5px;
+            margin-bottom: 0.8rem;
+            padding-bottom: 0.4rem;
+            border-bottom: 1px dashed var(--border);
+            display: flex;
+            align-items: center;
+        }
+        .panel::-webkit-scrollbar { width: 4px; }
+        .panel::-webkit-scrollbar-track { background: rgba(0, 20, 0, 0.4); }
+        .panel::-webkit-scrollbar-thumb { background: var(--border); }
+        .panel::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+        /* Section Cards */
+        .section-card {
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--text-dim);
+            background: var(--panel-card);
+            padding: 0.8rem;
+            margin-bottom: 0.8rem;
+            position: relative;
+            box-shadow: inset 1px 0 6px rgba(0, 255, 65, 0.05);
+        }
+        .section-card.cyan {
+            border-color: var(--border-cyan);
+            border-left: 3px solid var(--cyan);
+            box-shadow: inset 1px 0 6px rgba(0, 229, 255, 0.05);
+        }
+        .section-title {
+            font-size: 0.75rem;
+            font-weight: bold;
+            color: var(--text);
+            margin-top: 0;
+            margin-bottom: 0.6rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.4rem;
+            letter-spacing: 1px;
+        }
+        .section-card.cyan .section-title { color: var(--cyan); }
+        .section-title-left {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .section-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 255, 65, 0.12);
+            border: 1px solid var(--text-dim);
+            color: var(--text);
+            font-size: 0.68rem;
+            font-weight: bold;
+            padding: 0.1rem 0.4rem;
+            border-radius: 2px;
+            letter-spacing: 0.5px;
+        }
+        .section-card.cyan .section-badge {
+            background: rgba(0, 229, 255, 0.12);
+            border-color: var(--cyan-dim);
+            color: var(--cyan);
+        }
+        .collapsible-section .section-badge {
+            background: rgba(0, 255, 65, 0.12);
+            border: 1px solid var(--text-dim);
+            color: var(--text);
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 0.6rem;
+        }
+        .field { display: flex; flex-direction: column; }
+        label {
+            font-size: 0.68rem;
+            color: var(--text-dim);
+            margin-bottom: 0.2rem;
+            letter-spacing: 0.5px;
+        }
+        .section-card.cyan label { color: var(--cyan-dim); }
+        input, select, textarea {
+            box-sizing: border-box;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.45rem 0.5rem;
+            font-family: inherit;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+        select option { background: #111; color: var(--text); }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--text);
+            background: rgba(0, 255, 65, 0.05);
+            box-shadow: 0 0 6px rgba(0, 255, 65, 0.2) inset;
+        }
+        .section-card.cyan input:focus, .section-card.cyan select:focus {
+            border-color: var(--cyan);
+            background: rgba(0, 229, 255, 0.05);
+            box-shadow: 0 0 6px rgba(0, 229, 255, 0.2) inset;
+        }
+
+        /* Radio button switchers */
+        .radio-switch-group {
+            display: flex;
+            gap: 0.4rem;
+            margin-bottom: 0.6rem;
+        }
+        .radio-switch-item {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--border);
+            padding: 0.4rem 0.3rem;
+            cursor: pointer;
+            font-size: 0.7rem;
+            background: rgba(0, 0, 0, 0.3);
+            transition: all 0.2s;
+            user-select: none;
+        }
+        .radio-switch-item input[type="radio"] { display: none; }
+        .radio-switch-item.active {
+            border-color: var(--text);
+            background: rgba(0, 255, 65, 0.15);
+            color: var(--text);
+            box-shadow: 0 0 6px rgba(0, 255, 65, 0.3);
+        }
+        .radio-switch-item.active-cyan {
+            border-color: var(--cyan);
+            background: rgba(0, 229, 255, 0.15);
+            color: var(--cyan);
+            box-shadow: 0 0 6px rgba(0, 229, 255, 0.3);
+        }
+
+        /* Master Stream List (Left Panel) */
+        .master-stream-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+            margin-bottom: 0.6rem;
+            max-height: 180px;
+            overflow-y: auto;
+        }
+        .master-stream-list::-webkit-scrollbar { width: 3px; }
+        .master-stream-list::-webkit-scrollbar-thumb { background: var(--border); }
+        .master-stream-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            flex-wrap: nowrap;
+            padding: 0.4rem 0.5rem;
+            border: 1px solid var(--border);
+            background: rgba(0, 0, 0, 0.4);
+            cursor: pointer;
+            font-size: 0.72rem;
+            transition: all 0.15s;
+            user-select: none;
+        }
+        .master-stream-item:hover {
+            border-color: var(--text-dim);
+            background: rgba(0, 255, 65, 0.05);
+        }
+        .master-stream-item.active {
+            border-color: var(--text);
+            background: rgba(0, 255, 65, 0.15);
+            color: var(--text);
+            box-shadow: 0 0 6px rgba(0, 255, 65, 0.25) inset;
+        }
+        .master-stream-label {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+        .master-stream-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-width: 0;
+            flex: 1;
+        }
+        .master-stream-del-btn {
+            background: transparent;
+            color: var(--danger);
+            border: 1px solid var(--danger);
+            padding: 0.15rem 0.4rem;
+            font-size: 0.65rem;
+            cursor: pointer;
+            font-family: inherit;
+            white-space: nowrap;
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            border-radius: 2px;
+            transition: all 0.15s ease;
+        }
+        .master-stream-del-btn:hover {
+            background: var(--danger);
+            color: #000;
+            box-shadow: 0 0 6px rgba(255, 60, 60, 0.4);
+        }
+        .btn-add-stream {
+            width: 100%;
+            background: transparent;
+            color: var(--cyan);
+            border: 1px dashed var(--cyan);
+            padding: 0.45rem;
+            font-size: 0.72rem;
+            cursor: pointer;
+            font-family: inherit;
+            letter-spacing: 1px;
+            transition: all 0.2s;
+        }
+        .btn-add-stream:hover {
+            background: rgba(0, 229, 255, 0.1);
+            box-shadow: 0 0 6px rgba(0, 229, 255, 0.3);
+        }
+
+        /* Collapsible Section */
+        .collapsible-section {
+            border: 1px solid var(--border);
+            background: var(--panel-card);
+            margin-bottom: 0.8rem;
+        }
+        .collapsible-header {
+            padding: 0.6rem 0.8rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.75rem;
+            font-weight: bold;
+            color: var(--text-dim);
+            user-select: none;
+            transition: all 0.2s;
+        }
+        .collapsible-header:hover {
+            color: var(--text);
+            background: rgba(0, 255, 65, 0.05);
+        }
+        .collapsible-content {
+            display: none;
+            padding: 0.8rem;
+            border-top: 1px solid var(--border);
+        }
+        .collapsible-section.open .collapsible-content { display: block; }
+        .collapsible-section.open .collapsible-header { color: var(--text); }
+
+        .btn-exec {
+            width: 100%;
+            background: transparent;
+            color: var(--text);
+            border: 1px solid var(--text);
+            padding: 0.75rem;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: inherit;
+            letter-spacing: 2px;
+            font-size: 0.82rem;
+            transition: all 0.1s;
+        }
+        .btn-exec:hover {
+            background: var(--text);
+            color: var(--bg);
+            box-shadow: 0 0 12px rgba(0, 255, 65, 0.4);
+        }
+        .btn-exec:active { transform: scale(0.98); }
+
+        /* Right Workspace (Fixed Layout: Top-Right Preview + Bottom-Right Inspector) */
+        .right-workspace {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+            overflow: hidden;
+            min-height: 0;
+        }
+        .sys-core.hide-config .right-workspace {
+            display: flex;
+            flex-direction: column;
+        }
+        .sys-core.hide-config #stream-detail-inspector {
+            display: none !important;
+        }
+        .detail-inspector.video-mode-hidden {
+            display: none !important;
+        }
+        .sys-core.hide-config .preview-container {
+            flex: 1;
+            height: 100%;
+        }
+
+        /* Top-Right Preview Container */
+        .preview-container {
+            flex: 1;
+            min-height: 200px;
+            border: 1px solid var(--border);
+            background: var(--panel);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 4px;
+            position: relative;
+        }
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.35rem 0.6rem;
+            font-size: 0.72rem;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-dim);
+            flex-shrink: 0;
+        }
+        .preview-header span.live { color: var(--text); animation: blink 2s infinite; }
+        .preview-img-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            min-height: 0;
+        }
+        .cam-feed-preview {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+        .stream-idle-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.88);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.6rem;
+            z-index: 50;
+            cursor: pointer;
+            backdrop-filter: blur(4px);
+            border: 1px dashed var(--cyan);
+            user-select: none;
+        }
+        .stream-idle-overlay .idle-icon {
+            font-size: 1.8rem;
+            color: var(--cyan);
+            animation: blink 2s infinite;
+        }
+        .stream-idle-overlay .idle-title {
+            font-size: 0.95rem;
+            font-weight: bold;
+            color: #fff;
+            letter-spacing: 1px;
+        }
+        .stream-idle-overlay .idle-hint {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            background: #111;
+            padding: 0.25rem 0.6rem;
+            border-radius: 3px;
+            border: 1px solid var(--border);
+        }
+        .monitor-stream-bar {
+            display: none;
+            gap: 0.4rem;
+            padding: 0.4rem 0.6rem;
+            border-top: 1px solid var(--border);
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+        .sys-core.hide-config .monitor-stream-bar {
+            display: flex;
+        }
+
+        /* Bottom-Right Stream Detail Inspector */
+        .detail-inspector {
+            flex: 1.1;
+            min-height: 220px;
+            border: 1px solid var(--border-cyan);
+            background: var(--panel);
+            padding: 0.8rem 1rem;
+            box-sizing: border-box;
+            position: relative;
+            overflow-y: auto;
+        }
+        .detail-inspector::-webkit-scrollbar { width: 4px; }
+        .detail-inspector::-webkit-scrollbar-thumb { background: var(--border-cyan); }
+        .detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px dashed var(--border-cyan);
+            padding-bottom: 0.4rem;
+            margin-bottom: 0.6rem;
+        }
+
+        .stream-btn {
+            background: transparent;
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 0.25rem 0.5rem;
+            font-family: inherit;
+            font-size: 0.72rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .stream-btn:hover {
+            border-color: var(--text);
+            background: rgba(0, 255, 65, 0.1);
+        }
+        .stream-btn.cyan {
+            color: var(--cyan);
+            border-color: var(--border-cyan);
+        }
+        .stream-btn.cyan:hover {
+            border-color: var(--cyan);
+            background: rgba(0, 229, 255, 0.1);
+        }
+
+        /* Fullscreen Modal */
+        .fullscreen-modal {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: rgba(5, 5, 5, 0.96);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            padding: 0.8rem;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.4rem;
+            margin-bottom: 0.4rem;
+            font-size: 0.8rem;
+        }
+        .modal-close-btn {
+            background: transparent;
+            color: #ff3333;
+            border: 1px solid #ff3333;
+            padding: 0.25rem 0.6rem;
+            font-family: inherit;
+            font-size: 0.75rem;
+            cursor: pointer;
+        }
+        .modal-close-btn:hover { background: #ff3333; color: #000; }
+        .modal-body {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+        #fullscreen-img {
+            max-width: 95vw;
+            max-height: 85vh;
+            object-fit: contain;
+            display: block;
+            border: 1px solid var(--border);
+        }
+        #fullscreen-canvas {
+            position: absolute;
+            pointer-events: none;
+        }
+        @keyframes alarm-pulse {
+            0% {
+                box-shadow: inset 0 0 15px rgba(255, 51, 51, 0.4);
+            }
+            50% {
+                box-shadow: inset 0 0 40px rgba(255, 51, 51, 0.85);
+            }
+            100% {
+                box-shadow: inset 0 0 15px rgba(255, 51, 51, 0.4);
+            }
+        }
+        .fullscreen-modal.alarm-active {
+            animation: alarm-pulse 1.2s infinite ease-in-out;
+            border: 1px solid rgba(255, 51, 51, 0.6);
+        }
+
+        /* ===== Log Viewer Modal ===== */
+        #log-viewer-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 9000;
+            align-items: center;
+            justify-content: center;
+        }
+        #log-viewer-overlay.open {
+            display: flex;
+        }
+        #log-viewer-modal {
+            width: 85vw;
+            max-width: 1100px;
+            height: 78vh;
+            background: #050505;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 40px rgba(0,255,65,0.15);
+        }
+        #log-viewer-titlebar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem 0.8rem;
+            border-bottom: 1px solid var(--border);
+            background: #0a0a0a;
+            flex-shrink: 0;
+        }
+        #log-viewer-titlebar .lv-title {
+            color: var(--text-dim);
+            font-size: 0.72rem;
+            letter-spacing: 2px;
+        }
+        #log-viewer-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 0.8rem;
+            border-bottom: 1px dashed var(--border);
+            flex-shrink: 0;
+            flex-wrap: wrap;
+        }
+        #log-viewer-controls select {
+            background: #0a0a0a;
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 0.2rem 0.5rem;
+            font-family: inherit;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+        }
+        #log-viewer-controls label {
+            font-size: 0.72rem;
+            color: var(--text-dim);
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            cursor: pointer;
+        }
+        #log-content-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.6rem 0.8rem;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+            font-size: 0.72rem;
+            color: #b0ffb0;
+            white-space: pre-wrap;
+            word-break: break-all;
+            line-height: 1.5;
+            min-height: 0;
+        }
+        #log-content-area::-webkit-scrollbar { width: 4px; }
+        #log-content-area::-webkit-scrollbar-track { background: rgba(0,20,0,0.4); }
+        #log-content-area::-webkit-scrollbar-thumb { background: var(--border); }
+        #log-status-bar {
+            padding: 0.25rem 0.8rem;
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            border-top: 1px dashed var(--border);
+            flex-shrink: 0;
+        }
+        .lv-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            padding: 0.2rem 0.6rem;
+            font-family: inherit;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            cursor: pointer;
+            letter-spacing: 1px;
+        }
+        .lv-btn:hover { color: var(--text); border-color: var(--text-dim); }
+        .lv-close-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            font-size: 1.2rem;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0 0.3rem;
+        }
+        .lv-close-btn:hover { color: var(--danger); }
+
+        /* ===== Report Issue Modal ===== */
+        #report-issue-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 9000;
+            align-items: center;
+            justify-content: center;
+        }
+        #report-issue-overlay.open {
+            display: flex;
+        }
+        #report-issue-modal {
+            width: 85vw;
+            max-width: 760px;
+            max-height: 88vh;
+            background: #050505;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 40px rgba(255, 170, 0, 0.2);
+        }
+        #report-issue-titlebar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem 0.8rem;
+            border-bottom: 1px solid var(--border);
+            background: #0a0a0a;
+            flex-shrink: 0;
+        }
+        #report-issue-titlebar .ri-title {
+            color: var(--warn);
+            font-size: 0.75rem;
+            letter-spacing: 2px;
+            font-weight: bold;
+        }
+        .ri-close-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            font-size: 1.2rem;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0 0.3rem;
+            font-family: inherit;
+        }
+        .ri-close-btn:hover { color: var(--danger); }
+        #report-issue-content {
+            padding: 0.9rem 1.1rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+        .ri-field {
+            margin-bottom: 0.8rem;
+        }
+        .ri-field label {
+            display: block;
+            font-size: 0.72rem;
+            color: var(--text-dim);
+            margin-bottom: 0.3rem;
+            letter-spacing: 0.5px;
+        }
+        .ri-scope-note {
+            font-size: 0.68rem;
+            color: var(--cyan-dim);
+            border: 1px dashed var(--border-cyan);
+            padding: 0.45rem 0.6rem;
+            background: rgba(0, 229, 255, 0.03);
+            line-height: 1.35;
+        }
+        .ri-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.8rem;
+            margin-top: 1rem;
+        }
+        .ri-error-banner {
+            padding: 0.6rem 0.8rem;
+            background: rgba(255, 51, 51, 0.15);
+            border: 1px solid var(--danger);
+            color: var(--danger);
+            font-size: 0.75rem;
+            margin-top: 0.6rem;
+            word-break: break-all;
+        }
+        .ri-success-banner {
+            padding: 0.8rem 1rem;
+            background: rgba(0, 255, 65, 0.1);
+            border: 1px solid var(--text);
+            color: var(--text);
+            font-size: 0.85rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+        }
+        .ri-result-box {
+            border: 1px solid var(--border);
+            background: #0a0a0a;
+            padding: 0.8rem 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+        .ri-result-row {
+            display: flex;
+            align-items: baseline;
+            gap: 0.5rem;
+            font-size: 0.78rem;
+        }
+        .ri-result-label {
+            color: var(--text-dim);
+            min-width: 130px;
+            font-weight: bold;
+        }
+        .ri-result-val {
+            color: var(--text);
+            word-break: break-all;
+        }
+        .ri-link {
+            color: var(--cyan);
+            text-decoration: underline;
+        }
+        .ri-link:hover {
+            color: #fff;
+            text-shadow: 0 0 8px var(--cyan);
+        }
+        .ri-spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid var(--warn);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: ri-spin 0.8s linear infinite;
+        }
+        @keyframes ri-spin {
+            to { transform: rotate(360deg); }
+        }
+        #ri-status-bar {
+            padding: 0.25rem 0.8rem;
+            border-top: 1px dashed var(--border);
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            background: #0a0a0a;
+            flex-shrink: 0;
+        }
+
+        /* ===== Global Floating Action Bar (Issue #39) ===== */
+        .floating-action-bar {
+            position: fixed;
+            bottom: 1.2rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(140%);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 8500;
+            background: rgba(10, 10, 10, 0.95);
+            border: 1px solid var(--text);
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.25), 0 8px 24px rgba(0, 0, 0, 0.8);
+            border-radius: 4px;
+            backdrop-filter: blur(8px);
+            padding: 0.55rem 1.1rem;
+            transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease, box-shadow 0.25s ease;
+            max-width: 90vw;
+        }
+        .floating-action-bar.visible {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .fab-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1.2rem;
+        }
+        .fab-hint {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.76rem;
+            color: var(--warn);
+            font-weight: bold;
+            letter-spacing: 0.8px;
+            white-space: nowrap;
+        }
+        .fab-pulse-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--warn);
+            box-shadow: 0 0 8px var(--warn);
+            animation: blink 1.2s infinite ease-in-out;
+            flex-shrink: 0;
+        }
+        .fab-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            flex-shrink: 0;
+        }
+        .fab-btn {
+            padding: 0.4rem 0.85rem;
+            font-family: inherit;
+            font-size: 0.74rem;
+            font-weight: bold;
+            letter-spacing: 1px;
+            cursor: pointer;
+            border-radius: 2px;
+            transition: all 0.15s ease;
+            user-select: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+        .fab-btn-save {
+            background: var(--text);
+            color: #000;
+            border: 1px solid var(--text);
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+        }
+        .fab-btn-save:hover {
+            background: #fff;
+            border-color: #fff;
+            box-shadow: 0 0 16px rgba(0, 255, 65, 0.6);
+            transform: translateY(-1px);
+        }
+        .fab-btn-save:active {
+            transform: scale(0.97);
+        }
+        .fab-btn-discard {
+            background: rgba(255, 51, 51, 0.08);
+            color: var(--danger);
+            border: 1px solid var(--danger);
+        }
+        .fab-btn-discard:hover {
+            background: var(--danger);
+            color: #000;
+            box-shadow: 0 0 10px rgba(255, 51, 51, 0.4);
+            transform: translateY(-1px);
+        }
+        .fab-btn-discard:active {
+            transform: scale(0.97);
+        }
+
+        /* ===== HUD Toast Notification Component (Issue #39) ===== */
+        .hud-toast-container {
+            position: fixed;
+            top: 1.2rem;
+            right: 1.2rem;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+            pointer-events: none;
+            max-width: 90vw;
+        }
+        .hud-toast {
+            min-width: 260px;
+            max-width: 420px;
+            padding: 0.65rem 1rem;
+            border-radius: 3px;
+            font-size: 0.76rem;
+            font-family: inherit;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.8rem;
+            pointer-events: auto;
+            backdrop-filter: blur(8px);
+            transform: translateX(120%);
+            opacity: 0;
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+        }
+        .hud-toast.show {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        .hud-toast.success {
+            background: rgba(5, 20, 8, 0.96);
+            border: 1px solid var(--text);
+            color: var(--text);
+            box-shadow: 0 0 16px rgba(0, 255, 65, 0.3);
+        }
+        .hud-toast.error {
+            background: rgba(25, 5, 5, 0.96);
+            border: 1px solid var(--danger);
+            color: var(--danger);
+            box-shadow: 0 0 16px rgba(255, 51, 51, 0.35);
+        }
+        .hud-toast.info {
+            background: rgba(5, 18, 25, 0.96);
+            border: 1px solid var(--cyan);
+            color: var(--cyan);
+            box-shadow: 0 0 16px rgba(0, 229, 255, 0.3);
+        }
+        .hud-toast-msg {
+            flex: 1;
+            line-height: 1.4;
+            word-break: break-all;
+        }
+        .hud-toast-close {
+            background: transparent;
+            border: none;
+            color: inherit;
+            font-size: 0.9rem;
+            cursor: pointer;
+            opacity: 0.7;
+            padding: 0;
+            line-height: 1;
+        }
+        .hud-toast-close:hover {
+            opacity: 1;
+        }
+
+        /* Stream Dirty Badge (Issue #40) */
+        .stream-dirty-badge {
+            color: var(--warn);
+            font-weight: bold;
+            margin-left: 4px;
+            font-size: 0.85rem;
+            display: inline-block;
+        }
+
+        /* ===== Responsive Breakpoints (ADR-016) ===== */
+        /* Tier 1: Standard Desktop / Large Laptop (1200px ~ 1439px) */
+        @media (max-width: 1439px) {
+            :root {
+                font-size: 110%;
+            }
+            .sys-core {
+                grid-template-columns: 350px 1fr;
+                gap: 0.7rem;
+                padding: 0.5rem 1rem 0.7rem 1rem;
+            }
+        }
+
+        /* Tier 2: Compact Screen / Small Laptop / Tablet Landscape (992px ~ 1199px) */
+        @media (max-width: 1199px) {
+            :root {
+                font-size: 95%;
+            }
+            .sys-core {
+                grid-template-columns: 310px 1fr;
+                gap: 0.6rem;
+                padding: 0.4rem 0.8rem 0.6rem 0.8rem;
+            }
+            .top-container {
+                padding: 0.4rem 0.8rem 0.3rem 0.8rem;
+            }
+        }
+
+        /* Tier 3: Small Screen / 1024x768 Industrial / Netbook (768px ~ 991px) */
+        @media (max-width: 991px) {
+            :root {
+                font-size: 85%;
+            }
+            .sys-core {
+                grid-template-columns: 280px 1fr;
+                gap: 0.5rem;
+                padding: 0.4rem 0.6rem 0.5rem 0.6rem;
+            }
+            .top-container {
+                padding: 0.35rem 0.6rem 0.25rem 0.6rem;
+            }
+            .section-card {
+                padding: 0.6rem;
+                margin-bottom: 0.6rem;
+            }
+            .floating-action-bar {
+                padding: 0.45rem 0.8rem;
+            }
+            .fab-hint {
+                font-size: 0.7rem;
+            }
+            .fab-btn {
+                padding: 0.35rem 0.65rem;
+                font-size: 0.7rem;
+            }
+        }
+
+        /* Tier 4: Narrow Screen / Portrait Mobile (< 768px) */
+        @media (max-width: 767px) {
+            :root {
+                font-size: 85%;
+            }
+            html, body {
+                height: auto;
+                min-height: 100vh;
+                overflow-y: auto;
+                overflow-x: hidden;
+            }
+            .top-container {
+                padding: 0.5rem 0.6rem;
+            }
+            .sys-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.4rem;
+            }
+            .sys-core {
+                display: flex;
+                flex-direction: column;
+                height: auto;
+                overflow: visible;
+                padding: 0.4rem 0.6rem 0.8rem 0.6rem;
+                gap: 0.6rem;
+            }
+            .panel {
+                height: auto;
+                max-height: none;
+                overflow: visible;
+            }
+            .right-workspace {
+                height: auto;
+                overflow: visible;
+            }
+            .preview-container {
+                min-height: 220px;
+                height: 260px;
+            }
+            .detail-inspector {
+                min-height: 200px;
+                height: auto;
+            }
+            .floating-action-bar {
+                width: calc(100% - 1.2rem);
+                left: 0.6rem;
+                transform: translateY(140%);
+                padding: 0.5rem 0.7rem;
+            }
+            .floating-action-bar.visible {
+                transform: translateY(0);
+            }
+            .fab-content {
+                flex-direction: column;
+                gap: 0.4rem;
+                align-items: stretch;
+                text-align: center;
+            }
+            .fab-hint {
+                justify-content: center;
+                font-size: 0.7rem;
+            }
+            .fab-actions {
+                justify-content: center;
+            }
+            .fab-btn {
+                flex: 1;
+                justify-content: center;
+                padding: 0.35rem 0.5rem;
+                font-size: 0.7rem;
+            }
+            .hud-toast-container {
+                top: 0.6rem;
+                right: 0.6rem;
+                left: 0.6rem;
+                max-width: none;
+            }
+            .hud-toast {
+                min-width: 0;
+                width: 100%;
+            }
+        }
+
+        /* Vertical Height Constraint (Window Height <= 720px on non-mobile) */
+        @media (max-height: 720px) and (min-width: 768px) {
+            :root {
+                font-size: 88%;
+            }
+            .top-container {
+                padding: 0.3rem 0.8rem 0.2rem 0.8rem;
+            }
+            .sys-core {
+                padding: 0.3rem 0.8rem 0.4rem 0.8rem;
+                gap: 0.5rem;
+            }
+            .section-card {
+                padding: 0.5rem;
+                margin-bottom: 0.5rem;
+            }
+            .preview-container {
+                min-height: 150px;
+            }
+            .detail-inspector {
+                min-height: 160px;
+                padding: 0.5rem 0.7rem;
+            }
+            .panel {
+                padding: 0.5rem;
+            }
+            .panel-frame-title {
+                margin-bottom: 0.5rem;
+                padding-bottom: 0.3rem;
+            }
+            .floating-action-bar {
+                bottom: 0.6rem;
+                padding: 0.4rem 0.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- ===== Log Viewer Modal ===== -->
+    <div id="log-viewer-overlay" onclick="handleLogOverlayClick(event)">
+        <div id="log-viewer-modal" role="dialog" aria-modal="true" aria-labelledby="log-viewer-heading">
+            <div id="log-viewer-titlebar">
+                <span class="lv-title" id="log-viewer-heading">◈ ARGUS // LOG VIEWER</span>
+                <button class="lv-close-btn" onclick="closeLogViewer()" title="關閉 (ESC)">✕</button>
+            </div>
+            <div id="log-viewer-controls">
+                <select id="log-source-select" onchange="loadLogContent()">
+                    <option value="system">system.log</option>
+                    <option value="performance">performance.log</option>
+                    <option value="detections">detections.log</option>
+                </select>
+                <button class="lv-btn" onclick="loadLogContent()" id="log-refresh-btn">↻ 重新整理</button>
+                <label>
+                    <input type="checkbox" id="log-autoscroll" checked> 自動捲動
+                </label>
+                <button class="lv-btn" onclick="copyLogContent()" id="log-copy-btn">⎘ 複製</button>
+            </div>
+            <div id="log-content-area"></div>
+            <div id="log-status-bar">--- 就緒 ---</div>
+        </div>
+    </div>
+
+    <!-- ===== Report Issue Modal ===== -->
+    <div id="report-issue-overlay" onclick="handleReportIssueOverlayClick(event)">
+        <div id="report-issue-modal" role="dialog" aria-modal="true" aria-labelledby="report-issue-heading">
+            <div id="report-issue-titlebar">
+                <span class="ri-title" id="report-issue-heading">◈ ARGUS // 診斷封包與問題回報 (ISSUE REPORTER)</span>
+                <button class="ri-close-btn" onclick="closeReportIssueModal()" title="關閉 (ESC)">✕</button>
+            </div>
+            <div id="report-issue-content">
+                <!-- Form View -->
+                <form id="report-issue-form" onsubmit="submitIssueReport(event)">
+                    <div class="ri-field">
+                        <label for="ri-title-input">問題標題 / 摘要 <span style="color:var(--danger)">*</span></label>
+                        <input type="text" id="ri-title-input" placeholder="例如：RTSP 串流偶發中斷 / 推論延遲過高" required maxlength="120">
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem;">
+                        <div class="ri-field">
+                            <label for="ri-severity-select">嚴重程度</label>
+                            <select id="ri-severity-select">
+                                <option value="normal">一般 (Normal)</option>
+                                <option value="high">高 (High - 功能受損)</option>
+                                <option value="critical">緊急 (Critical - 系統無法運作)</option>
+                                <option value="low">低 (Low - 建議或優化)</option>
+                            </select>
+                        </div>
+                        <div class="ri-field">
+                            <label>診斷封包範圍</label>
+                            <div class="ri-scope-note">自動打包系統與推論日誌、脫敏設定檔、崩潰堆疊與主機規格。</div>
+                        </div>
+                    </div>
+
+                    <div class="ri-field">
+                        <label for="ri-desc-input">問題詳細說明 <span style="color:var(--danger)">*</span></label>
+                        <textarea id="ri-desc-input" rows="4" placeholder="請詳細描述異常現象、出現時間、系統狀態或相關錯誤訊息..." required></textarea>
+                    </div>
+
+                    <div class="ri-field">
+                        <label for="ri-steps-input">異常重現步驟 (選填)</label>
+                        <textarea id="ri-steps-input" rows="2" placeholder="1. 點擊...&#10;2. 觸發...&#10;3. 出現..."></textarea>
+                    </div>
+
+                    <div id="ri-error-msg" class="ri-error-banner" style="display:none;"></div>
+
+                    <div class="ri-actions">
+                        <button type="button" class="btn-exec" style="width:auto; padding: 0.5rem 1.2rem; border-color: var(--border); color: var(--text-dim);" onclick="closeReportIssueModal()">取消</button>
+                        <button type="submit" class="btn-exec" id="ri-submit-btn" style="width:auto; padding: 0.5rem 1.5rem; border-color: var(--warn); color: var(--warn); display: inline-flex; align-items: center; gap: 0.5rem;">
+                            <span id="ri-submit-text">📦 打包並發布至 GITEA</span>
+                            <span id="ri-spinner" class="ri-spinner" style="display:none;"></span>
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Result View (Hidden until success) -->
+                <div id="report-issue-result" style="display:none;">
+                    <div class="ri-success-banner">
+                        ✓ 診斷封包已成功上傳並建立 GITEA ISSUE！
+                    </div>
+                    <div class="ri-result-box">
+                        <div class="ri-result-row">
+                            <span class="ri-result-label">GITEA ISSUE：</span>
+                            <span class="ri-result-val"><a id="ri-res-issue-link" href="#" target="_blank" class="ri-link">#0 (查看 Issue)</a></span>
+                        </div>
+                        <div class="ri-result-row">
+                            <span class="ri-result-label">封包下載連結：</span>
+                            <span class="ri-result-val"><a id="ri-res-download-link" href="#" target="_blank" class="ri-link">點此下載診斷封包 ZIP</a></span>
+                        </div>
+                        <div class="ri-result-row">
+                            <span class="ri-result-label">回報識別碼：</span>
+                            <span class="ri-result-val" id="ri-res-report-id">---</span>
+                        </div>
+                        <div class="ri-result-row">
+                            <span class="ri-result-label">封包檔案：</span>
+                            <span class="ri-result-val" id="ri-res-filename">---</span>
+                        </div>
+                    </div>
+                    <div class="ri-actions" style="margin-top: 1.2rem; justify-content: flex-end;">
+                        <button type="button" class="btn-exec" style="width:auto; padding: 0.5rem 1.5rem;" onclick="closeReportIssueModal()">完成關閉</button>
+                    </div>
+                </div>
+            </div>
+            <div id="ri-status-bar">--- 就緒 ---</div>
+        </div>
+    </div>
+
+    <div class="top-container">
+        <header class="sys-header">
+            <div style="display: flex; align-items: center;">
+                <div class="blink"></div>
+                <h1>ARGUS // PREDICTOR_NANO</h1>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                <a href="/manual/" target="_blank" class="btn-exec" style="text-decoration:none; margin:0; width:auto; padding: 0.4rem 0.8rem; font-size:0.75rem; display:inline-flex; align-items:center;">📖 使用手冊</a>
+                <button type="button" class="btn-exec" id="log-viewer-btn" style="margin:0; width:auto; padding: 0.4rem 0.8rem; font-size:0.75rem;" onclick="openLogViewer()">[ 日誌檢視 LOGS ]</button>
+                <button type="button" class="btn-exec" id="report-issue-btn" style="margin:0; width:auto; padding: 0.4rem 0.8rem; font-size:0.75rem; border-color: var(--warn); color: var(--warn);" onclick="openReportIssueModal()">[ 回報問題 REPORT ]</button>
+                <button type="button" class="btn-exec" style="margin:0; width:auto; padding: 0.4rem 0.8rem; font-size:0.75rem;" onclick="document.getElementById('sys-core').classList.toggle('hide-config')">切換面板</button>
+            </div>
+        </header>
+
+        <div class="model-status-bar" id="model-status-bar">
+            <span class="status-label">模型</span>
+            <span class="status-value" id="model-type">---</span>
+            <span class="status-sep">//</span>
+            <span class="status-label">路徑</span>
+            <span class="status-value" id="model-path">---</span>
+            <span class="status-sep">//</span>
+            <span class="status-label">核心數</span>
+            <span class="status-value" id="model-cores">---</span>
+            <span class="status-sep">//</span>
+            <button type="button" class="stream-btn" onclick="syncModels()">同步模型</button>
+            <span class="status-value" id="sync-status">---</span>
+        </div>
+    </div>
+
+    <main class="sys-core" id="sys-core">
+        {% set raw_streams = config.get('streams', []) %}
+        {% set urls = [] %}
+        {% if raw_streams %}
+            {% for s in raw_streams %}
+                {% if s is mapping %}
+                    {% if s.get('url') %}{% set _ = urls.append(s.get('url')) %}{% endif %}
+                {% elif s is string and s.strip() %}
+                    {% set _ = urls.append(s.strip()) %}
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+
+        <!-- LEFT MASTER PANEL: Global & Master Stream List -->
+        <form method="POST" class="panel" id="config-panel" onsubmit="return submitConfigAjax(event)">
+            <div class="panel-frame-title">系統參數設定</div>
+            <input type="hidden" name="streams_json" id="streams_json">
+            <input type="hidden" name="ums_model_name" id="ums_model_name">
+            <input type="hidden" name="ums_model_version" id="ums_model_version">
+
+            <!-- SECTION 1: 推論效能 -->
+            <div class="section-card">
+                <div class="section-title">
+                    <span class="section-title-left"><span class="section-badge">01</span> 推論效能參數</span>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
+                    <div class="field">
+                        <label>FPS 限制</label>
+                        <input type="number" name="fps_limit" value="{{ config.get('fps_limit', 2) }}" min="1" max="60" required>
+                    </div>
+                    <div class="field">
+                        <label>CPU 核心數</label>
+                        <input type="number" name="cpu_cores" value="{{ config.get('cpu_cores', 4) }}" min="1" max="16" required>
+                    </div>
+                </div>
+                <div class="field" style="margin-top: 0.5rem;">
+                    <label>信心度門檻</label>
+                    <input type="number" name="conf_threshold" value="{{ config.get('conf_threshold', 0.25) }}" step="0.01" min="0.01" max="1.0" required>
+                </div>
+            </div>
+
+            <!-- SECTION 2: 全域模型來源配置 -->
+            <div class="section-card cyan">
+                <div class="section-title">
+                    <span class="section-title-left"><span class="section-badge">02</span> 全域模型來源配置</span>
+                </div>
+                <div class="radio-switch-group">
+                    <label class="radio-switch-item active" id="label-source-local" onclick="selectModelSource('local')">
+                        <input type="radio" name="model_source" value="local" id="radio-source-local" checked>
+                        本地檔案
+                    </label>
+                    <label class="radio-switch-item" id="label-source-ums" onclick="selectModelSource('ums')">
+                        <input type="radio" name="model_source" value="ums" id="radio-source-ums">
+                        UMS 雲端同步
+                    </label>
+                </div>
+
+                <div id="local-model-box">
+                    <div class="field">
+                        <label>模型檔案路徑</label>
+                        <input type="text" name="model_path" id="input_model_path" value="{{ config.get('model_path', 'best.onnx') }}" placeholder="best.onnx / best.pt / ncnn_dir">
+                    </div>
+                </div>
+
+                <div id="ums-model-box" style="display: none;">
+                    <div class="form-grid">
+                        <div class="field">
+                            <label>UMS 專案</label>
+                            <select id="ums-project-select" onchange="onUmsProjectChange()">
+                                <option value="">載入中 / 選擇專案...</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label>UMS 模型</label>
+                            <select id="ums-model-select" onchange="onUmsModelChange()">
+                                <option value="">請先選擇專案...</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label>模型版本</label>
+                            <select id="ums-version-select" onchange="onUmsVersionChange()">
+                                <option value="latest">latest (最新 Active 版本)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="field" style="margin-top: 0.6rem;">
+                    <label>模型格式偏好</label>
+                    <select name="model_format" id="global-model-format-select">
+                        <option value="auto" {% if config.get('model_format', 'auto') == 'auto' %}selected{% endif %}>AUTO (自動推薦: ONNX > PT > NCNN)</option>
+                        <option value="onnx" {% if config.get('model_format') == 'onnx' %}selected{% endif %}>ONNX (.onnx / ONNX Runtime 加速)</option>
+                        <option value="pt" {% if config.get('model_format') == 'pt' %}selected{% endif %}>PyTorch (.pt 權重檔案)</option>
+                        <option value="ncnn" {% if config.get('model_format') == 'ncnn' %}selected{% endif %}>NCNN (ARM64 深度優化資料夾)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- SECTION 3: 運作模式與串流主清單 (Master List) -->
+            <div class="section-card">
+                <div class="section-title">
+                    <span class="section-title-left"><span class="section-badge">03</span> 運作模式與串流清單</span>
+                </div>
+                <div class="field" style="margin-bottom: 0.6rem;">
+                    <label>運作模式</label>
+                    <select name="mode" id="mode-select" onchange="onModeChange()">
+                        <option value="rtsp" {% if config.get('mode', 'rtsp') == 'rtsp' %}selected{% endif %}>RTSP 多路模式 (MULTI_STREAM)</option>
+                        <option value="video" {% if config.get('mode', 'rtsp') == 'video' %}selected{% endif %}>影片驗證模式 (VIDEO_FILE)</option>
+                    </select>
+                </div>
+
+                <!-- RTSP Master Streams List -->
+                <div id="streams-master-section">
+                    <label>攝影機串流清單 (點選切換右側編輯)</label>
+                    <div class="master-stream-list" id="master-stream-list">
+                        <!-- Dynamic master items inserted here -->
+                    </div>
+                    <button type="button" class="btn-add-stream" onclick="addMasterStream()">+ 新增串流</button>
+                </div>
+
+                <!-- Video Mode Section -->
+                <div id="video-master-section" style="display: none;">
+                    <div class="field">
+                        <label>影片檔案路徑</label>
+                        <input type="text" name="video_path" id="input_video_path" value="{{ config.get('video_path', '') }}" placeholder="D:\path\to\video.avi" oninput="onVideoPathChange(this.value)">
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 4: 進階系統參數 (可摺疊) -->
+            <div class="collapsible-section" id="advanced-section">
+                <div class="collapsible-header" onclick="toggleAdvancedSection()">
+                    <span class="section-title-left"><span class="section-badge">04</span> 進階系統參數</span>
+                    <span id="advanced-toggle-icon">▼ 展開</span>
+                </div>
+                <div class="collapsible-content">
+                    <!-- UMS API Settings -->
+                    <div style="border-bottom: 1px dashed var(--border); padding-bottom: 0.8rem; margin-bottom: 0.8rem;">
+                        <span style="font-size: 0.72rem; color: var(--cyan); font-weight: bold;">// UMS API 連線設定 (多端點備援)</span>
+                        <div class="form-grid" style="margin-top: 0.4rem;">
+                            <!-- UMS Fab Selection Dropdown -->
+                            <div class="field">
+                                <label>UMS 服務廠區</label>
+                                <select id="ums-fab-select" name="ums_fab" class="detail-select" onchange="onFabChange(this.value)" style="width: 100%; padding: 0.35rem 0.5rem; background: #111; color: var(--cyan); border: 1px solid var(--border-cyan); font-family: inherit; font-size: 0.75rem;">
+                                    {% if available_fabs %}
+                                    {% for item in available_fabs %}
+                                    <option value="{{ item.fab }}" {% if item.fab == (config.get('ums_fab') or current_fab or 'oa') %}selected{% endif %}>{{ item.display_name }} ({{ item.fab }})</option>
+                                    {% endfor %}
+                                    {% else %}
+                                    <option value="oa" selected>OA (辦公網段)</option>
+                                    {% endif %}
+                                </select>
+                            </div>
+
+                            <!-- Read-only UMS Endpoints Preview -->
+                            <div class="field">
+                                <label style="margin-bottom: 0.3rem;">UMS 服務端點清單（主備端點由廠區自動配置，唯讀）</label>
+                                <div id="ums-endpoints-preview" style="display: flex; flex-direction: column; gap: 0.4rem;">
+                                    <!-- Readonly endpoints inserted dynamically -->
+                                </div>
+                            </div>
+
+                            <!-- UMS API Key -->
+                            <div class="field">
+                                <label>UMS API Key</label>
+                                <div style="display: flex; gap: 0.4rem;">
+                                    <input type="password" name="ums_api_key" id="ums_api_key" value="{{ config.get('ums_api_key', '') }}" placeholder="ums_xxx">
+                                    <button type="button" class="stream-btn" style="width: auto; padding: 0 0.5rem;" onclick="toggleApiKeyVisibility()">顯示</button>
+                                </div>
+                            </div>
+
+                            <!-- Test Connection Button & Status -->
+                            <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+                                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                                    <button type="button" class="stream-btn cyan" onclick="testUmsConnection()">測試連線</button>
+                                    <span id="ums-test-status" style="font-size: 0.7rem;"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Heartbeat Settings -->
+                    <div style="border-bottom: 1px dashed var(--border); padding-bottom: 0.6rem; margin-bottom: 0.6rem;">
+                        {% set hb = config.get('heartbeat', {}) %}
+                        <span style="font-size: 0.72rem; color: var(--text); font-weight: bold;">// HEARTBEAT 心跳回報代理</span>
+                        <div class="form-grid" style="margin-top: 0.4rem;">
+                            <div class="field">
+                                <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer;">
+                                    <input type="checkbox" name="heartbeat_enabled" value="true" style="width: auto;" {% if hb.get('enabled', true) %}checked{% endif %}>
+                                    啟用心跳服務
+                                </label>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
+                                <div class="field">
+                                    <label>Agent Port</label>
+                                    <input type="number" name="heartbeat_agent_port" value="{{ hb.get('agent_port', 8080) }}">
+                                </div>
+                                <div class="field">
+                                    <label>間隔秒數</label>
+                                    <input type="number" name="heartbeat_interval_seconds" value="{{ hb.get('interval_seconds', 60) }}">
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
+                                <div class="field">
+                                    <label>AP Name</label>
+                                    <input type="text" name="heartbeat_ap_name" value="{{ hb.get('ap_name', 'SafetyNano') }}">
+                                </div>
+                                <div class="field">
+                                    <label>版本</label>
+                                    <input type="text" name="heartbeat_version" value="{{ hb.get('version', '0.1.0') }}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Events and Logging -->
+                    <div>
+                        <span style="font-size: 0.72rem; color: var(--text); font-weight: bold;">// 事件與日誌記錄</span>
+                        <div class="form-grid" style="margin-top: 0.4rem;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.6rem;">
+                                <div class="field">
+                                    <label>消失容忍幀數</label>
+                                    <input type="number" name="event_absence_tolerance" value="{{ config.get('event_absence_tolerance', 2) }}" min="1" max="30">
+                                </div>
+                                <div class="field">
+                                    <label>效能日誌間隔</label>
+                                    <input type="number" name="log_interval_seconds" value="{{ config.get('log_interval_seconds', 60) }}">
+                                </div>
+                                <div class="field">
+                                    <label>日誌保留天數</label>
+                                    <input type="number" name="log_backup_count" value="{{ config.get('log_backup_count', 3) }}" min="1">
+                                </div>
+                            </div>
+                            <div class="field">
+                                <label>效能日誌檔名</label>
+                                <input type="text" name="log_file" value="{{ config.get('log_file', 'logs/performance.log') }}">
+                            </div>
+                            <div class="field">
+                                <label>偵測日誌檔名</label>
+                                <input type="text" name="detection_log_file" value="{{ config.get('detection_log_file', 'logs/detections.log') }}">
+                            </div>
+                            <div class="field">
+                                <label>事件資料留存天數 (天)</label>
+                                <input type="number" name="event_retention_days" value="{{ config.get('event_retention_days', 30) }}" min="1">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-exec">儲存並套用設定</button>
+        </form>
+
+        <!-- RIGHT WORKSPACE: Top Preview + Bottom Detail Inspector -->
+        <div class="right-workspace" id="right-workspace">
+            <!-- Top-Right Preview Widget -->
+            <div class="preview-container">
+                <div class="preview-header">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span id="preview-stream-title">● 串流 #0 [大門入口]</span>
+                        <span class="live">● 即時影像</span>
+                    </div>
+                    <button type="button" class="stream-btn cyan" onclick="openDetailFullscreen()">全螢幕檢視 ↗</button>
+                </div>
+                <div class="preview-img-wrapper" onclick="handlePreviewClick(event)">
+                    <img id="preview-cam-img" src="/video_feed/0" class="cam-feed-preview" alt="Camera Feed">
+                    <div id="preview-idle-overlay" class="stream-idle-overlay" onclick="wakeFromIdle(event)">
+                        <div class="idle-icon">⏸</div>
+                        <div class="idle-title">省電休眠模式中</div>
+                        <div class="idle-hint">點擊任意處或移動滑鼠以恢復監看畫面</div>
+                    </div>
+                </div>
+                <!-- Monitor Mode Stream Selector Bar (Shown only in hide-config) -->
+                <div class="monitor-stream-bar" id="monitor-stream-bar">
+                    {% for idx in range(urls|length) %}
+                        <button type="button" class="stream-btn" onclick="selectStream({{ idx }})">串流 #{{ idx }}</button>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Bottom-Right Stream Detail Inspector -->
+            <div class="detail-inspector" id="stream-detail-inspector">
+                <div class="detail-header">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                        <span style="font-weight: bold; color: var(--cyan); font-size: 0.78rem; letter-spacing: 1px;">串流詳細設定</span>
+                        <span id="detail-stream-badge" style="color: var(--text); font-size: 0.75rem; font-weight: bold;">串流 #0</span>
+                        <span id="detail-zone-status" style="color: #888; font-size: 0.72rem;">警戒區：未設定</span>
+                    </div>
+                    <button type="button" class="stream-btn cyan" onclick="openDetailFullscreen()">全螢幕 / 編輯警戒區 (ROI)</button>
+                </div>
+
+                <div class="form-grid">
+                    <div class="field">
+                        <label>串流 URL (RTSP / HTTP)</label>
+                        <input type="text" id="detail-input-url" placeholder="rtsp://127.0.0.1:8554/stream1" oninput="onDetailFieldChange('url', this.value)" required>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
+                        <div class="field">
+                            <label>畫面標籤</label>
+                            <input type="text" id="detail-input-label" placeholder="大門入口 (選填)" oninput="onDetailFieldChange('label', this.value)">
+                        </div>
+                        <div class="field">
+                            <label>鏡頭識別碼</label>
+                            <input type="text" id="detail-input-camid" placeholder="cam-01 (選填)" oninput="onDetailFieldChange('camera_id', this.value)" onblur="onDetailCameraIdBlur()">
+                        </div>
+                    </div>
+                    <div id="detail-camid-warning" style="display: none; border: 1px dashed var(--warn); background: rgba(255, 170, 0, 0.08); padding: 0.4rem 0.6rem; margin-top: 0.2rem; font-size: 0.7rem; color: var(--warn); align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap;">
+                        <span>⚠ 警告：若 RTSP 來源為 Argus Agent，修改 camera_id 會導致與 Argus 系統串接異常 (預期: <span id="detail-expected-camid" style="font-weight: bold; text-decoration: underline;"></span>)</span>
+                        <button type="button" class="stream-btn" style="border-color: var(--warn); color: var(--warn); padding: 0.15rem 0.45rem; font-size: 0.68rem;" onclick="restoreArgusCameraId()">還原為預設 ID</button>
+                    </div>
+                    <div class="field" style="margin-top: 0.2rem;">
+                        <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer;">
+                            <input type="checkbox" id="detail-override-toggle" onchange="onDetailOverrideToggle(this.checked)" style="width:auto;">
+                            自訂獨立模型
+                        </label>
+                        <div id="detail-override-box" style="display: none; margin-top: 0.4rem; padding: 0.6rem; border: 1px dashed var(--border-cyan); background: rgba(0, 20, 30, 0.4);">
+                            <div class="radio-switch-group" style="margin-bottom: 0.5rem;">
+                                <label class="radio-switch-item active" id="detail-label-source-local" onclick="selectDetailModelSource('local')">
+                                    <input type="radio" name="detail_model_source" value="local" id="detail-radio-source-local" checked>
+                                    本地檔案
+                                </label>
+                                <label class="radio-switch-item" id="detail-label-source-ums" onclick="selectDetailModelSource('ums')">
+                                    <input type="radio" name="detail_model_source" value="ums" id="detail-radio-source-ums">
+                                    UMS 雲端同步
+                                </label>
+                            </div>
+
+                            <div id="detail-local-model-box">
+                                <div class="field">
+                                    <label>獨立模型路徑</label>
+                                    <input type="text" id="detail-input-model" placeholder="custom_model.onnx / custom.pt" oninput="onDetailLocalModelChange(this.value)">
+                                </div>
+                            </div>
+
+                            <div id="detail-ums-model-box" style="display: none;">
+                                <div class="form-grid">
+                                    <div class="field">
+                                        <label>UMS 專案</label>
+                                        <select id="detail-ums-project-select" onchange="onDetailUmsProjectChange()">
+                                            <option value="">載入中 / 選擇專案...</option>
+                                        </select>
+                                    </div>
+                                    <div class="field">
+                                        <label>UMS 模型</label>
+                                        <select id="detail-ums-model-select" onchange="onDetailUmsModelChange()">
+                                            <option value="">請先選擇專案...</option>
+                                        </select>
+                                    </div>
+                                    <div class="field">
+                                        <label>模型版本</label>
+                                        <select id="detail-ums-version-select" onchange="onDetailUmsVersionChange()">
+                                            <option value="latest">latest (最新 Active 版本)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="field" style="margin-top: 0.5rem;">
+                                <label>獨立模型格式偏好</label>
+                                <select id="detail-model-format-select" onchange="onDetailFieldChange('model_format', this.value)">
+                                    <option value="auto">AUTO (自動推薦: ONNX > PT > NCNN)</option>
+                                    <option value="onnx">ONNX (.onnx / ONNX Runtime)</option>
+                                    <option value="pt">PyTorch (.pt 權重檔)</option>
+                                    <option value="ncnn">NCNN (ARM64 深度優化資料夾)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="detail-resolved-model-box" style="margin-top: 0.6rem; padding: 0.5rem 0.8rem; border: 1px solid var(--border-cyan); background: rgba(0, 229, 255, 0.05); font-size: 0.75rem; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap;">
+                        <div>
+                            <span style="color: var(--text-dim);">實際生效模型:</span>
+                            <span id="detail-resolved-model-path" style="color: var(--text); font-weight: bold; margin-left: 0.4rem; word-break: break-all;">---</span>
+                        </div>
+                        <span id="detail-resolved-model-badge" style="background: var(--text-cyan); color: #000; padding: 0.15rem 0.45rem; font-weight: bold; border-radius: 2px; font-size: 0.7rem;">---</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ===== Global Floating Action Bar (Issue #39) ===== -->
+    <div id="floating-action-bar" class="floating-action-bar" role="toolbar" aria-label="設定變更浮動操作列">
+        <div class="fab-content">
+            <div class="fab-hint">
+                <span class="fab-pulse-dot"></span>
+                <span class="fab-hint-text">⚠ 偵測到尚未儲存的設定變更</span>
+            </div>
+            <div class="fab-actions">
+                <button type="button" class="fab-btn fab-btn-discard" id="fab-discard-btn" onclick="discardChanges()">✕ 放棄變更</button>
+                <button type="button" class="fab-btn fab-btn-save" id="fab-save-btn" onclick="submitConfigAjax(event)">✓ 儲存並套用設定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== HUD Toast Notification Container (Issue #39) ===== -->
+    <div id="hud-toast-container" class="hud-toast-container" aria-live="polite"></div>
+
+    <!-- Fullscreen Modal Overlay (Preserved ROI Canvas & SSE) -->
+    <div id="fullscreen-modal" class="fullscreen-modal" style="display:none;" onclick="closeFullscreenOnBackdrop(event)">
+        <div class="modal-header">
+            <div style="display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap;">
+                <div class="blink"></div>
+                <span id="modal-title">全螢幕串流 // 串流 #0</span>
+                <span id="zone-status-badge" style="color: #888888; font-size: 0.75rem;">警戒區：未設定</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <div id="zone-view-controls">
+                    <button type="button" class="stream-btn" id="btn-edit-zone" onclick="enterZoneEditMode()">編輯警戒區</button>
+                </div>
+                <div id="zone-edit-controls" style="display: none; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                    <input type="text" id="zone-name-input" placeholder="警戒區域名稱 (選填)" style="width: 130px; padding: 0.3rem 0.5rem; font-size: 0.75rem; border: 1px solid #00e5ff; color: #00e5ff; background: rgba(0,0,0,0.5);">
+                    <select id="zone-trigger-mode-select" style="padding: 0.3rem 0.5rem; font-size: 0.75rem; border: 1px solid #00e5ff; color: #00e5ff; background: #111; cursor: pointer;" onchange="updateTriggerModeUI()">
+                        <option value="center">物件中心點 (Center)</option>
+                        <option value="intersect">邊界框相交重疊 (Intersect)</option>
+                    </select>
+                    <div id="zone-sensitivity-container" style="display: none; align-items: center; gap: 0.3rem; font-size: 0.75rem; color: #00e5ff;">
+                        <span>重疊敏感度:</span>
+                        <input type="range" id="zone-sensitivity-range" min="0" max="100" value="0" style="width: 65px;" oninput="document.getElementById('zone-sensitivity-val').innerText = this.value + '%'">
+                        <span id="zone-sensitivity-val" style="min-width: 32px;">0%</span>
+                    </div>
+                    <button type="button" class="stream-btn" onclick="closeZonePolygon()" style="border-color: #00e5ff; color: #00e5ff;">封閉多邊形</button>
+                    <button type="button" class="stream-btn" onclick="clearZonePoints()" style="border-color: #ffaa00; color: #ffaa00;">清除區域</button>
+                    <button type="button" class="stream-btn" onclick="saveZone()" style="border-color: #00ff41; color: #00ff41;">儲存警戒區</button>
+                    <button type="button" class="stream-btn" onclick="cancelZoneEdit()" style="border-color: #ff3333; color: #ff3333;">取消</button>
+                </div>
+                <button type="button" class="modal-close-btn" onclick="closeFullscreen()">關閉全螢幕 ✕</button>
+            </div>
+        </div>
+        <div class="modal-body" onclick="event.stopPropagation()">
+            <img id="fullscreen-img" alt="Stream Feed">
+            <canvas id="fullscreen-canvas"></canvas>
+            <div id="fullscreen-idle-overlay" class="stream-idle-overlay" onclick="wakeFromIdle(event)">
+                <div class="idle-icon">⏸</div>
+                <div class="idle-title">全螢幕省電休眠中</div>
+                <div class="idle-hint">點擊任意處或移動滑鼠以恢復即時畫面</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CONFIG_MODE = {{ config.get('mode', 'rtsp') | tojson }};
+        const CONFIG_STREAMS = {{ urls | tojson }};
+        const CONFIG_INITIAL_STREAMS = {{ config.get('streams', []) | tojson }};
+        const CONFIG_INITIAL_UMS_MODEL = {{ config.get('ums_model') | tojson }};
+        const CONFIG_VIDEO_PATH = {{ config.get('video_path', '') | tojson }};
+        const CONFIG_INITIAL_UMS_FAB = {{ (config.get('ums_fab') or current_fab or 'oa') | tojson }};
+        const UMS_FABS_MAP = {{ (ums_fabs_map or {}) | tojson }};
+
+        let umsProjectsData = [];
+        let streamsList = [];
+        let selectedStreamIndex = 0;
+        let cachedModelInfo = { type: '---', path: '---', cpu_cores: 4, streams: [] };
+
+        function updateResolvedModelUI() {
+            const pathEl = document.getElementById('detail-resolved-model-path');
+            const badgeEl = document.getElementById('detail-resolved-model-badge');
+            if (!pathEl || !badgeEl) return;
+
+            let streamInfo = null;
+            if (cachedModelInfo.streams && Array.isArray(cachedModelInfo.streams)) {
+                streamInfo = cachedModelInfo.streams.find(s => s.stream_index === selectedStreamIndex);
+            }
+
+            if (streamInfo && streamInfo.resolved_model_path) {
+                pathEl.textContent = streamInfo.resolved_model_path;
+                badgeEl.textContent = streamInfo.model_type || 'Unknown';
+            } else {
+                pathEl.textContent = cachedModelInfo.path || '---';
+                badgeEl.textContent = cachedModelInfo.type || '---';
+            }
+        }
+
+        function refreshModelInfo() {
+            fetch('/model_info')
+                .then(r => r.json())
+                .then(data => {
+                    cachedModelInfo = data || {};
+                    document.getElementById('model-type').textContent = data.type || '---';
+                    document.getElementById('model-path').textContent = data.path || '---';
+                    document.getElementById('model-cores').textContent = data.cpu_cores || '---';
+                    updateResolvedModelUI();
+                })
+                .catch(err => console.error('Error fetching model info:', err));
+        }
+        refreshModelInfo();
+        setInterval(refreshModelInfo, 5000);
+
+        function refreshSyncStatus() {
+            fetch('/sync_status')
+                .then(r => r.json())
+                .then(data => {
+                    const el = document.getElementById('sync-status');
+                    if (!data.timestamp) { 
+                        el.textContent = '---'; 
+                        el.style.color = '';
+                        el.title = '';
+                        return; 
+                    }
+                    el.textContent = `OK:${data.success.length} FAIL:${data.failed.length}`;
+                    if (data.failed.length > 0) {
+                        el.style.color = 'var(--danger)';
+                        el.style.textShadow = '0 0 8px var(--danger)';
+                        const failSummary = data.failed.map(f => `[${f.name}@${f.version}] ${f.error}`).join('\n');
+                        el.title = '同步失敗:\n' + failSummary;
+                        console.error('[ModelSync] 同步失敗詳情:', data.failed);
+                    } else {
+                        el.style.color = '';
+                        el.style.textShadow = '';
+                        el.title = '';
+                    }
+                })
+                .catch(err => console.error('Error fetching sync status:', err));
+        }
+        refreshSyncStatus();
+        setInterval(refreshSyncStatus, 5000);
+
+        function syncModels() {
+            const el = document.getElementById('sync-status');
+            el.textContent = 'SYNCING...';
+            el.style.color = 'var(--warn)';
+            el.style.textShadow = '';
+            el.title = '';
+            fetch('/sync_models', {method: 'POST'})
+                .then(r => r.json())
+                .then(data => {
+                    el.textContent = `OK:${data.success.length} FAIL:${data.failed.length}`;
+                    if (data.failed.length > 0) {
+                        el.style.color = 'var(--danger)';
+                        el.style.textShadow = '0 0 8px var(--danger)';
+                        const failSummary = data.failed.map(f => `[${f.name}@${f.version}] ${f.error}`).join('\n');
+                        el.title = '同步失敗:\n' + failSummary;
+                        console.error('[ModelSync] 同步失敗詳情:', data.failed);
+                    } else {
+                        el.style.color = '';
+                        el.style.textShadow = '';
+                        el.title = '';
+                    }
+                })
+                .catch(err => {
+                    el.textContent = 'ERROR';
+                    el.style.color = 'var(--danger)';
+                    el.title = '網路錯誤';
+                    console.error('Error syncing models:', err);
+                });
+        }
+
+        function toggleAdvancedSection() {
+            const sec = document.getElementById('advanced-section');
+            const icon = document.getElementById('advanced-toggle-icon');
+            sec.classList.toggle('open');
+            icon.textContent = sec.classList.contains('open') ? '▲ 收合' : '▼ 展開';
+        }
+
+        function toggleApiKeyVisibility() {
+            const input = document.getElementById('ums_api_key');
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+
+        // ── Dirty State & Snapshot Engine (Issues #40, #41) ──
+        let initialFormSnapshot = {};
+        let initialStreamsSnapshot = [];
+        let isInitializing = true;
+
+        function getFormState() {
+            const form = document.getElementById('config-panel');
+            if (!form) return {};
+            const state = {};
+            
+            const fieldNames = [
+                'fps_limit', 'cpu_cores', 'conf_threshold',
+                'model_path', 'model_format', 'video_path',
+                'ums_api_key', 'heartbeat_agent_port', 'heartbeat_interval_seconds',
+                'heartbeat_ap_name', 'heartbeat_version', 'event_absence_tolerance',
+                'log_interval_seconds', 'log_backup_count', 'log_file', 'detection_log_file',
+                'mode'
+            ];
+            fieldNames.forEach(name => {
+                const el = form.elements[name];
+                if (el) {
+                    state[name] = el.value;
+                }
+            });
+
+            const localRadio = document.getElementById('radio-source-local');
+            const isLocal = localRadio && localRadio.checked;
+            state['model_source'] = isLocal ? 'local' : 'ums';
+
+            if (!isLocal) {
+                const umsNameEl = document.getElementById('ums-model-select');
+                const umsVerEl = document.getElementById('ums-version-select');
+                state['ums_model_name'] = umsNameEl ? umsNameEl.value : '';
+                state['ums_model_version'] = umsVerEl ? umsVerEl.value : 'latest';
+            } else {
+                state['ums_model_name'] = '';
+                state['ums_model_version'] = '';
+            }
+
+            const fabSelect = document.getElementById('ums-fab-select');
+            state['ums_fab'] = fabSelect ? fabSelect.value : (CONFIG_INITIAL_UMS_FAB || 'oa');
+
+            const hbEl = form.elements['heartbeat_enabled'];
+            state['heartbeat_enabled'] = hbEl ? hbEl.checked : false;
+
+            return state;
+        }
+
+        function takeSnapshot() {
+            initialFormSnapshot = getFormState();
+            initialStreamsSnapshot = JSON.parse(JSON.stringify(streamsList));
+        }
+
+        function areStreamsEqual(s1, s2) {
+            if (!s1 && !s2) return true;
+            if (!s1 || !s2) return false;
+            
+            const u1 = (s1.url || '').trim();
+            const u2 = (s2.url || '').trim();
+            const l1 = (s1.label || '').trim();
+            const l2 = (s2.label || '').trim();
+            const c1 = (s1.camera_id || '').trim();
+            const c2 = (s2.camera_id || '').trim();
+            const m1 = (s1.model || '').trim();
+            const m2 = (s2.model || '').trim();
+            const f1 = s1.model_format || 'auto';
+            const f2 = s2.model_format || 'auto';
+
+            if (u1 !== u2 || l1 !== l2 || c1 !== c2 || m1 !== m2 || f1 !== f2) {
+                return false;
+            }
+
+            const ums1 = s1.ums_model;
+            const ums2 = s2.ums_model;
+            const hasUms1 = Boolean(ums1 && ums1.name && ums1.name.trim());
+            const hasUms2 = Boolean(ums2 && ums2.name && ums2.name.trim());
+            if (hasUms1 !== hasUms2) return false;
+            if (hasUms1 && hasUms2) {
+                if ((ums1.name || '').trim() !== (ums2.name || '').trim() || (ums1.version || 'latest') !== (ums2.version || 'latest')) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function checkDirtyState() {
+            if (isInitializing) {
+                const fab = document.getElementById('floating-action-bar');
+                if (fab) fab.classList.remove('visible');
+                return false;
+            }
+
+            const currentForm = getFormState();
+            let formDirty = false;
+
+            if (initialFormSnapshot && Object.keys(initialFormSnapshot).length > 0) {
+                for (const key in initialFormSnapshot) {
+                    if (String(initialFormSnapshot[key] ?? '') !== String(currentForm[key] ?? '')) {
+                        formDirty = true;
+                        break;
+                    }
+                }
+            }
+
+            let anyStreamDirty = false;
+            const dirtyStreamIndices = new Set();
+
+            if (streamsList.length !== initialStreamsSnapshot.length) {
+                anyStreamDirty = true;
+            }
+
+            streamsList.forEach((stream, idx) => {
+                const initialStream = initialStreamsSnapshot[idx];
+                if (!initialStream || !areStreamsEqual(stream, initialStream)) {
+                    dirtyStreamIndices.add(idx);
+                    anyStreamDirty = true;
+                }
+            });
+
+            // Update master stream items visual dirty badges (*)
+            streamsList.forEach((s, idx) => {
+                const nameEl = document.getElementById(`master-stream-name-${idx}`);
+                if (nameEl) {
+                    const displayName = s.label ? `${s.label}` : (s.url ? s.url.replace(/^rtsp:\/\//, '') : '未命名串流');
+                    const isDirty = dirtyStreamIndices.has(idx);
+                    nameEl.innerHTML = `${escapeHtml(displayName)}${isDirty ? '<span class="stream-dirty-badge">*</span>' : ''}`;
+                }
+            });
+
+            const isDirty = formDirty || anyStreamDirty;
+            const fab = document.getElementById('floating-action-bar');
+            if (fab) {
+                if (isDirty) {
+                    fab.classList.add('visible');
+                } else {
+                    fab.classList.remove('visible');
+                }
+            }
+            return isDirty;
+        }
+
+        function discardChanges() {
+            // 1. Restore streams
+            streamsList = JSON.parse(JSON.stringify(initialStreamsSnapshot));
+            
+            // 2. Restore form fields
+            const form = document.getElementById('config-panel');
+            if (form && initialFormSnapshot) {
+                for (const [key, val] of Object.entries(initialFormSnapshot)) {
+                    if (key === 'model_source') {
+                        selectModelSource(val);
+                    } else if (key === 'ums_fab') {
+                        const fabSelect = document.getElementById('ums-fab-select');
+                        if (fabSelect) fabSelect.value = val;
+                        renderUmsEndpointsPreview(val);
+                    } else if (key === 'heartbeat_enabled') {
+                        const el = form.elements['heartbeat_enabled'];
+                        if (el) el.checked = Boolean(val);
+                    } else if (key === 'ums_model_name' || key === 'ums_model_version' || key === 'ums_project_id') {
+                        // Handled by selectModelSource
+                    } else {
+                        const el = form.elements[key];
+                        if (el) el.value = val;
+                    }
+                }
+            }
+
+            if (initialFormSnapshot['model_source'] === 'ums' && initialFormSnapshot['ums_model_name']) {
+                loadUmsModels(initialFormSnapshot['ums_model_name'], initialFormSnapshot['ums_model_version']);
+            }
+
+            // 3. Re-render UI
+            renderMasterStreamList();
+            const nextIdx = (selectedStreamIndex >= 0 && selectedStreamIndex < streamsList.length) ? selectedStreamIndex : 0;
+            selectStream(nextIdx);
+            onModeChange();
+
+            // 4. Update dirty state & notify
+            checkDirtyState();
+            showToast('已放棄變更並還原所有設定', 'info', 2500);
+        }
+
+        // ── HUD Toast Notifications (Issue #39) ──
+        function showToast(message, type = 'success', duration = 3000) {
+            const container = document.getElementById('hud-toast-container');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            toast.className = `hud-toast ${type}`;
+            
+            const prefix = type === 'success' ? '✓' : (type === 'error' ? '✗' : 'ℹ');
+            toast.innerHTML = `
+                <span class="hud-toast-msg">${prefix} ${escapeHtml(message)}</span>
+                <button type="button" class="hud-toast-close" title="關閉">✕</button>
+            `;
+
+            const closeBtn = toast.querySelector('.hud-toast-close');
+            const dismiss = () => {
+                toast.classList.remove('show');
+                setTimeout(() => {
+                    if (toast.parentNode) toast.parentNode.removeChild(toast);
+                }, 300);
+            };
+
+            closeBtn.onclick = dismiss;
+            container.appendChild(toast);
+
+            requestAnimationFrame(() => {
+                toast.classList.add('show');
+            });
+
+            if (duration > 0) {
+                setTimeout(dismiss, duration);
+            }
+        }
+
+        // ── Seamless AJAX Save (Issue #41) ──
+        async function submitConfigAjax(event) {
+            if (event) event.preventDefault();
+
+            if (!prepareSubmit()) {
+                return false;
+            }
+
+            const saveBtn = document.getElementById('fab-save-btn');
+            const bottomSaveBtn = document.querySelector('#config-panel button[type="submit"]');
+            const origFabHtml = saveBtn ? saveBtn.innerHTML : '✓ 儲存並套用設定';
+            const origBottomHtml = bottomSaveBtn ? bottomSaveBtn.innerHTML : '儲存並套用設定';
+
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '⏳ 儲存中...';
+            }
+            if (bottomSaveBtn) {
+                bottomSaveBtn.disabled = true;
+                bottomSaveBtn.innerHTML = '⏳ 儲存中...';
+            }
+
+            try {
+                const form = document.getElementById('config-panel');
+                const formData = new FormData(form);
+
+                const response = await fetch('/', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+
+                let data = null;
+                try {
+                    data = await response.json();
+                } catch (err) {
+                    data = { status: 'error', message: `無法解析伺服器回應 (${response.status})` };
+                }
+
+                if (response.ok && data && data.status === 'ok') {
+                    showToast(data.message || '設定已成功儲存並生效', 'success', 3000);
+                    takeSnapshot();
+                    checkDirtyState();
+                    refreshModelInfo();
+                    refreshSyncStatus();
+                } else {
+                    const msg = (data && data.message) ? data.message : `儲存失敗 (HTTP ${response.status})`;
+                    showToast(msg, 'error', 4500);
+                }
+            } catch (err) {
+                console.error('Save error:', err);
+                showToast(`網路連線錯誤: ${err.message || err}`, 'error', 4500);
+            } finally {
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = origFabHtml;
+                }
+                if (bottomSaveBtn) {
+                    bottomSaveBtn.disabled = false;
+                    bottomSaveBtn.innerHTML = origBottomHtml;
+                }
+            }
+            return false;
+        }
+
+        // Mode Switching
+        function onModeChange() {
+            const mode = document.getElementById('mode-select').value;
+            const streamsMasterSec = document.getElementById('streams-master-section');
+            const videoMasterSec = document.getElementById('video-master-section');
+            const detailInspector = document.getElementById('stream-detail-inspector');
+
+            if (mode === 'video') {
+                streamsMasterSec.style.display = 'none';
+                videoMasterSec.style.display = 'block';
+                document.getElementById('preview-stream-title').textContent = '● 影片來源';
+                document.getElementById('preview-cam-img').src = '/video_feed?t=' + Date.now();
+                detailInspector.classList.add('video-mode-hidden');
+            } else {
+                streamsMasterSec.style.display = 'block';
+                videoMasterSec.style.display = 'none';
+                detailInspector.classList.remove('video-mode-hidden');
+                selectStream(selectedStreamIndex);
+            }
+            checkDirtyState();
+        }
+
+        function onVideoPathChange(val) {
+            checkDirtyState();
+        }
+
+        // Model Source Switching
+        function selectModelSource(src) {
+            const localRadio = document.getElementById('radio-source-local');
+            const umsRadio = document.getElementById('radio-source-ums');
+            const localBox = document.getElementById('local-model-box');
+            const umsBox = document.getElementById('ums-model-box');
+            const localLabel = document.getElementById('label-source-local');
+            const umsLabel = document.getElementById('label-source-ums');
+
+            if (src === 'ums') {
+                umsRadio.checked = true;
+                localRadio.checked = false;
+                localBox.style.display = 'none';
+                umsBox.style.display = 'block';
+                localLabel.className = 'radio-switch-item';
+                umsLabel.className = 'radio-switch-item active-cyan';
+                if (umsProjectsData.length === 0) {
+                    loadUmsModels();
+                }
+            } else {
+                localRadio.checked = true;
+                umsRadio.checked = false;
+                localBox.style.display = 'block';
+                umsBox.style.display = 'none';
+                localLabel.className = 'radio-switch-item active';
+                umsLabel.className = 'radio-switch-item';
+            }
+            checkDirtyState();
+        }
+
+        // UMS Models Cascade Select
+        function loadUmsModels(targetModelName, targetVersion) {
+            const projSelect = document.getElementById('ums-project-select');
+            if (projSelect) projSelect.innerHTML = '<option value="">載入 UMS 模型清單中...</option>';
+
+            fetch('/api/ums/models')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status !== 'ok') {
+                        if (projSelect) projSelect.innerHTML = `<option value="">載入失敗: ${data.message || '未知錯誤'}</option>`;
+                        if (isInitializing) {
+                            takeSnapshot();
+                            isInitializing = false;
+                            checkDirtyState();
+                        }
+                        return;
+                    }
+                    umsProjectsData = data.projects || [];
+                    populateUmsProjects(targetModelName || (CONFIG_INITIAL_UMS_MODEL && CONFIG_INITIAL_UMS_MODEL.name), targetVersion || (CONFIG_INITIAL_UMS_MODEL && CONFIG_INITIAL_UMS_MODEL.version));
+                    
+                    const currentStream = streamsList[selectedStreamIndex];
+                    if (currentStream && currentStream.ums_model) {
+                        populateDetailUmsProjects(currentStream.ums_model.name, currentStream.ums_model.version);
+                    } else if (document.getElementById('detail-ums-project-select')) {
+                        populateDetailUmsProjects();
+                    }
+
+                    if (isInitializing) {
+                        takeSnapshot();
+                        isInitializing = false;
+                        checkDirtyState();
+                    }
+                })
+                .catch(err => {
+                    if (projSelect) projSelect.innerHTML = '<option value="">連線錯誤，無法載入 UMS 模型</option>';
+                    console.error('Error fetching UMS models:', err);
+                    if (isInitializing) {
+                        takeSnapshot();
+                        isInitializing = false;
+                        checkDirtyState();
+                    }
+                });
+        }
+
+        function populateUmsProjects(targetModelName, targetVersion) {
+            const projSelect = document.getElementById('ums-project-select');
+            if (!projSelect) return;
+            projSelect.innerHTML = '<option value="">-- 請選擇 UMS 專案 --</option>';
+
+            let matchedProjectId = null;
+
+            umsProjectsData.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.project_id;
+                opt.textContent = `${p.project_name} (${p.models.length} 模型)`;
+                projSelect.appendChild(opt);
+
+                if (targetModelName && p.models.some(m => m.model_name === targetModelName)) {
+                    matchedProjectId = p.project_id;
+                }
+            });
+
+            if (matchedProjectId) {
+                projSelect.value = matchedProjectId;
+                onUmsProjectChange(targetModelName, targetVersion);
+            } else if (umsProjectsData.length > 0) {
+                projSelect.value = umsProjectsData[0].project_id;
+                onUmsProjectChange();
+            }
+        }
+
+        function onUmsProjectChange(targetModelName, targetVersion) {
+            const projSelect = document.getElementById('ums-project-select');
+            const modelSelect = document.getElementById('ums-model-select');
+            if (!projSelect || !modelSelect) return;
+            const pid = parseInt(projSelect.value, 10);
+            const project = umsProjectsData.find(p => p.project_id === pid);
+
+            modelSelect.innerHTML = '<option value="">-- 請選擇模型 --</option>';
+            if (!project) {
+                onUmsModelChange();
+                return;
+            }
+
+            let matchedModel = null;
+            project.models.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.model_name;
+                opt.textContent = `${m.model_name} [${m.architecture_name || 'YOLO'}] (${m.versions.length} 版本)`;
+                modelSelect.appendChild(opt);
+
+                if (targetModelName && m.model_name === targetModelName) {
+                    matchedModel = m;
+                }
+            });
+
+            if (matchedModel) {
+                modelSelect.value = matchedModel.model_name;
+                onUmsModelChange(targetVersion);
+            } else if (project.models.length > 0) {
+                modelSelect.value = project.models[0].model_name;
+                onUmsModelChange();
+            }
+        }
+
+        function onUmsModelChange(targetVersion) {
+            const projSelect = document.getElementById('ums-project-select');
+            const modelSelect = document.getElementById('ums-model-select');
+            const verSelect = document.getElementById('ums-version-select');
+            if (!modelSelect || !verSelect) return;
+
+            const pid = projSelect ? parseInt(projSelect.value, 10) : NaN;
+            const modelName = modelSelect.value;
+            const project = umsProjectsData.find(p => p.project_id === pid);
+            const model = project ? project.models.find(m => m.model_name === modelName) : null;
+
+            verSelect.innerHTML = '<option value="latest">latest (最新 Active 版本)</option>';
+
+            if (model && model.versions) {
+                model.versions.forEach(v => {
+                    const opt = document.createElement('option');
+                    opt.value = v.version_number;
+                    const statusTag = v.status ? ` [${v.status}]` : '';
+                    const commentTag = v.comment ? ` - ${v.comment}` : '';
+                    opt.textContent = `v${v.version_number}${statusTag}${commentTag}`;
+                    verSelect.appendChild(opt);
+                });
+            }
+
+            if (targetVersion) {
+                verSelect.value = targetVersion;
+            }
+            onUmsVersionChange();
+        }
+
+        function onUmsVersionChange() {
+            const modelSelect = document.getElementById('ums-model-select');
+            const verSelect = document.getElementById('ums-version-select');
+            const isUms = document.getElementById('radio-source-ums').checked;
+            if (isUms && modelSelect && verSelect) {
+                document.getElementById('ums_model_name').value = modelSelect.value;
+                document.getElementById('ums_model_version').value = verSelect.value;
+            }
+            checkDirtyState();
+        }
+
+        // ── UMS Multi-Endpoint & FAB Manager ──
+        function renderUmsEndpointsPreview(fab) {
+            const container = document.getElementById('ums-endpoints-preview');
+            if (!container) return;
+            container.innerHTML = '';
+
+            const cleanFab = String(fab || 'oa').toLowerCase().replace(/^api\./, '').trim();
+            const endpoints = UMS_FABS_MAP[cleanFab] || UMS_FABS_MAP['oa'] || [];
+
+            if (endpoints.length === 0) {
+                container.innerHTML = '<div style="font-size: 0.72rem; color: var(--text-dim);">（該廠區尚無預設端點）</div>';
+                return;
+            }
+
+            endpoints.forEach((url, idx) => {
+                const row = document.createElement('div');
+                row.className = 'ums-endpoint-row';
+                row.style.cssText = 'display: flex; flex-direction: column; gap: 0.2rem; background: #0c0c0c; border: 1px solid var(--border); padding: 0.35rem 0.5rem; border-radius: 2px;';
+
+                const tagText = idx === 0 ? 'src1 (主)' : `src${idx+1} (備)`;
+                row.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                        <span class="ums-endpoint-tag" style="font-size: 0.65rem; color: var(--cyan); width: 62px; flex-shrink: 0; font-weight: bold;">${tagText}</span>
+                        <span class="ums-endpoint-readonly-url" style="flex: 1; font-size: 0.72rem; font-family: monospace; color: var(--text-bright); word-break: break-all;">${escapeHtml(url)}</span>
+                    </div>
+                    <div class="ums-ep-status-badge" id="ums-ep-status-${idx}" style="font-size: 0.65rem; color: var(--text-dim); margin-left: 66px;"></div>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        function onFabChange(selectedFab) {
+            renderUmsEndpointsPreview(selectedFab);
+            const statusEl = document.getElementById('ums-test-status');
+            if (statusEl) {
+                statusEl.textContent = '已切換廠區，請點擊 [ 測試連線 ] 驗證端點連線';
+                statusEl.style.color = '#00e5ff';
+            }
+            checkDirtyState();
+        }
+
+        function testUmsConnection() {
+            const statusEl = document.getElementById('ums-test-status');
+            const apiKey = document.getElementById('ums_api_key').value.trim();
+            const fabSelect = document.getElementById('ums-fab-select');
+            const fab = fabSelect ? fabSelect.value : (CONFIG_INITIAL_UMS_FAB || 'oa');
+
+            if (!apiKey) {
+                statusEl.textContent = '✗ 請輸入 UMS API Key';
+                statusEl.style.color = '#ff3333';
+                return;
+            }
+
+            statusEl.textContent = '連線測試中...';
+            statusEl.style.color = '#00e5ff';
+
+            const cleanFab = String(fab || 'oa').toLowerCase().replace(/^api\./, '').trim();
+            const endpoints = UMS_FABS_MAP[cleanFab] || UMS_FABS_MAP['oa'] || [];
+
+            endpoints.forEach((_, idx) => {
+                const badge = document.getElementById(`ums-ep-status-${idx}`);
+                if (badge) {
+                    badge.textContent = '測試中...';
+                    badge.style.color = '#00e5ff';
+                }
+            });
+
+            fetch('/api/ums/test_connection', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({fab: fab, api_key: apiKey})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.endpoints && Array.isArray(data.endpoints)) {
+                    data.endpoints.forEach((ep, idx) => {
+                        const badge = document.getElementById(`ums-ep-status-${idx}`);
+                        if (badge) {
+                            if (ep.status === 'ok') {
+                                badge.textContent = `✓ 正常 (${ep.models_count || 0} models)`;
+                                badge.style.color = '#00ff41';
+                            } else {
+                                badge.textContent = `✗ 異常: ${ep.message || ep.error || '連線失敗'}`;
+                                badge.style.color = '#ff3333';
+                            }
+                        }
+                    });
+                }
+
+                if (data.status === 'ok') {
+                    statusEl.textContent = `✓ ${data.message || '連線成功'}`;
+                    statusEl.style.color = '#00ff41';
+                    loadUmsModels();
+                } else {
+                    statusEl.textContent = `✗ ${data.message || '連線失敗'}`;
+                    statusEl.style.color = '#ff3333';
+                }
+            })
+            .catch(err => {
+                statusEl.textContent = '✗ 網路或請求錯誤';
+                statusEl.style.color = '#ff3333';
+                endpoints.forEach((_, idx) => {
+                    const badge = document.getElementById(`ums-ep-status-${idx}`);
+                    if (badge) {
+                        badge.textContent = '✗ 請求失敗';
+                        badge.style.color = '#ff3333';
+                    }
+                });
+            });
+        }
+
+        // ── Argus Camera ID Parsing & Consistency Engine ──
+        function parseArgusCameraId(raw) {
+            if (!raw || typeof raw !== 'string') return null;
+            raw = raw.trim();
+            if (!raw.includes('://')) return null;
+
+            try {
+                const parsed = new URL(raw);
+                for (const [k, v] of parsed.searchParams.entries()) {
+                    if (v && v.startsWith('cam-')) {
+                        return v;
+                    }
+                }
+                const segments = parsed.pathname.split('/').filter(Boolean);
+                for (const seg of segments) {
+                    if (seg.startsWith('cam-')) {
+                        return seg;
+                    }
+                }
+            } catch (e) {
+                const queryMatch = raw.match(/[?&][^=]+=(cam-[a-zA-Z0-9_.-]+)/);
+                if (queryMatch) return queryMatch[1];
+                const pathMatch = raw.match(/\/(cam-[a-zA-Z0-9_.-]+)/);
+                if (pathMatch) return pathMatch[1];
+            }
+            return null;
+        }
+
+        function validateCameraIdConsistency() {
+            const currentStream = streamsList[selectedStreamIndex];
+            const warnEl = document.getElementById('detail-camid-warning');
+            const expectedEl = document.getElementById('detail-expected-camid');
+            const camInput = document.getElementById('detail-input-camid');
+            if (!warnEl || !expectedEl || !currentStream) return;
+
+            const url = (currentStream.url || '').trim();
+            const currentCamId = (currentStream.camera_id || '').trim();
+            const parsedCamId = parseArgusCameraId(url);
+
+            if (parsedCamId) {
+                if (currentCamId && currentCamId !== parsedCamId) {
+                    expectedEl.textContent = parsedCamId;
+                    warnEl.style.display = 'flex';
+                    if (camInput) camInput.style.borderColor = 'var(--warn)';
+                } else {
+                    warnEl.style.display = 'none';
+                    if (camInput) camInput.style.borderColor = '';
+                }
+            } else {
+                warnEl.style.display = 'none';
+                if (camInput) camInput.style.borderColor = '';
+            }
+        }
+
+        function restoreArgusCameraId() {
+            const currentStream = streamsList[selectedStreamIndex];
+            if (!currentStream) return;
+            const parsedCamId = parseArgusCameraId(currentStream.url);
+            if (parsedCamId) {
+                currentStream.camera_id = parsedCamId;
+                currentStream.auto_camera_id = parsedCamId;
+                const camInput = document.getElementById('detail-input-camid');
+                if (camInput) {
+                    camInput.value = parsedCamId;
+                }
+                validateCameraIdConsistency();
+                checkDirtyState();
+            }
+        }
+
+        function onDetailCameraIdBlur() {
+            const currentStream = streamsList[selectedStreamIndex];
+            if (!currentStream) return;
+            const camInput = document.getElementById('detail-input-camid');
+            const val = (camInput ? camInput.value : '').trim();
+            const parsedCamId = parseArgusCameraId(currentStream.url);
+
+            if (!val && parsedCamId) {
+                currentStream.camera_id = parsedCamId;
+                currentStream.auto_camera_id = parsedCamId;
+                if (camInput) camInput.value = parsedCamId;
+            }
+            validateCameraIdConsistency();
+            checkDirtyState();
+        }
+
+        // ── Master-Detail Stream List Interaction Engine ──
+        function initMasterDetailStreams() {
+            if (Array.isArray(CONFIG_INITIAL_STREAMS) && CONFIG_INITIAL_STREAMS.length > 0) {
+                streamsList = CONFIG_INITIAL_STREAMS.map(s => {
+                    if (typeof s === 'string') {
+                        const parsed = parseArgusCameraId(s);
+                        return { url: s, label: '', camera_id: parsed || '', auto_camera_id: parsed || '', model_format: 'auto' };
+                    }
+                    const parsed = parseArgusCameraId(s.url || '');
+                    const camId = (s.camera_id !== undefined && s.camera_id !== null && s.camera_id !== '') ? s.camera_id : (parsed || '');
+                    const item = { ...s, camera_id: camId, auto_camera_id: parsed || '' };
+                    if (!item.model_format) item.model_format = 'auto';
+                    return item;
+                });
+            } else {
+                streamsList = [{ url: '', label: '', camera_id: '', auto_camera_id: '', model_format: 'auto' }];
+            }
+            renderMasterStreamList();
+            selectStream(0);
+        }
+
+        function renderMasterStreamList() {
+            const listEl = document.getElementById('master-stream-list');
+            const monitorBar = document.getElementById('monitor-stream-bar');
+            listEl.innerHTML = '';
+            monitorBar.innerHTML = '';
+
+            streamsList.forEach((s, idx) => {
+                const displayName = s.label ? `${s.label}` : (s.url ? s.url.replace(/^rtsp:\/\//, '') : '未命名串流');
+                const isSelected = (idx === selectedStreamIndex);
+                const isDirty = !isInitializing && initialStreamsSnapshot && (!initialStreamsSnapshot[idx] || !areStreamsEqual(s, initialStreamsSnapshot[idx]));
+
+                // Master List Item (Left)
+                const item = document.createElement('div');
+                item.className = 'master-stream-item' + (isSelected ? ' active' : '');
+                item.onclick = () => selectStream(idx);
+
+                item.innerHTML = `
+                    <div class="master-stream-label" title="${escapeHtml(s.url || '')}">
+                        <span style="color: ${isSelected ? 'var(--text)' : 'var(--text-dim)'}; font-weight:bold; flex-shrink: 0;">#${idx}</span>
+                        <span id="master-stream-name-${idx}" class="master-stream-name">${escapeHtml(displayName)}${isDirty ? '<span class="stream-dirty-badge">*</span>' : ''}</span>
+                    </div>
+                    <button type="button" class="master-stream-del-btn" onclick="deleteMasterStream(event, ${idx})" title="刪除串流 #${idx}">[ ✕ ]</button>
+                `;
+                listEl.appendChild(item);
+
+                // Monitor Bar Button (Shown when config hidden)
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'stream-btn' + (isSelected ? ' cyan' : '');
+                btn.textContent = `串流 #${idx}`;
+                btn.onclick = () => selectStream(idx);
+                monitorBar.appendChild(btn);
+            });
+        }
+
+        function setDetailModelSourceUI(src) {
+            const localRadio = document.getElementById('detail-radio-source-local');
+            const umsRadio = document.getElementById('detail-radio-source-ums');
+            const localBox = document.getElementById('detail-local-model-box');
+            const umsBox = document.getElementById('detail-ums-model-box');
+            const localLabel = document.getElementById('detail-label-source-local');
+            const umsLabel = document.getElementById('detail-label-source-ums');
+
+            if (!localRadio || !umsRadio) return;
+
+            if (src === 'ums') {
+                umsRadio.checked = true;
+                localRadio.checked = false;
+                if (localBox) localBox.style.display = 'none';
+                if (umsBox) umsBox.style.display = 'block';
+                if (localLabel) localLabel.className = 'radio-switch-item';
+                if (umsLabel) umsLabel.className = 'radio-switch-item active-cyan';
+            } else {
+                localRadio.checked = true;
+                umsRadio.checked = false;
+                if (localBox) localBox.style.display = 'block';
+                if (umsBox) umsBox.style.display = 'none';
+                if (localLabel) localLabel.className = 'radio-switch-item active';
+                if (umsLabel) umsLabel.className = 'radio-switch-item';
+            }
+        }
+
+        function selectStream(idx) {
+            if (idx < 0 || idx >= streamsList.length) {
+                idx = 0;
+            }
+            selectedStreamIndex = idx;
+            const currentItem = streamsList[idx] || { url: '', label: '', camera_id: '', auto_camera_id: '', model_format: 'auto' };
+
+            // Update Master List active styling
+            const items = document.querySelectorAll('.master-stream-item');
+            items.forEach((it, i) => {
+                it.className = 'master-stream-item' + (i === idx ? ' active' : '');
+            });
+
+            // Update Top-Right Preview Widget
+            const titleEl = document.getElementById('preview-stream-title');
+            const previewImg = document.getElementById('preview-cam-img');
+            const labelText = currentItem.label ? `[${currentItem.label}]` : '';
+            titleEl.textContent = `● 串流 #${idx} ${labelText}`;
+            previewImg.src = `/video_feed/${idx}?t=` + Date.now();
+
+            // Update Bottom-Right Detail Inspector
+            document.getElementById('detail-stream-badge').textContent = `串流 #${idx}`;
+            document.getElementById('detail-input-url').value = currentItem.url || '';
+            document.getElementById('detail-input-label').value = currentItem.label || '';
+            document.getElementById('detail-input-camid').value = currentItem.camera_id || '';
+
+            // Check and update Argus camera_id warning
+            validateCameraIdConsistency();
+
+            const hasUmsModel = Boolean(currentItem.ums_model && currentItem.ums_model.name);
+            const hasLocalModel = Boolean(currentItem.model && currentItem.model.trim());
+
+            if (hasUmsModel) {
+                document.getElementById('detail-override-toggle').checked = true;
+                document.getElementById('detail-override-box').style.display = 'block';
+                setDetailModelSourceUI('ums');
+                if (umsProjectsData.length > 0) {
+                    populateDetailUmsProjects(currentItem.ums_model.name, currentItem.ums_model.version);
+                } else if (!isInitializing) {
+                    loadUmsModels();
+                }
+            } else if (hasLocalModel) {
+                document.getElementById('detail-override-toggle').checked = true;
+                document.getElementById('detail-override-box').style.display = 'block';
+                setDetailModelSourceUI('local');
+                document.getElementById('detail-input-model').value = currentItem.model;
+            } else {
+                document.getElementById('detail-override-toggle').checked = false;
+                document.getElementById('detail-override-box').style.display = 'none';
+                setDetailModelSourceUI('local');
+                document.getElementById('detail-input-model').value = '';
+            }
+
+            const formatSelect = document.getElementById('detail-model-format-select');
+            if (formatSelect) {
+                formatSelect.value = currentItem.model_format || 'auto';
+            }
+
+            // Update ROI status badge for this stream
+            loadDetailStreamZone(currentItem.url);
+
+            // Update resolved model display for this stream
+            updateResolvedModelUI();
+        }
+
+        function onDetailFieldChange(field, val) {
+            if (!streamsList[selectedStreamIndex]) return;
+            const currentStream = streamsList[selectedStreamIndex];
+            currentStream[field] = val;
+
+            // Update master item label text instantly
+            const nameEl = document.getElementById(`master-stream-name-${selectedStreamIndex}`);
+            if (nameEl) {
+                const s = streamsList[selectedStreamIndex];
+                const displayName = s.label ? `${s.label}` : (s.url ? s.url.replace(/^rtsp:\/\//, '') : '未命名串流');
+                nameEl.textContent = displayName;
+            }
+
+            if (field === 'label') {
+                const titleEl = document.getElementById('preview-stream-title');
+                const labelText = val ? `[${val}]` : '';
+                titleEl.textContent = `● 串流 #${selectedStreamIndex} ${labelText}`;
+            }
+
+            if (field === 'url') {
+                loadDetailStreamZone(val);
+
+                // Argus camera_id auto-fill logic
+                const parsedCamId = parseArgusCameraId(val);
+                if (parsedCamId) {
+                    const currentCam = (currentStream.camera_id || '').trim();
+                    if (!currentCam || currentCam === currentStream.auto_camera_id) {
+                        currentStream.camera_id = parsedCamId;
+                        currentStream.auto_camera_id = parsedCamId;
+                        const camInput = document.getElementById('detail-input-camid');
+                        if (camInput) camInput.value = parsedCamId;
+                    }
+                } else {
+                    currentStream.auto_camera_id = '';
+                }
+                validateCameraIdConsistency();
+            }
+
+            if (field === 'camera_id') {
+                validateCameraIdConsistency();
+            }
+
+            checkDirtyState();
+        }
+
+        function selectDetailModelSource(src) {
+            if (!streamsList[selectedStreamIndex]) return;
+            setDetailModelSourceUI(src);
+
+            if (src === 'ums') {
+                delete streamsList[selectedStreamIndex].model;
+                if (umsProjectsData.length === 0) {
+                    loadUmsModels();
+                } else {
+                    const currentStream = streamsList[selectedStreamIndex];
+                    const targetName = currentStream && currentStream.ums_model ? currentStream.ums_model.name : '';
+                    const targetVer = currentStream && currentStream.ums_model ? currentStream.ums_model.version : 'latest';
+                    populateDetailUmsProjects(targetName, targetVer);
+                }
+                onDetailUmsVersionChange();
+            } else {
+                delete streamsList[selectedStreamIndex].ums_model;
+                const val = document.getElementById('detail-input-model').value.trim();
+                if (val) {
+                    streamsList[selectedStreamIndex].model = val;
+                }
+            }
+            checkDirtyState();
+        }
+
+        function onDetailLocalModelChange(val) {
+            if (!streamsList[selectedStreamIndex]) return;
+            const trimmed = val.trim();
+            delete streamsList[selectedStreamIndex].ums_model;
+            if (trimmed) {
+                streamsList[selectedStreamIndex].model = trimmed;
+            } else {
+                delete streamsList[selectedStreamIndex].model;
+            }
+            checkDirtyState();
+        }
+
+        function populateDetailUmsProjects(targetModelName, targetVersion) {
+            const projSelect = document.getElementById('detail-ums-project-select');
+            if (!projSelect) return;
+            projSelect.innerHTML = '<option value="">-- 請選擇 UMS 專案 --</option>';
+
+            let matchedProjectId = null;
+            umsProjectsData.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.project_id;
+                opt.textContent = `${p.project_name} (${p.models.length} 模型)`;
+                projSelect.appendChild(opt);
+
+                if (targetModelName && p.models.some(m => m.model_name === targetModelName)) {
+                    matchedProjectId = p.project_id;
+                }
+            });
+
+            if (matchedProjectId) {
+                projSelect.value = matchedProjectId;
+                onDetailUmsProjectChange(targetModelName, targetVersion);
+            } else if (umsProjectsData.length > 0) {
+                projSelect.value = umsProjectsData[0].project_id;
+                onDetailUmsProjectChange();
+            }
+        }
+
+        function onDetailUmsProjectChange(targetModelName, targetVersion) {
+            const projSelect = document.getElementById('detail-ums-project-select');
+            const modelSelect = document.getElementById('detail-ums-model-select');
+            if (!projSelect || !modelSelect) return;
+
+            const pid = parseInt(projSelect.value, 10);
+            const project = umsProjectsData.find(p => p.project_id === pid);
+
+            modelSelect.innerHTML = '<option value="">-- 請選擇模型 --</option>';
+            if (!project) {
+                onDetailUmsModelChange();
+                return;
+            }
+
+            let matchedModel = null;
+            project.models.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.model_name;
+                opt.textContent = `${m.model_name} [${m.architecture_name || 'YOLO'}] (${m.versions.length} 版本)`;
+                modelSelect.appendChild(opt);
+
+                if (targetModelName && m.model_name === targetModelName) {
+                    matchedModel = m;
+                }
+            });
+
+            if (matchedModel) {
+                modelSelect.value = matchedModel.model_name;
+                onDetailUmsModelChange(targetVersion);
+            } else if (project.models.length > 0) {
+                modelSelect.value = project.models[0].model_name;
+                onDetailUmsModelChange();
+            }
+        }
+
+        function onDetailUmsModelChange(targetVersion) {
+            const projSelect = document.getElementById('detail-ums-project-select');
+            const modelSelect = document.getElementById('detail-ums-model-select');
+            const verSelect = document.getElementById('detail-ums-version-select');
+            if (!projSelect || !modelSelect || !verSelect) return;
+
+            const pid = parseInt(projSelect.value, 10);
+            const modelName = modelSelect.value;
+            const project = umsProjectsData.find(p => p.project_id === pid);
+            const model = project ? project.models.find(m => m.model_name === modelName) : null;
+
+            verSelect.innerHTML = '<option value="latest">latest (最新 Active 版本)</option>';
+            if (model && model.versions) {
+                model.versions.forEach(v => {
+                    const opt = document.createElement('option');
+                    opt.value = v.version_number;
+                    const statusTag = v.status ? ` [${v.status}]` : '';
+                    const commentTag = v.comment ? ` - ${v.comment}` : '';
+                    opt.textContent = `v${v.version_number}${statusTag}${commentTag}`;
+                    verSelect.appendChild(opt);
+                });
+            }
+
+            if (targetVersion) {
+                verSelect.value = targetVersion;
+            }
+            onDetailUmsVersionChange();
+        }
+
+        function onDetailUmsVersionChange() {
+            const modelSelect = document.getElementById('detail-ums-model-select');
+            const verSelect = document.getElementById('detail-ums-version-select');
+            if (!streamsList[selectedStreamIndex] || !modelSelect || !verSelect) return;
+
+            delete streamsList[selectedStreamIndex].model;
+            if (modelSelect.value) {
+                streamsList[selectedStreamIndex].ums_model = {
+                    name: modelSelect.value,
+                    version: verSelect.value || 'latest'
+                };
+            }
+            checkDirtyState();
+        }
+
+        function onDetailOverrideToggle(checked) {
+            document.getElementById('detail-override-box').style.display = checked ? 'block' : 'none';
+            if (!checked) {
+                delete streamsList[selectedStreamIndex].model;
+                delete streamsList[selectedStreamIndex].ums_model;
+                document.getElementById('detail-input-model').value = '';
+            } else {
+                const isUms = document.getElementById('detail-radio-source-ums').checked;
+                if (isUms) {
+                    selectDetailModelSource('ums');
+                } else {
+                    selectDetailModelSource('local');
+                }
+            }
+            checkDirtyState();
+        }
+
+        function addMasterStream() {
+            streamsList.push({ url: '', label: '', camera_id: '', auto_camera_id: '', model: '', model_format: 'auto' });
+            renderMasterStreamList();
+            selectStream(streamsList.length - 1);
+
+            const listEl = document.getElementById('master-stream-list');
+            if (listEl) {
+                listEl.scrollTo({ top: listEl.scrollHeight, behavior: 'smooth' });
+            }
+
+            const urlInput = document.getElementById('detail-input-url');
+            if (urlInput) {
+                urlInput.focus();
+            }
+            checkDirtyState();
+        }
+
+        function deleteMasterStream(event, idx) {
+            if (event) event.stopPropagation();
+            if (streamsList.length <= 1) {
+                alert('至少需保留一組串流設定');
+                return;
+            }
+            streamsList.splice(idx, 1);
+            if (selectedStreamIndex >= streamsList.length) {
+                selectedStreamIndex = streamsList.length - 1;
+            }
+            renderMasterStreamList();
+            selectStream(selectedStreamIndex);
+            checkDirtyState();
+        }
+
+        function openDetailFullscreen() {
+            openFullscreen(selectedStreamIndex);
+        }
+
+        function loadDetailStreamZone(url) {
+            const badge = document.getElementById('detail-zone-status');
+            if (!badge) return;
+            if (!url) {
+                badge.textContent = '警戒區：未設定';
+                badge.style.color = '#888';
+                return;
+            }
+            fetch('/zone/' + encodeURIComponent(url))
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.polygon && data.polygon.length >= 3) {
+                        const name = data.zone_name ? ` (${data.zone_name})` : '';
+                        const modeStr = (data.trigger_mode === 'intersect') ? ` [相交 ${Math.round((data.sensitivity || 0) * 100)}%]` : '';
+                        badge.textContent = `警戒區：已啟用${name}${modeStr}`;
+                        badge.style.color = '#00e5ff';
+                    } else {
+                        badge.textContent = '警戒區：未設定';
+                        badge.style.color = '#888';
+                    }
+                })
+                .catch(() => {
+                    badge.textContent = '警戒區：未設定';
+                    badge.style.color = '#888';
+                });
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function prepareSubmit() {
+            const mode = document.getElementById('mode-select').value;
+            if (mode === 'rtsp') {
+                const validStreams = streamsList.filter(s => s && s.url && s.url.trim());
+                if (validStreams.length === 0) {
+                    alert('請至少填寫一組有效的 RTSP 串流 URL');
+                    return false;
+                }
+                const sanitizedStreams = validStreams.map(s => {
+                    const item = { ...s };
+                    if (typeof item.url === 'string') item.url = item.url.trim();
+                    if (typeof item.label === 'string') item.label = item.label.trim();
+                    if (typeof item.camera_id === 'string') item.camera_id = item.camera_id.trim();
+                    return item;
+                });
+                document.getElementById('streams_json').value = JSON.stringify(sanitizedStreams);
+            }
+
+            const isUms = document.getElementById('radio-source-ums').checked;
+            if (isUms) {
+                document.getElementById('ums_model_name').value = document.getElementById('ums-model-select').value;
+                document.getElementById('ums_model_version').value = document.getElementById('ums-version-select').value;
+            } else {
+                document.getElementById('ums_model_name').value = '';
+                document.getElementById('ums_model_version').value = '';
+            }
+
+            return true;
+        }
+
+        // Initialization on DOMContentLoaded
+        window.addEventListener('DOMContentLoaded', () => {
+            initMasterDetailStreams();
+            onModeChange();
+
+            // Initialize UMS fab endpoints preview
+            const initialFab = CONFIG_INITIAL_UMS_FAB || 'oa';
+            const fabSelect = document.getElementById('ums-fab-select');
+            if (fabSelect) {
+                fabSelect.value = initialFab;
+            }
+            renderUmsEndpointsPreview(initialFab);
+
+            const hasGlobalUms = Boolean(CONFIG_INITIAL_UMS_MODEL && CONFIG_INITIAL_UMS_MODEL.name);
+            const hasAnyStreamUms = Array.isArray(streamsList) && streamsList.some(s => s && s.ums_model && s.ums_model.name);
+
+            if (hasGlobalUms) {
+                selectModelSource('ums');
+                loadUmsModels(CONFIG_INITIAL_UMS_MODEL.name, CONFIG_INITIAL_UMS_MODEL.version);
+            } else {
+                selectModelSource('local');
+                if (hasAnyStreamUms) {
+                    loadUmsModels();
+                } else {
+                    takeSnapshot();
+                    isInitializing = false;
+                    checkDirtyState();
+                }
+            }
+
+            const configForm = document.getElementById('config-panel');
+            if (configForm) {
+                configForm.addEventListener('input', () => checkDirtyState());
+                configForm.addEventListener('change', () => checkDirtyState());
+            }
+        });
+
+        // ── Fullscreen ROI & Canvas Logic ──
+        let activeStreamIndex = null;
+        let activeStreamUrl = null;
+        let eventSource = null;
+        let latestDetectionsMap = {};
+        let canvasAnimTimer = null;
+
+        let isEditingZone = false;
+        let editingPolygon = [];
+        let isPolygonClosed = false;
+        let currentSavedZone = null;
+        let mousePos = null;
+
+        function getStreamUrlByIndex(idx) {
+            if (latestDetectionsMap[idx] && latestDetectionsMap[idx].stream_url) {
+                return latestDetectionsMap[idx].stream_url;
+            }
+            if (latestDetectionsMap[String(idx)] && latestDetectionsMap[String(idx)].stream_url) {
+                return latestDetectionsMap[String(idx)].stream_url;
+            }
+            if (CONFIG_MODE === 'video') {
+                return CONFIG_VIDEO_PATH;
+            }
+            if (Array.isArray(streamsList) && idx >= 0 && idx < streamsList.length && streamsList[idx].url) {
+                return streamsList[idx].url;
+            }
+            if (Array.isArray(CONFIG_STREAMS) && idx >= 0 && idx < CONFIG_STREAMS.length) {
+                return CONFIG_STREAMS[idx];
+            }
+            return '';
+        }
+
+        function updateZoneBadge(isAlarm = false, compSummary = null) {
+            const badge = document.getElementById('zone-status-badge');
+            if (!badge) return;
+            if (currentSavedZone && currentSavedZone.polygon && currentSavedZone.polygon.length >= 3) {
+                const name = currentSavedZone.zone_name ? ` (${currentSavedZone.zone_name})` : '';
+                if (compSummary && compSummary.status === "VIOLATION" && !isEditingZone) {
+                    const reason = (compSummary.missing_barriers && compSummary.missing_barriers.length > 0)
+                        ? `缺少阻隔物: ${compSummary.missing_barriers.join('/')}`
+                        : (compSummary.violations && compSummary.violations.length > 0 ? compSummary.violations.join('/') : '工安違規');
+                    badge.textContent = `警戒區：工安違規 [${reason}]${name}`;
+                    badge.style.color = '#ff1744';
+                    badge.style.fontWeight = 'bold';
+                } else if (compSummary && compSummary.status === "COMPLIANT" && !isEditingZone) {
+                    badge.textContent = `警戒區：工安合規${name}`;
+                    badge.style.color = '#00e676';
+                    badge.style.fontWeight = 'bold';
+                } else if (isAlarm && !isEditingZone) {
+                    badge.textContent = `警戒區：觸發告警${name}`;
+                    badge.style.color = '#ff3333';
+                    badge.style.fontWeight = 'bold';
+                } else {
+                    badge.textContent = `警戒區：已啟用${name}`;
+                    badge.style.color = '#00e5ff';
+                    badge.style.fontWeight = 'normal';
+                }
+            } else {
+                badge.textContent = '警戒區：未設定';
+                badge.style.color = '#888888';
+                badge.style.fontWeight = 'normal';
+            }
+        }
+
+        function loadStreamZone(url) {
+            currentSavedZone = null;
+            updateZoneBadge();
+            if (!url) return;
+            fetch('/zone/' + encodeURIComponent(url))
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.polygon && data.polygon.length >= 3) {
+                        currentSavedZone = data;
+                    } else {
+                        currentSavedZone = null;
+                    }
+                    updateZoneBadge();
+                    drawCanvas();
+                })
+                .catch(err => {
+                    console.error('Error fetching zone:', err);
+                });
+        }
+
+        function startSSE() {
+            if (eventSource) return;
+            eventSource = new EventSource('/detections_feed');
+            eventSource.onmessage = function(e) {
+                try {
+                    latestDetectionsMap = JSON.parse(e.data);
+                    if (activeStreamIndex !== null) {
+                        if (!activeStreamUrl) {
+                            activeStreamUrl = getStreamUrlByIndex(activeStreamIndex);
+                            if (activeStreamUrl && !currentSavedZone && !isEditingZone) {
+                                loadStreamZone(activeStreamUrl);
+                            }
+                        }
+                        drawCanvas();
+                    }
+                } catch(err) {
+                    console.error('Error parsing SSE detections:', err);
+                }
+            };
+            eventSource.onerror = function(err) {
+                console.error('SSE connection error:', err);
+            };
+        }
+
+        function openFullscreen(streamId) {
+            activeStreamIndex = streamId;
+            activeStreamUrl = getStreamUrlByIndex(streamId);
+
+            const modal = document.getElementById('fullscreen-modal');
+            const img = document.getElementById('fullscreen-img');
+            const title = document.getElementById('modal-title');
+
+            title.textContent = `全螢幕串流 // 串流 #${streamId}`;
+            img.src = `/video_feed/${streamId}?t=` + Date.now();
+            modal.style.display = 'flex';
+
+            loadStreamZone(activeStreamUrl);
+            startSSE();
+
+            img.onload = function() {
+                syncCanvasSize();
+                drawCanvas();
+            };
+
+            if (canvasAnimTimer) clearInterval(canvasAnimTimer);
+            canvasAnimTimer = setInterval(() => {
+                if (activeStreamIndex !== null) {
+                    drawCanvas();
+                }
+            }, 100);
+        }
+
+        function isPointInPolygon(point, polygon) {
+            if (!polygon || polygon.length < 3) return false;
+            const x = point[0];
+            const y = point[1];
+            let inside = false;
+            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                const xi = polygon[i][0], yi = polygon[i][1];
+                const xj = polygon[j][0], yj = polygon[j][1];
+                const intersect = ((yi > y) !== (yj > y)) &&
+                    (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+                if (intersect) inside = !inside;
+            }
+            return inside;
+        }
+
+        function closeFullscreen() {
+            if (isEditingZone) {
+                exitZoneEditMode();
+            }
+            activeStreamIndex = null;
+            activeStreamUrl = null;
+            currentSavedZone = null;
+
+            if (canvasAnimTimer) {
+                clearInterval(canvasAnimTimer);
+                canvasAnimTimer = null;
+            }
+            const modal = document.getElementById('fullscreen-modal');
+            const img = document.getElementById('fullscreen-img');
+            if (modal) {
+                modal.classList.remove('alarm-active');
+                modal.style.display = 'none';
+            }
+            if (img) {
+                img.src = '';
+            }
+            const canvas = document.getElementById('fullscreen-canvas');
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+            // refresh right detail inspector zone status
+            if (streamsList[selectedStreamIndex]) {
+                loadDetailStreamZone(streamsList[selectedStreamIndex].url);
+            }
+        }
+
+        function closeFullscreenOnBackdrop(event) {
+            if (isEditingZone) return;
+            closeFullscreen();
+        }
+
+        function syncCanvasSize() {
+            const img = document.getElementById('fullscreen-img');
+            const canvas = document.getElementById('fullscreen-canvas');
+            if (!img || !canvas) return;
+
+            canvas.width = img.clientWidth;
+            canvas.height = img.clientHeight;
+            canvas.style.width = img.clientWidth + 'px';
+            canvas.style.height = img.clientHeight + 'px';
+            canvas.style.left = img.offsetLeft + 'px';
+            canvas.style.top = img.offsetTop + 'px';
+        }
+
+        function updateTriggerModeUI() {
+            const modeSelect = document.getElementById('zone-trigger-mode-select');
+            const sensContainer = document.getElementById('zone-sensitivity-container');
+            if (modeSelect && sensContainer) {
+                sensContainer.style.display = (modeSelect.value === 'intersect') ? 'flex' : 'none';
+            }
+        }
+
+        function enterZoneEditMode() {
+            isEditingZone = true;
+            isPolygonClosed = !!(currentSavedZone && currentSavedZone.polygon && currentSavedZone.polygon.length >= 3);
+            editingPolygon = (currentSavedZone && currentSavedZone.polygon) ? JSON.parse(JSON.stringify(currentSavedZone.polygon)) : [];
+            document.getElementById('zone-name-input').value = (currentSavedZone && currentSavedZone.zone_name) || '';
+
+            const triggerMode = (currentSavedZone && currentSavedZone.trigger_mode) || 'center';
+            const sensitivity = (currentSavedZone && currentSavedZone.sensitivity !== undefined) ? currentSavedZone.sensitivity : 0.0;
+
+            const modeSelect = document.getElementById('zone-trigger-mode-select');
+            if (modeSelect) {
+                modeSelect.value = triggerMode;
+            }
+            const sensRange = document.getElementById('zone-sensitivity-range');
+            const sensVal = document.getElementById('zone-sensitivity-val');
+            const sensPct = Math.round(sensitivity * 100);
+            if (sensRange) {
+                sensRange.value = sensPct;
+            }
+            if (sensVal) {
+                sensVal.innerText = sensPct + '%';
+            }
+            updateTriggerModeUI();
+
+            document.getElementById('zone-view-controls').style.display = 'none';
+            document.getElementById('zone-edit-controls').style.display = 'flex';
+            const canvas = document.getElementById('fullscreen-canvas');
+            if (canvas) {
+                canvas.style.pointerEvents = 'auto';
+                canvas.style.cursor = 'crosshair';
+            }
+            drawCanvas();
+        }
+
+        function closeZonePolygon() {
+            if (editingPolygon.length >= 3) {
+                isPolygonClosed = true;
+                mousePos = null;
+                drawCanvas();
+            }
+        }
+
+        function clearZonePoints() {
+            editingPolygon = [];
+            isPolygonClosed = false;
+            mousePos = null;
+            drawCanvas();
+        }
+
+        function saveZone() {
+            const url = activeStreamUrl || getStreamUrlByIndex(activeStreamIndex);
+            if (!url) {
+                alert('找不到作用中的串流 URL');
+                return;
+            }
+            const name = document.getElementById('zone-name-input').value.trim();
+            const modeSelect = document.getElementById('zone-trigger-mode-select');
+            const sensRange = document.getElementById('zone-sensitivity-range');
+            const triggerMode = modeSelect ? modeSelect.value : 'center';
+            const sensitivity = sensRange ? (parseFloat(sensRange.value) / 100.0) : 0.0;
+
+            const polyToSend = (editingPolygon.length >= 3) ? editingPolygon : [];
+            fetch('/zone/' + encodeURIComponent(url), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    polygon: polyToSend,
+                    zone_name: polyToSend.length >= 3 ? (name || null) : null,
+                    trigger_mode: triggerMode,
+                    sensitivity: sensitivity
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                currentSavedZone = (data && data.zone && data.zone.polygon && data.zone.polygon.length >= 3) ? data.zone : null;
+                exitZoneEditMode();
+                if (streamsList[selectedStreamIndex]) {
+                    loadDetailStreamZone(streamsList[selectedStreamIndex].url);
+                }
+            })
+            .catch(err => {
+                console.error('Error saving zone:', err);
+                alert('儲存警戒區失敗');
+            });
+        }
+
+        function cancelZoneEdit() {
+            exitZoneEditMode();
+        }
+
+        function exitZoneEditMode() {
+            isEditingZone = false;
+            editingPolygon = [];
+            mousePos = null;
+            document.getElementById('zone-view-controls').style.display = 'block';
+            document.getElementById('zone-edit-controls').style.display = 'none';
+            const canvas = document.getElementById('fullscreen-canvas');
+            if (canvas) {
+                canvas.style.pointerEvents = 'none';
+                canvas.style.cursor = 'default';
+            }
+            updateZoneBadge(false);
+            drawCanvas();
+        }
+
+        const fsCanvas = document.getElementById('fullscreen-canvas');
+        fsCanvas.addEventListener('click', (e) => {
+            if (!isEditingZone) return;
+            const rect = fsCanvas.getBoundingClientRect();
+            const normX = (e.clientX - rect.left) / fsCanvas.width;
+            const normY = (e.clientY - rect.top) / fsCanvas.height;
+            const clampedX = Math.max(0, Math.min(1, normX));
+            const clampedY = Math.max(0, Math.min(1, normY));
+
+            if (editingPolygon.length >= 3 && !isPolygonClosed) {
+                const firstPt = editingPolygon[0];
+                const dx = (clampedX - firstPt[0]) * fsCanvas.width;
+                const dy = (clampedY - firstPt[1]) * fsCanvas.height;
+                if (Math.hypot(dx, dy) < 18) {
+                    closeZonePolygon();
+                    return;
+                }
+            }
+
+            if (!isPolygonClosed) {
+                editingPolygon.push([clampedX, clampedY]);
+                drawCanvas();
+            }
+        });
+
+        fsCanvas.addEventListener('mousemove', (e) => {
+            if (!isEditingZone || isPolygonClosed || editingPolygon.length === 0) return;
+            const rect = fsCanvas.getBoundingClientRect();
+            const normX = (e.clientX - rect.left) / fsCanvas.width;
+            const normY = (e.clientY - rect.top) / fsCanvas.height;
+            mousePos = [Math.max(0, Math.min(1, normX)), Math.max(0, Math.min(1, normY))];
+            drawCanvas();
+        });
+
+        function drawPolygon(ctx, poly, isClosed, isEdit, zoneName, isAlarm = false) {
+            if (!poly || poly.length === 0) return;
+            const w = ctx.canvas.width;
+            const h = ctx.canvas.height;
+
+            const inAlarm = isClosed && !isEdit && isAlarm;
+            const primaryColor = inAlarm ? '#ff3333' : '#00e5ff';
+            const fillColor = inAlarm ? 'rgba(255, 51, 51, 0.25)' : 'rgba(0, 229, 255, 0.15)';
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(poly[0][0] * w, poly[0][1] * h);
+            for (let i = 1; i < poly.length; i++) {
+                ctx.lineTo(poly[i][0] * w, poly[i][1] * h);
+            }
+            if (isClosed) {
+                ctx.closePath();
+                ctx.fillStyle = fillColor;
+                ctx.fill();
+                ctx.strokeStyle = primaryColor;
+                ctx.setLineDash([]);
+            } else {
+                ctx.strokeStyle = '#00e5ff';
+                ctx.setLineDash([6, 4]);
+            }
+            ctx.lineWidth = inAlarm ? 2.5 : 2;
+            ctx.stroke();
+
+            // Draw vertex dots
+            ctx.setLineDash([]);
+            poly.forEach((pt, idx) => {
+                ctx.beginPath();
+                ctx.arc(pt[0] * w, pt[1] * h, isEdit ? 5 : 3, 0, 2 * Math.PI);
+                ctx.fillStyle = (isEdit && idx === 0 && !isClosed) ? '#ff0055' : primaryColor;
+                ctx.fill();
+                ctx.strokeStyle = '#050505';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            });
+
+            // Draw Zone label tag
+            if (isClosed && poly.length >= 3) {
+                let label = '';
+                if (inAlarm) {
+                    label = zoneName ? `[ 警戒區: ${zoneName} - 侵入告警 ]` : '[ 警戒區: 已啟用 - 侵入告警 ]';
+                } else {
+                    label = zoneName ? `[ 警戒區: ${zoneName} ]` : '[ 警戒區: 已啟用 ]';
+                }
+                ctx.font = '12px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace';
+                const textWidth = ctx.measureText(label).width;
+                const tagX = poly[0][0] * w;
+                const tagY = Math.max(poly[0][1] * h - 10, 16);
+
+                ctx.fillStyle = inAlarm ? 'rgba(40, 0, 0, 0.9)' : 'rgba(0, 30, 40, 0.85)';
+                ctx.fillRect(tagX, tagY - 14, textWidth + 8, 18);
+                ctx.strokeStyle = primaryColor;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(tagX, tagY - 14, textWidth + 8, 18);
+
+                ctx.fillStyle = primaryColor;
+                ctx.fillText(label, tagX + 4, tagY);
+            }
+
+            ctx.restore();
+        }
+
+        function drawCanvas() {
+            if (activeStreamIndex === null) return;
+            const img = document.getElementById('fullscreen-img');
+            const canvas = document.getElementById('fullscreen-canvas');
+            const modal = document.getElementById('fullscreen-modal');
+            if (!img || !canvas) return;
+
+            syncCanvasSize();
+
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const detObj = latestDetectionsMap[activeStreamIndex] || latestDetectionsMap[String(activeStreamIndex)];
+            const savedPoly = (currentSavedZone && currentSavedZone.polygon && currentSavedZone.polygon.length >= 3) ? currentSavedZone.polygon : null;
+
+            let hasAlarmInZone = false;
+            const evaluatedDetections = [];
+
+            if (detObj && detObj.detections && detObj.frame_w && detObj.frame_h) {
+                const nowSec = Date.now() / 1000.0;
+                const detTs = detObj.ts || 0;
+                const age = nowSec - detTs;
+                const isStale = (age > 0.15);
+
+                const scaleX = canvas.width / detObj.frame_w;
+                const scaleY = canvas.height / detObj.frame_h;
+
+                detObj.detections.forEach(det => {
+                    const coords = det.xyxy || [];
+                    if (coords.length >= 4) {
+                        const inZone = (!isEditingZone && savedPoly) ? Boolean(det.in_zone) : false;
+                        if (inZone) {
+                            hasAlarmInZone = true;
+                        }
+                        evaluatedDetections.push({
+                            det,
+                            coords,
+                            inZone,
+                            isStale,
+                            scaleX,
+                            scaleY
+                        });
+                    }
+                });
+            }
+
+            // Draw zone (either in edit mode or saved zone)
+            if (isEditingZone) {
+                drawPolygon(ctx, editingPolygon, isPolygonClosed, true, document.getElementById('zone-name-input').value.trim(), false);
+                if (!isPolygonClosed && mousePos && editingPolygon.length > 0) {
+                    const lastPt = editingPolygon[editingPolygon.length - 1];
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.moveTo(lastPt[0] * canvas.width, lastPt[1] * canvas.height);
+                    ctx.lineTo(mousePos[0] * canvas.width, mousePos[1] * canvas.height);
+                    ctx.strokeStyle = 'rgba(0, 229, 255, 0.6)';
+                    ctx.setLineDash([4, 4]);
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            } else if (savedPoly) {
+                drawPolygon(ctx, savedPoly, true, false, currentSavedZone.zone_name, hasAlarmInZone);
+            }
+
+            const compSummary = detObj ? detObj.compliance_summary : null;
+            const isViolation = compSummary && compSummary.status === "VIOLATION";
+
+            // Draw missing barrier banner on canvas if barriers missing
+            if (compSummary && compSummary.missing_barriers && compSummary.missing_barriers.length > 0 && savedPoly && !isEditingZone) {
+                ctx.save();
+                const warnText = `[ 警告: 缺失安全阻隔物 (${compSummary.missing_barriers.join(', ')}) ]`;
+                ctx.font = 'bold 12px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace';
+                const warnWidth = ctx.measureText(warnText).width;
+                const warnX = savedPoly[0][0] * canvas.width;
+                const warnY = Math.min(canvas.height - 20, Math.max(savedPoly[0][1] * canvas.height + 25, 40));
+                ctx.fillStyle = 'rgba(180, 0, 0, 0.9)';
+                ctx.fillRect(warnX, warnY - 14, warnWidth + 8, 20);
+                ctx.strokeStyle = '#ff1744';
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(warnX, warnY - 14, warnWidth + 8, 20);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(warnText, warnX + 4, warnY);
+                ctx.restore();
+            }
+
+            // Update modal alarm-active CSS and badge
+            if (modal) {
+                if ((hasAlarmInZone || isViolation) && !isEditingZone) {
+                    modal.classList.add('alarm-active');
+                } else {
+                    modal.classList.remove('alarm-active');
+                }
+            }
+            updateZoneBadge(hasAlarmInZone, compSummary);
+
+            // Draw bounding boxes
+            evaluatedDetections.forEach(item => {
+                const { det, coords, inZone, isStale, scaleX, scaleY } = item;
+                const x1 = coords[0] * scaleX;
+                const y1 = coords[1] * scaleY;
+                const w = (coords[2] - coords[0]) * scaleX;
+                const h = (coords[3] - coords[1]) * scaleY;
+
+                const hasViolation = det.violations && det.violations.length > 0;
+                const isPerson = (det.normalized_label === "person" || det.label === "person");
+                const isBarrierOrSafe = ["cone", "guardrail", "helmet", "vest"].includes(det.normalized_label || det.label);
+                const labelName = det.label || (det.cls !== undefined ? '類別 ' + det.cls : '物件');
+
+                ctx.save();
+                if (hasViolation) {
+                    // VIOLATION style (Bright Red)
+                    ctx.lineWidth = 3;
+                    if (isStale) {
+                        ctx.setLineDash([5, 5]);
+                        ctx.strokeStyle = 'rgba(255, 23, 68, 0.8)';
+                    } else {
+                        ctx.setLineDash([]);
+                        ctx.strokeStyle = '#ff1744';
+                    }
+                    ctx.strokeRect(x1, y1, w, h);
+                    ctx.setLineDash([]);
+
+                    const tag = isStale ? ' [抽樣]' : '';
+                    const violsText = det.violations.join(', ');
+                    const labelText = `[違規: ${violsText}] ${labelName} (${(det.conf * 100).toFixed(0)}%)${tag}`;
+                    ctx.font = 'bold 13px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace';
+                    const textWidth = ctx.measureText(labelText).width;
+
+                    ctx.fillStyle = 'rgba(180, 0, 0, 0.95)';
+                    ctx.fillRect(x1, Math.max(y1 - 22, 0), textWidth + 8, 22);
+                    ctx.strokeStyle = '#ff1744';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(x1, Math.max(y1 - 22, 0), textWidth + 8, 22);
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillText(labelText, x1 + 4, Math.max(y1 - 6, 14));
+                } else if (inZone) {
+                    if (isPerson && det.is_compliant) {
+                        // COMPLIANT PERSON in Zone
+                        ctx.lineWidth = 2.5;
+                        ctx.strokeStyle = isStale ? 'rgba(0, 230, 118, 0.8)' : '#00e676';
+                        if (isStale) ctx.setLineDash([5, 5]);
+                        ctx.strokeRect(x1, y1, w, h);
+                        ctx.setLineDash([]);
+
+                        const tag = isStale ? ' [抽樣]' : '';
+                        const labelText = `[合規] ${labelName} (${(det.conf * 100).toFixed(0)}%)${tag}`;
+                        ctx.font = 'bold 13px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace';
+                        const textWidth = ctx.measureText(labelText).width;
+
+                        ctx.fillStyle = 'rgba(0, 60, 20, 0.9)';
+                        ctx.fillRect(x1, Math.max(y1 - 20, 0), textWidth + 8, 20);
+                        ctx.strokeStyle = '#00e676';
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(x1, Math.max(y1 - 20, 0), textWidth + 8, 20);
+
+                        ctx.fillStyle = '#00e676';
+                        ctx.fillText(labelText, x1 + 4, Math.max(y1 - 5, 14));
+                    } else {
+                        // Standard Intrusion Alarm
+                        ctx.lineWidth = 3;
+                        if (isStale) {
+                            ctx.setLineDash([5, 5]);
+                            ctx.strokeStyle = 'rgba(255, 51, 51, 0.8)';
+                        } else {
+                            ctx.setLineDash([]);
+                            ctx.strokeStyle = '#ff3333';
+                        }
+                        ctx.strokeRect(x1, y1, w, h);
+                        ctx.setLineDash([]);
+
+                        const tag = isStale ? ' [抽樣]' : '';
+                        const labelText = `[告警] ${labelName} (${(det.conf * 100).toFixed(0)}%)${tag}`;
+                        ctx.font = 'bold 13px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace';
+                        const textWidth = ctx.measureText(labelText).width;
+
+                        ctx.fillStyle = isStale ? 'rgba(60, 0, 0, 0.9)' : 'rgba(80, 0, 0, 0.9)';
+                        ctx.fillRect(x1, Math.max(y1 - 20, 0), textWidth + 8, 20);
+                        ctx.strokeStyle = isStale ? 'rgba(255, 51, 51, 0.8)' : '#ff3333';
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(x1, Math.max(y1 - 20, 0), textWidth + 8, 20);
+
+                        ctx.fillStyle = isStale ? '#ff9999' : '#ffffff';
+                        ctx.fillText(labelText, x1 + 4, Math.max(y1 - 5, 14));
+                    }
+                } else {
+                    // Normal / Compliant style outside zone
+                    const boxColor = isBarrierOrSafe ? '#00e676' : '#00ff41';
+                    ctx.lineWidth = 2;
+                    if (isStale) {
+                        ctx.setLineDash([5, 5]);
+                        ctx.strokeStyle = isBarrierOrSafe ? 'rgba(0, 230, 118, 0.75)' : 'rgba(0, 255, 65, 0.75)';
+                    } else {
+                        ctx.setLineDash([]);
+                        ctx.strokeStyle = boxColor;
+                    }
+                    ctx.strokeRect(x1, y1, w, h);
+                    ctx.setLineDash([]);
+
+                    const tag = isStale ? ' [抽樣]' : '';
+                    const labelText = `${labelName} (${(det.conf * 100).toFixed(0)}%)${tag}`;
+                    ctx.font = '13px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace';
+                    const textWidth = ctx.measureText(labelText).width;
+
+                    ctx.fillStyle = isStale ? 'rgba(0, 40, 0, 0.9)' : 'rgba(0, 59, 0, 0.85)';
+                    ctx.fillRect(x1, Math.max(y1 - 20, 0), textWidth + 8, 20);
+
+                    ctx.fillStyle = isStale ? '#85ffaa' : boxColor;
+                    ctx.fillText(labelText, x1 + 4, Math.max(y1 - 5, 14));
+                }
+                ctx.restore();
+            });
+        }
+        window.addEventListener('resize', () => {
+            if (activeStreamIndex !== null) {
+                syncCanvasSize();
+                drawCanvas();
+            }
+        });
+
+        // ── Smart Inactivity & Visibility Decoupler ──
+        const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 分鐘閒置逾時
+        let idleTimer = null;
+        let isUserIdle = false;
+        let isTabHidden = false;
+
+        function pauseAllStreams() {
+            const previewImg = document.getElementById('preview-cam-img');
+            if (previewImg && previewImg.src) {
+                previewImg.src = '';
+            }
+            const fsImg = document.getElementById('fullscreen-img');
+            if (fsImg && fsImg.src) {
+                fsImg.src = '';
+            }
+        }
+
+        function resumeAllStreams() {
+            if (isUserIdle || isTabHidden) return;
+
+            const previewImg = document.getElementById('preview-cam-img');
+            if (previewImg && typeof selectedStreamIndex !== 'undefined' && selectedStreamIndex !== null) {
+                previewImg.src = `/video_feed/${selectedStreamIndex}?t=` + Date.now();
+            }
+
+            const modal = document.getElementById('fullscreen-modal');
+            const fsImg = document.getElementById('fullscreen-img');
+            if (modal && modal.style.display !== 'none' && fsImg && typeof activeStreamIndex !== 'undefined' && activeStreamIndex !== null) {
+                fsImg.src = `/video_feed/${activeStreamIndex}?t=` + Date.now();
+            }
+        }
+
+        function setIdleOverlayVisibility(show) {
+            const previewOverlay = document.getElementById('preview-idle-overlay');
+            if (previewOverlay) {
+                previewOverlay.style.display = show ? 'flex' : 'none';
+            }
+            const fsOverlay = document.getElementById('fullscreen-idle-overlay');
+            if (fsOverlay) {
+                fsOverlay.style.display = show ? 'flex' : 'none';
+            }
+        }
+
+        function enterIdleMode() {
+            if (isUserIdle) return;
+            isUserIdle = true;
+            pauseAllStreams();
+            setIdleOverlayVisibility(true);
+        }
+
+        function wakeFromIdle(event) {
+            if (event) {
+                event.stopPropagation();
+            }
+            if (!isUserIdle) return;
+            isUserIdle = false;
+            setIdleOverlayVisibility(false);
+            resumeAllStreams();
+            resetIdleTimer();
+        }
+
+        function resetIdleTimer() {
+            if (idleTimer) clearTimeout(idleTimer);
+            if (isUserIdle) {
+                wakeFromIdle();
+            }
+            idleTimer = setTimeout(() => {
+                enterIdleMode();
+            }, IDLE_TIMEOUT_MS);
+        }
+
+        function handlePreviewClick(event) {
+            if (isUserIdle) {
+                wakeFromIdle(event);
+                return;
+            }
+            openDetailFullscreen();
+        }
+
+        // Page Visibility API 監聽 (分頁切換/最小化)
+        document.addEventListener('visibilitychange', () => {
+            isTabHidden = document.hidden;
+            if (isTabHidden) {
+                pauseAllStreams();
+            } else {
+                resumeAllStreams();
+                resetIdleTimer();
+            }
+        });
+
+        // 使用者互動監聽 (重設閒置計時器)
+        const USER_ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+        USER_ACTIVITY_EVENTS.forEach(evt => {
+            window.addEventListener(evt, () => {
+                if (isUserIdle) {
+                    wakeFromIdle();
+                } else {
+                    resetIdleTimer();
+                }
+            }, { passive: true });
+        });
+
+        // 啟動初始計時器
+        resetIdleTimer();
+
+        // ===== Log Viewer =====
+        let _logAutoRefreshTimer = null;
+
+        function openLogViewer() {
+            const overlay = document.getElementById('log-viewer-overlay');
+            overlay.classList.add('open');
+            loadLogContent();
+        }
+
+        function closeLogViewer() {
+            const overlay = document.getElementById('log-viewer-overlay');
+            overlay.classList.remove('open');
+        }
+
+        function handleLogOverlayClick(event) {
+            if (event.target === document.getElementById('log-viewer-overlay')) {
+                closeLogViewer();
+            }
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const logOverlay = document.getElementById('log-viewer-overlay');
+                if (logOverlay && logOverlay.classList.contains('open')) {
+                    closeLogViewer();
+                }
+                const issueOverlay = document.getElementById('report-issue-overlay');
+                if (issueOverlay && issueOverlay.classList.contains('open')) {
+                    closeReportIssueModal();
+                }
+            }
+        });
+
+        function loadLogContent() {
+            const source = document.getElementById('log-source-select').value;
+            const statusBar = document.getElementById('log-status-bar');
+            const contentArea = document.getElementById('log-content-area');
+            statusBar.textContent = '載入中...';
+            fetch(`/api/logs?file=${encodeURIComponent(source)}&lines=300`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        contentArea.textContent = data.content || '（日誌為空或檔案尚未建立）';
+                        statusBar.textContent = `${source}.log | ${data.lines} 行 | ${new Date().toLocaleTimeString()}`;
+                        const autoScroll = document.getElementById('log-autoscroll').checked;
+                        if (autoScroll) {
+                            contentArea.scrollTop = contentArea.scrollHeight;
+                        }
+                    } else {
+                        contentArea.textContent = `錯誤: ${data.message}`;
+                        statusBar.textContent = '載入失敗';
+                    }
+                })
+                .catch(err => {
+                    contentArea.textContent = `網路錯誤: ${err}`;
+                    statusBar.textContent = '載入失敗';
+                });
+        }
+
+        function copyLogContent() {
+            const content = document.getElementById('log-content-area').textContent;
+            const btn = document.getElementById('log-copy-btn');
+            navigator.clipboard.writeText(content).then(() => {
+                btn.textContent = '✓ Copied!';
+                btn.style.color = 'var(--text)';
+                setTimeout(() => {
+                    btn.textContent = '⎘ 複製';
+                    btn.style.color = '';
+                }, 1800);
+            }).catch(() => {
+                btn.textContent = '✗ 失敗';
+                setTimeout(() => { btn.textContent = '⎘ 複製'; }, 1500);
+            });
+        }
+
+        // ===== Issue Reporter Modal =====
+        function openReportIssueModal() {
+            const overlay = document.getElementById('report-issue-overlay');
+            const form = document.getElementById('report-issue-form');
+            const resultView = document.getElementById('report-issue-result');
+            const errBanner = document.getElementById('ri-error-msg');
+            const statusBar = document.getElementById('ri-status-bar');
+            const submitBtn = document.getElementById('ri-submit-btn');
+            const submitText = document.getElementById('ri-submit-text');
+            const spinner = document.getElementById('ri-spinner');
+
+            form.reset();
+            form.style.display = 'block';
+            resultView.style.display = 'none';
+            errBanner.style.display = 'none';
+            errBanner.textContent = '';
+            submitBtn.disabled = false;
+            submitText.textContent = '📦 打包並發布至 GITEA';
+            spinner.style.display = 'none';
+            statusBar.textContent = '--- 就緒 ---';
+
+            overlay.classList.add('open');
+            setTimeout(() => {
+                const titleInput = document.getElementById('ri-title-input');
+                if (titleInput) titleInput.focus();
+            }, 50);
+        }
+
+        function closeReportIssueModal() {
+            const overlay = document.getElementById('report-issue-overlay');
+            if (overlay) {
+                overlay.classList.remove('open');
+            }
+        }
+
+        function handleReportIssueOverlayClick(event) {
+            if (event.target === document.getElementById('report-issue-overlay')) {
+                closeReportIssueModal();
+            }
+        }
+
+        function submitIssueReport(event) {
+            event.preventDefault();
+
+            const title = document.getElementById('ri-title-input').value.trim();
+            const severity = document.getElementById('ri-severity-select').value;
+            const description = document.getElementById('ri-desc-input').value.trim();
+            const steps = document.getElementById('ri-steps-input').value.trim();
+
+            const submitBtn = document.getElementById('ri-submit-btn');
+            const submitText = document.getElementById('ri-submit-text');
+            const spinner = document.getElementById('ri-spinner');
+            const errBanner = document.getElementById('ri-error-msg');
+            const statusBar = document.getElementById('ri-status-bar');
+            const form = document.getElementById('report-issue-form');
+            const resultView = document.getElementById('report-issue-result');
+
+            // 進入 Loading 狀態
+            submitBtn.disabled = true;
+            submitText.textContent = '正在打包日誌與上傳至 Gateway...';
+            spinner.style.display = 'inline-block';
+            errBanner.style.display = 'none';
+            errBanner.textContent = '';
+            statusBar.textContent = '處理中：收集日誌與系統資訊...';
+
+            fetch('/api/issue/report', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    title: title,
+                    severity: severity,
+                    description: description,
+                    steps: steps
+                })
+            })
+            .then(async response => {
+                const data = await response.json().catch(() => ({ status: 'error', message: '解析伺服器回應失敗' }));
+                if (!response.ok && data.status !== 'error') {
+                    data.status = 'error';
+                }
+                return data;
+            })
+            .then(data => {
+                if (data.status === 'ok') {
+                    // 成功畫面切換
+                    form.style.display = 'none';
+                    resultView.style.display = 'block';
+
+                    const issueLink = document.getElementById('ri-res-issue-link');
+                    issueLink.href = data.issue_url || '#';
+                    issueLink.textContent = `#${data.issue_number || data.issue_id} (查看 Gitea Issue)`;
+
+                    const downloadLink = document.getElementById('ri-res-download-link');
+                    downloadLink.href = data.download_url || '#';
+                    downloadLink.textContent = data.zip_filename ? `下載 ${data.zip_filename}` : '下載診斷封包 ZIP';
+
+                    document.getElementById('ri-res-report-id').textContent = data.report_id || '---';
+                    document.getElementById('ri-res-filename').textContent = data.zip_filename || '---';
+
+                    statusBar.textContent = `回報完成 | Issue #${data.issue_number || data.issue_id} 已建立 (${new Date().toLocaleTimeString()})`;
+                } else {
+                    // 錯誤狀態處理
+                    errBanner.textContent = `回報失敗: ${data.message || '未知錯誤'}`;
+                    errBanner.style.display = 'block';
+                    submitBtn.disabled = false;
+                    submitText.textContent = '📦 重試打包並發布至 GITEA';
+                    spinner.style.display = 'none';
+                    statusBar.textContent = '回報失敗，請檢視錯誤訊息或使用離線 CLI 工具。';
+                }
+            })
+            .catch(err => {
+                errBanner.textContent = `網路連線異常: ${err.message || err}`;
+                errBanner.style.display = 'block';
+                submitBtn.disabled = false;
+                submitText.textContent = '📦 重試打包並發布至 GITEA';
+                spinner.style.display = 'none';
+                statusBar.textContent = '連線失敗，請檢視錯誤訊息或使用離線 CLI 工具。';
+            });
+        }
+    </script>
+</body>
+</html>

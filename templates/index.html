@@ -263,6 +263,8 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
+            gap: 0.5rem;
+            flex-wrap: nowrap;
             padding: 0.4rem 0.5rem;
             border: 1px solid var(--border);
             background: rgba(0, 0, 0, 0.4);
@@ -285,22 +287,39 @@
             display: flex;
             align-items: center;
             gap: 0.4rem;
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+        .master-stream-name {
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            min-width: 0;
+            flex: 1;
         }
         .master-stream-del-btn {
             background: transparent;
             color: var(--danger);
             border: 1px solid var(--danger);
-            padding: 0.1rem 0.35rem;
+            padding: 0.15rem 0.4rem;
             font-size: 0.65rem;
             cursor: pointer;
             font-family: inherit;
+            white-space: nowrap;
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            border-radius: 2px;
+            transition: all 0.15s ease;
         }
         .master-stream-del-btn:hover {
             background: var(--danger);
             color: #000;
+            box-shadow: 0 0 6px rgba(255, 60, 60, 0.4);
         }
         .btn-add-stream {
             width: 100%;
@@ -2621,10 +2640,10 @@
 
                 item.innerHTML = `
                     <div class="master-stream-label" title="${escapeHtml(s.url || '')}">
-                        <span style="color: ${isSelected ? 'var(--text)' : 'var(--text-dim)'}; font-weight:bold;">#${idx}</span>
-                        <span id="master-stream-name-${idx}">${escapeHtml(displayName)}${isDirty ? '<span class="stream-dirty-badge">*</span>' : ''}</span>
+                        <span style="color: ${isSelected ? 'var(--text)' : 'var(--text-dim)'}; font-weight:bold; flex-shrink: 0;">#${idx}</span>
+                        <span id="master-stream-name-${idx}" class="master-stream-name">${escapeHtml(displayName)}${isDirty ? '<span class="stream-dirty-badge">*</span>' : ''}</span>
                     </div>
-                    <button type="button" class="master-stream-del-btn" onclick="deleteMasterStream(event, ${idx})">[ ✕ ]</button>
+                    <button type="button" class="master-stream-del-btn" onclick="deleteMasterStream(event, ${idx})" title="刪除串流 #${idx}">[ ✕ ]</button>
                 `;
                 listEl.appendChild(item);
 

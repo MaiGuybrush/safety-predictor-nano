@@ -1,9 +1,35 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('templates', 'templates'), ('config.yaml', '.'), ('ums-api-config.json', '.'), ('docs/user-manual/book', 'docs/user-manual/book')]
+datas = [
+    ('src/argus/web/templates', 'argus/web/templates'),
+    ('templates', 'templates'),
+    ('config.yaml', '.'),
+    ('ums-api-config.json', '.'),
+    ('docs/user-manual/book', 'docs/user-manual/book'),
+]
 binaries = []
-hiddenimports = ['report_issue', 'diagnostic_collector', 'issue_service_client']
+hiddenimports = [
+    'argus',
+    'argus.main',
+    'argus.core.config_manager',
+    'argus.capture.stream_handler',
+    'argus.capture.video_handler',
+    'argus.capture.grid_composer',
+    'argus.vision.inference_engine',
+    'argus.compliance.compliance_engine',
+    'argus.events.stats_logger',
+    'argus.events.event_producer',
+    'argus.events.retention_cleaner',
+    'argus.events.diagnostic_collector',
+    'argus.integration.model_sync',
+    'argus.integration.ums_config',
+    'argus.integration.failover_ums_client',
+    'argus.integration.state_poller',
+    'argus.integration.issue_service_client',
+    'argus.integration.report_issue',
+    'argus.web.web_ui',
+]
 tmp_ret = collect_all('ultralytics')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('flask')
@@ -15,8 +41,8 @@ datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
 a = Analysis(
-    ['main.py'],
-    pathex=[],
+    ['src/argus/main.py'],
+    pathex=['src'],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,

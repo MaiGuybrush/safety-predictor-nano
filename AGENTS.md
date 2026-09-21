@@ -5,24 +5,44 @@ Argus Safety Predictor Nano is a lightweight, edge-optimized (specifically for R
 
 ## Architecture & Data Flow
 The system utilizes a multi-threaded Python architecture to decouple frame capture, inference, and the user interface.
-- **Capture**: `stream_handler.py` runs a background thread for each RTSP stream, using OpenCV to fetch frames. It places the most recent frame into a thread-safe, size-1 Queue (dropping old frames to ensure low latency).
-- **Processing**: The main loop in `main.py` continuously pulls frames and routes them to the `inference_engine.py` (which wraps YOLOv8, heavily optimized for CPU execution).
-- **UI & Web Server**: A Flask web server (`web_ui.py`) runs in a daemon thread. It serves an MJPEG feed and a Jinja2 template for configuration.
-- **State Management & Hot Reloading**: `config_manager.py` polls `config.yaml` for modifications. When changed, the main loop dynamically re-initializes models or streams without downtime. Processed frames are shared with the Flask app via a global variable (`web_ui.LATEST_FRAME`).
-- **Logging**: Managed by `stats_logger.py`, splitting output into separate performance metrics (CPU/RAM/inference speed) and detection event logs.
+- **Capture**: `src/argus/capture/stream_handler.py` runs a background thread for each RTSP stream, using OpenCV to fetch frames. It places the most recent frame into a thread-safe, size-1 Queue (dropping old frames to ensure low latency).
+- **Processing**: The main loop in `src/argus/main.py` continuously pulls frames and routes them to `src/argus/vision/inference_engine.py` (which wraps YOLOv8, heavily optimized for CPU execution).
+- **UI & Web Server**: A Flask web server (`src/argus/web/web_ui.py`) runs in a daemon thread. It serves an MJPEG feed and a Jinja2 template for configuration.
+- **State Management & Hot Reloading**: `src/argus/core/config_manager.py` polls `config.yaml` for modifications. When changed, the main loop dynamically re-initializes models or streams without downtime. Processed frames are shared with the Flask app via a global variable (`web_ui.LATEST_FRAME`).
+- **Logging & Events**: Managed by `src/argus/events/stats_logger.py` and `src/argus/events/event_producer.py`, splitting output into separate performance metrics (CPU/RAM/inference speed), detection event logs, and ARGUS JSONL events.
 
 ## Key Directories
-- `/` (Root): Contains all core Python modules, configuration files, and build manifests.
-- `templates/`: Contains Jinja2 HTML templates (e.g., `index.html`) used by the Flask Web UI.
+- `src/argus/`: Core application package structured by domain:
+  - `core/`: Configuration management (`config_manager.py`).
+  - `capture/`: RTSP streaming, video handling, and grid composition (`stream_handler.py`, `video_handler.py`, `grid_composer.py`).
+  - `vision/`: Inference engine wrapping YOLO and NCNN backends (`inference_engine.py`).
+  - `compliance/`: Safety compliance & PPE inspection rule engine (`compliance_engine.py`).
+  - `events/`: Event producers, JSONL logging, retention cleanup, and crash handlers (`event_producer.py`, `stats_logger.py`, `retention_cleaner.py`, `diagnostic_collector.py`).
+  - `integration/`: UMS synchronization, state polling, failover clients, and issue reporting (`model_sync.py`, `ums_config.py`, `failover_ums_client.py`, `state_poller.py`, `issue_service_client.py`, `report_issue.py`).
+  - `web/`: Flask Web UI dashboard, MJPEG & SSE feeds, and Jinja2 templates (`web_ui.py`, `templates/`).
+- `tests/`: Hierarchical automated test suite:
+  - `unit/`: Unit tests for individual domain components.
+  - `integration/`: Integration tests for API, streaming, heartbeat, and persistence.
+  - `e2e/`: End-to-end scenarios (compliance, UI save, issue reporting).
+  - `fixtures/`: Test fixtures and mock servers (`mock_argus_agent.py`).
+  - `data/`: Media clips and static test assets.
+- `scripts/`: Diagnostic utilities and manual screenshot generation scripts (`generate_screenshots.py`, `ask_and_report.*`).
+- `docs/`: Architecture decision records (`docs/adr/`) and mdBook user manual (`docs/user-manual/`).
+- `assets/`: Test video files and persistent binary assets.
 
 ## Development Commands
 - **Install Dependencies**: 
   ```bash
   pip install -r requirements.txt
+  pip install -e .
   ```
 - **Run Application**: 
   ```bash
   python main.py
+  ```
+- **Run Tests**:
+  ```bash
+  pytest
   ```
 - **Access Web UI**: Navigate to `http://<device-ip>:8188`
 - **Build/Deploy (PyInstaller)**:
@@ -31,8 +51,13 @@ The system utilizes a multi-threaded Python architecture to decouple frame captu
   # 1. Build mdBook user manual
   mdbook build docs/user-manual
 
-  # 2. Package binary with PyInstaller
+  # 2. Package binary with PyInstaller spec (Recommended)
+  pyinstaller argus_predictor.spec
+
+  # Or package with onefile CLI:
   pyinstaller --onefile \
+              --paths src \
+              --add-data "src/argus/web/templates:argus/web/templates" \
               --add-data "templates:templates" \
               --add-data "config.yaml:." \
               --add-data "ums-api-config.json:." \
@@ -42,7 +67,7 @@ The system utilizes a multi-threaded Python architecture to decouple frame captu
               --collect-all argus_eventlog \
               --collect-all ums_client \
               --name argus_predictor \
-              main.py
+              src/argus/main.py
   ```
 
 ## Code Conventions & Common Patterns
@@ -52,14 +77,16 @@ The system utilizes a multi-threaded Python architecture to decouple frame captu
 - **Naming Conventions**: Standard Python PEP-8 (PascalCase for classes, snake_case for functions and variables).
 
 ## Important Files
-- `main.py`: The core orchestrator managing threads, the inference loop, and config reloading.
+- `main.py`: The lightweight root entrypoint delegating to `argus.main:main`.
+- `src/argus/main.py`: The core orchestrator managing threads, the inference loop, and config reloading.
 - `config.yaml`: The central configuration file detailing model paths, RTSP sources, thresholds, and limits.
-- `config_manager.py`: Parses and polls the YAML configuration for real-time updates.
-- `inference_engine.py`: YOLO wrapper enforcing CPU-bound execution and formatting bounding boxes.
-- `stream_handler.py`: Manages RTSP stream connections and low-latency queuing.
-- `web_ui.py`: Flask application providing the configuration dashboard and MJPEG streams.
-- `stats_logger.py`: Dual-logger utility tracking system performance and detections.
-- `templates/index.html`: The frontend UI template.
+- `src/argus/core/config_manager.py`: Parses and polls the YAML configuration for real-time updates.
+- `src/argus/vision/inference_engine.py`: YOLO wrapper enforcing CPU-bound execution and formatting bounding boxes.
+- `src/argus/capture/stream_handler.py`: Manages RTSP stream connections and low-latency queuing.
+- `src/argus/web/web_ui.py`: Flask application providing the configuration dashboard and MJPEG streams.
+- `src/argus/events/stats_logger.py`: Dual-logger utility tracking system performance and detections.
+- `src/argus/compliance/compliance_engine.py`: Evaluates PPE safety and composite violation rules.
+- `argus_predictor.spec`: PyInstaller build specification configured for `src/` layout.
 
 ## Runtime/Tooling Preferences
 - **Runtime**: Python 3.
@@ -68,8 +95,10 @@ The system utilizes a multi-threaded Python architecture to decouple frame captu
 - **Deployment**: Distributed as a single binary via `pyinstaller`. At runtime, the binary strictly expects `config.yaml` and the target model file (`.pt`) to reside in the same working directory.
 
 ## Testing & QA
-- **Frameworks**: None.
-- **Status**: The repository currently lacks automated testing frameworks, test scripts, or a dedicated `tests/` directory. Testing is presumed to be manual via the Web UI and log verification.
+- **Frameworks**: `pytest`.
+- **Status**: Complete automated test coverage across unit, integration, and E2E tiers under `tests/`.
+- **Watchdog & Teardown**: Managed via `tests/conftest.py` with automatic resource teardown fixtures and a 5-second watchdog timer preventing hanging threads on exit.
+- **Running Tests**: Run `pytest` for all tests, or `pytest tests/unit/` for fast unit tests.
 
 ## Agent skills
 

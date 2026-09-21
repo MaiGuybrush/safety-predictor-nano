@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "safety-predictor-nano"
+version = "1.0.0"
+description = "Argus Safety Predictor Nano edge-optimized target detection system"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "opencv-python-headless",
+    "ultralytics",
+    "pyyaml",
+    "psutil",
+    "flask",
+    "ncnn",
+    "requests",
+    "argus-eventlog @ git+http://tncimweb.cminl.oa/git-server/guy.mai/argus-eventlog.git@master",
+    "ums-client @ git+http://tncimweb.cminl.oa/git-server/guy.mai/ums-client.git@master",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"argus.web" = ["templates/*"]

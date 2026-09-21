@@ -3,13 +3,48 @@
 ## 專案簡介
 本專案為樹莓派 5 設計的 RTSP 即時推論系統，支援多串流、目標偵測，並提供 Web UI 設定介面。
 
-## 啟動方式 (開發環境)
-1. 安裝依賴：`pip install -r requirements.txt`
-2. 建置使用手冊 (選用，若有修改手冊)：`mdbook build docs/user-manual`
-3. 執行主程式：`python main.py`
-4. 瀏覽器開啟：`http://<樹莓派IP>:8188` (點擊頂部「📖 使用手冊」或訪問 `http://<樹莓派IP>:8188/manual/` 查閱完整操作說明)
+## 專案目錄結構 (Project Structure)
 
----
+本專案遵循標準 Python `src/` Layout 與領域驅動 (DDD) 分層架構：
+
+```text
+├── src/argus/               # 核心領域套件
+│   ├── core/                # 系統配置與生命週期 (config_manager.py)
+│   ├── capture/             # 串流拉取、影片處理與畫面合成 (stream_handler.py, video_handler.py, grid_composer.py)
+│   ├── vision/              # YOLO / NCNN 視覺推論引擎封裝 (inference_engine.py)
+│   ├── compliance/          # PPE 防護裝備與工安合規規則引擎 (compliance_engine.py)
+│   ├── events/              # 事件生產、日誌記錄與當機診斷 (event_producer.py, stats_logger.py, retention_cleaner.py)
+│   ├── integration/         # UMS 模型同步、狀態輪詢與 Issue 回報 (model_sync.py, ums_config.py, report_issue.py)
+│   ├── web/                 # Flask 控制台、SSE 串流與 Web 介面 (web_ui.py, templates/)
+│   └── main.py              # 系統協同主迴圈與推論排程
+├── tests/                   # 階層化自動化測試套件
+│   ├── unit/                # 各領域單元測試
+│   ├── integration/         # 串流、狀態與 API 整合測試
+│   ├── e2e/                 # 端到端工安合規與介面測試
+│   ├── fixtures/            # 測試假物件 (mock_argus_agent.py)
+│   └── data/                # 測試專用媒體檔案
+├── scripts/                 # 診斷回報工具與自動化截圖腳本
+├── docs/                    # 架構決策記錄 (docs/adr/) 與 mdBook 使用手冊 (docs/user-manual/)
+├── assets/                  # 靜態影像與測試視訊資產
+├── main.py                  # 根目錄薄入口 (Thin Entrypoint)
+├── pyproject.toml           # 專案套件配置與 editable 安裝定義
+├── pytest.ini               # Pytest 設定
+└── argus_predictor.spec     # PyInstaller 單一二進位打包規格
+```
+
+## 啟動方式 (開發環境)
+1. 安裝依賴與本地套件：
+   ```bash
+   pip install -r requirements.txt
+   pip install -e .
+   ```
+2. 執行自動化測試（確保環境齊全）：
+   ```bash
+   pytest
+   ```
+3. 建置使用手冊 (選用，若有修改手冊)：`mdbook build docs/user-manual`
+4. 執行主程式：`python main.py`
+5. 瀏覽器開啟：`http://<樹莓派IP>:8188` (點擊頂部「📖 使用手冊」或訪問 `http://<樹莓派IP>:8188/manual/` 查閱完整操作說明)
 
 ## 部署指南 (強烈建議：直接在樹莓派上建置)
 
@@ -72,17 +107,23 @@ pip install pyinstaller
 # 1. 建置 mdBook 使用手冊
 mdbook build docs/user-manual
 
-# 2. 封裝單一可執行檔
+# 2. 封裝單一可執行檔（推薦直接使用 spec 檔案）
+pyinstaller argus_predictor.spec
+
+# 或使用 CLI 完整參數：
 pyinstaller --onefile \
+            --paths src \
+            --add-data "src/argus/web/templates:argus/web/templates" \
             --add-data "templates:templates" \
             --add-data "config.yaml:." \
+            --add-data "ums-api-config.json:." \
             --add-data "docs/user-manual/book:docs/user-manual/book" \
             --collect-all ultralytics \
             --collect-all flask \
             --collect-all argus_eventlog \
             --collect-all ums_client \
             --name argus_predictor \
-            main.py
+            src/argus/main.py
 ```
 
 *注意：`--collect-all` 用於確保 `ultralytics`、`flask`、`argus_eventlog` 與 `ums_client` 等相依套件能正確被打包；`--add-data` 會將 Web 範本與手冊網站打包進二進位檔。*
@@ -116,16 +157,19 @@ mdbook build docs/user-manual
 # 2. 封裝為單一目錄
 pyinstaller --onedir \
             --noupx \
+            --paths src \
             --exclude-module triton \
+            --add-data "src/argus/web/templates:argus/web/templates" \
             --add-data "templates:templates" \
             --add-data "config.yaml:." \
+            --add-data "ums-api-config.json:." \
             --add-data "docs/user-manual/book:docs/user-manual/book" \
             --collect-all ultralytics \
             --collect-all flask \
             --collect-all argus_eventlog \
             --collect-all ums_client \
             --name argus_predictor \
-            main.py
+            src/argus/main.py
 ```
 
 *注意：*

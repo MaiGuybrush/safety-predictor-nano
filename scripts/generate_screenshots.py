@@ -11,7 +11,10 @@ from playwright.sync_api import sync_playwright
 OUTPUT_DIR = os.path.abspath("docs/user-manual/src/images")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-server_app = Flask(__name__, template_folder=os.path.abspath("templates"))
+template_dir = os.path.abspath("src/argus/web/templates")
+if not os.path.exists(template_dir):
+    template_dir = os.path.abspath("templates")
+server_app = Flask(__name__, template_folder=template_dir)
 server_app.config['TESTING'] = True
 
 MOCK_CONFIG = {
