@@ -865,6 +865,220 @@
             flex-shrink: 0;
         }
 
+        /* ===== Auto-Update UX & Modal (Issue #80) ===== */
+        .version-tag {
+            display: inline-block;
+            font-size: 0.72rem;
+            color: var(--cyan);
+            border: 1px solid var(--border-cyan);
+            padding: 0.15rem 0.4rem;
+            border-radius: 2px;
+            cursor: pointer;
+            letter-spacing: 1px;
+            transition: all 0.2s;
+            background: rgba(0, 229, 255, 0.05);
+        }
+        .version-tag:hover {
+            color: #fff;
+            border-color: var(--cyan);
+            box-shadow: 0 0 10px rgba(0, 229, 255, 0.4);
+            background: rgba(0, 229, 255, 0.15);
+        }
+
+        .update-badge-btn {
+            background: rgba(255, 170, 0, 0.15) !important;
+            border-color: var(--warn) !important;
+            color: var(--warn) !important;
+            animation: update-glow 1.8s ease-in-out infinite alternate;
+            cursor: pointer;
+            margin: 0 !important;
+            width: auto !important;
+            padding: 0.4rem 0.8rem !important;
+            font-size: 0.75rem !important;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        @keyframes update-glow {
+            from { box-shadow: 0 0 4px var(--warn); }
+            to { box-shadow: 0 0 16px var(--warn); }
+        }
+
+        #update-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 9000;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+        #update-modal-overlay.open {
+            display: flex;
+        }
+        #update-modal {
+            width: 85vw;
+            max-width: 780px;
+            max-height: 88vh;
+            background: #050505;
+            border: 1px solid var(--cyan-dim);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 40px rgba(0, 229, 255, 0.25);
+        }
+        #update-modal-titlebar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem 0.8rem;
+            border-bottom: 1px solid var(--border-cyan);
+            background: #0a0a0a;
+            flex-shrink: 0;
+        }
+        .up-title {
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: var(--cyan);
+            letter-spacing: 1.5px;
+        }
+        .up-close-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            font-size: 1.1rem;
+            cursor: pointer;
+            padding: 0 0.3rem;
+            line-height: 1;
+        }
+        .up-close-btn:hover { color: var(--danger); }
+        #update-modal-content {
+            padding: 1rem;
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.9rem;
+        }
+        .update-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 0.6rem;
+        }
+        .update-card {
+            background: #0d0d0d;
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+        .update-card-label {
+            font-size: 0.68rem;
+            color: var(--text-dim);
+            font-weight: bold;
+        }
+        .update-card-val {
+            font-size: 0.85rem;
+            color: var(--text);
+            font-weight: bold;
+        }
+        .update-card-val.cyan { color: var(--cyan); }
+        .update-card-val.warn { color: var(--warn); }
+        .update-notes-box {
+            background: #020802;
+            border: 1px solid var(--border);
+            padding: 0.8rem;
+            max-height: 140px;
+            overflow-y: auto;
+            font-family: inherit;
+            font-size: 0.75rem;
+            color: var(--text);
+            white-space: pre-wrap;
+            line-height: 1.4;
+        }
+        .update-progress-container {
+            border: 1px solid var(--border-cyan);
+            background: #0a0a0a;
+            padding: 0.8rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .update-progress-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--cyan);
+        }
+        .update-progress-track {
+            height: 14px;
+            background: #111;
+            border: 1px solid var(--border);
+            position: relative;
+            overflow: hidden;
+        }
+        .update-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--cyan-dim), var(--cyan));
+            width: 0%;
+            transition: width 0.3s ease;
+            box-shadow: 0 0 10px var(--cyan);
+        }
+        .update-status-desc {
+            font-size: 0.72rem;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        #update-status-bar {
+            padding: 0.3rem 0.8rem;
+            border-top: 1px dashed var(--border);
+            font-size: 0.68rem;
+            color: var(--text-dim);
+            background: #0a0a0a;
+            flex-shrink: 0;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* ===== Fullscreen Restart & Reconnect Overlay ===== */
+        #update-restart-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 6, 2, 0.96);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            padding: 1.5rem;
+            backdrop-filter: blur(8px);
+        }
+        #update-restart-overlay.open {
+            display: flex;
+        }
+        .restart-card {
+            border: 1px solid var(--cyan);
+            background: #050505;
+            padding: 2rem;
+            max-width: 580px;
+            width: 90vw;
+            box-shadow: 0 0 50px rgba(0, 229, 255, 0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 1.2rem;
+        }
+        .restart-timer-circle {
+            font-size: 3.2rem;
+            font-weight: bold;
+            color: var(--cyan);
+            text-shadow: 0 0 20px var(--cyan);
+        }
+
         /* ===== Global Floating Action Bar (Issue #39) ===== */
         .floating-action-bar {
             position: fixed;
@@ -1331,16 +1545,111 @@
         </div>
     </div>
 
+    <!-- ===== Auto-Update Modal (Issue #80) ===== -->
+    <div id="update-modal-overlay" onclick="handleUpdateOverlayClick(event)">
+        <div id="update-modal" role="dialog" aria-modal="true" aria-labelledby="update-modal-heading">
+            <div id="update-modal-titlebar">
+                <span class="up-title" id="update-modal-heading">◈ ARGUS // 軟體更新管理 (SYSTEM UPDATE)</span>
+                <button class="up-close-btn" onclick="closeUpdateModal()" title="關閉 (ESC)">✕</button>
+            </div>
+            <div id="update-modal-content">
+                <!-- Version Info Cards -->
+                <div class="update-grid">
+                    <div class="update-card">
+                        <span class="update-card-label">目前運行版本</span>
+                        <span class="update-card-val" id="up-curr-version">v{{ current_version or '1.0.0' }}</span>
+                    </div>
+                    <div class="update-card">
+                        <span class="update-card-label">平台最新版本</span>
+                        <span class="update-card-val cyan" id="up-target-version">---</span>
+                    </div>
+                    <div class="update-card">
+                        <span class="update-card-label">發布時間</span>
+                        <span class="update-card-val" id="up-release-date">---</span>
+                    </div>
+                    <div class="update-card">
+                        <span class="update-card-label">更新模式</span>
+                        <span class="update-card-val warn" id="up-mode-label">提示確認 (Notify)</span>
+                    </div>
+                </div>
+
+                <!-- Release Notes / Changelog Box -->
+                <div>
+                    <div style="font-size: 0.72rem; color: var(--text-dim); font-weight: bold; margin-bottom: 0.3rem;">版本發布說明 (RELEASE NOTES)</div>
+                    <div class="update-notes-box" id="up-release-notes">正在讀取版本資訊...</div>
+                </div>
+
+                <!-- Live Download Progress Track (Hidden when idle) -->
+                <div class="update-progress-container" id="up-progress-container" style="display:none;">
+                    <div class="update-progress-header">
+                        <span id="up-progress-label">正在下載更新包...</span>
+                        <span id="up-progress-pct">0%</span>
+                    </div>
+                    <div class="update-progress-track">
+                        <div class="update-progress-fill" id="up-progress-fill"></div>
+                    </div>
+                    <div class="update-status-desc">
+                        <span id="up-progress-details">0.0 MB / 0.0 MB</span>
+                        <span style="color:var(--border);">//</span>
+                        <span id="up-progress-speed">-- MB/s</span>
+                    </div>
+                </div>
+
+                <!-- Status Message Banner -->
+                <div id="up-status-message-box" style="padding: 0.6rem 0.8rem; background: rgba(0, 229, 255, 0.05); border: 1px solid var(--border-cyan); font-size: 0.75rem; color: var(--cyan);">
+                    <span id="up-status-message">系統就緒，點擊「檢查最新版本」查詢伺服器端發布狀態。</span>
+                </div>
+
+                <!-- Error Banner (Hidden by default) -->
+                <div id="up-error-banner" class="ri-error-banner" style="display:none;"></div>
+
+                <!-- Action Buttons -->
+                <div class="ri-actions" style="margin-top: 0.4rem;">
+                    <button type="button" class="btn-exec" id="up-check-btn" style="width:auto; padding: 0.5rem 1.2rem; border-color: var(--cyan); color: var(--cyan);" onclick="triggerCheckUpdate()">↻ 檢查最新版本</button>
+                    <button type="button" class="btn-exec" id="up-download-btn" style="width:auto; padding: 0.5rem 1.2rem; border-color: var(--text); color: var(--text);" onclick="triggerDownloadUpdate()" disabled>⬇ 下載更新包</button>
+                    <button type="button" class="btn-exec" id="up-restart-btn" style="width:auto; padding: 0.5rem 1.5rem; border-color: var(--warn); color: var(--warn);" onclick="triggerRestartUpdate()" disabled>⚡ 立即重啟套用</button>
+                    <button type="button" class="btn-exec" style="width:auto; padding: 0.5rem 1.2rem; border-color: var(--border); color: var(--text-dim);" onclick="closeUpdateModal()">關閉</button>
+                </div>
+            </div>
+            <div id="update-status-bar">
+                <span id="up-footer-state">狀態: IDLE</span>
+                <span id="up-footer-time">---</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Fullscreen Restart & Healthcheck Overlay (Issue #80) ===== -->
+    <div id="update-restart-overlay">
+        <div class="restart-card">
+            <div style="font-size: 1.1rem; font-weight: bold; color: var(--cyan); letter-spacing: 2px;">◈ ARGUS // 核心重啟升級中 (SYSTEM REBOOT) ◈</div>
+            <div class="restart-timer-circle" id="restart-countdown-num">30</div>
+            <div style="font-size: 0.85rem; color: var(--text); line-height: 1.6;" id="restart-status-text">
+                正在進行二進位目錄原子替換與重啟程序...<br>
+                背景守護行程即將喚起新版程式，請勿切斷電源或關閉瀏覽器。
+            </div>
+            <div class="update-progress-track" style="width: 100%; height: 8px;">
+                <div class="update-progress-fill" id="restart-progress-fill" style="width: 100%; transition: width 1s linear;"></div>
+            </div>
+            <div style="font-size: 0.72rem; color: var(--text-dim);" id="restart-probe-hint">
+                [ 探針輪詢: 等待 http://127.0.0.1:8188/api/health 回應 200 OK ... ]
+            </div>
+            <div id="restart-result-banner" style="display:none; padding: 0.8rem; width: 100%; font-size: 0.85rem;"></div>
+        </div>
+    </div>
+
     <div class="top-container">
         <header class="sys-header">
-            <div style="display: flex; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
                 <div class="blink"></div>
                 <h1>ARGUS // PREDICTOR_NANO</h1>
+                <span class="version-tag" id="app-current-version-tag" onclick="openUpdateModal()" title="點擊檢視系統版本與更新狀態">v{{ current_version or '1.0.0' }}</span>
             </div>
             <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                <button type="button" class="btn-exec update-badge-btn" id="update-badge-btn" style="display:none;" onclick="openUpdateModal()"><span class="badge-icon">🚀</span> <span id="update-badge-text">新版本可用: v1.1.0</span></button>
                 <a href="/manual/" target="_blank" class="btn-exec" style="text-decoration:none; margin:0; width:auto; padding: 0.4rem 0.8rem; font-size:0.75rem; display:inline-flex; align-items:center;">📖 使用手冊</a>
                 <button type="button" class="btn-exec" id="log-viewer-btn" style="margin:0; width:auto; padding: 0.4rem 0.8rem; font-size:0.75rem;" onclick="openLogViewer()">[ 日誌檢視 LOGS ]</button>
                 <button type="button" class="btn-exec" id="report-issue-btn" style="margin:0; width:auto; padding: 0.4rem 0.8rem; font-size:0.75rem; border-color: var(--warn); color: var(--warn);" onclick="openReportIssueModal()">[ 回報問題 REPORT ]</button>
+                <button type="button" class="btn-exec" id="update-modal-btn" style="margin:0; width:auto; padding: 0.4rem 0.8rem; font-size:0.75rem; border-color: var(--cyan); color: var(--cyan);" onclick="openUpdateModal()">[ 系統更新 UPDATE ]</button>
                 <button type="button" class="btn-exec" style="margin:0; width:auto; padding: 0.4rem 0.8rem; font-size:0.75rem;" onclick="document.getElementById('sys-core').classList.toggle('hide-config')">切換面板</button>
             </div>
         </header>
@@ -4025,6 +4334,321 @@
                 statusBar.textContent = '連線失敗，請檢視錯誤訊息或使用離線 CLI 工具。';
             });
         }
+
+        // ===== Auto-Update UX & SSE Event Management (Issue #80) =====
+        let updateEventSource = null;
+        let latestUpdateState = null;
+        let restartPollInterval = null;
+        let restartCountdownTimer = null;
+
+        function openUpdateModal() {
+            const overlay = document.getElementById('update-modal-overlay');
+            if (overlay) {
+                overlay.classList.add('open');
+                fetchUpdateStatus();
+            }
+        }
+
+        function closeUpdateModal() {
+            const overlay = document.getElementById('update-modal-overlay');
+            if (overlay) {
+                overlay.classList.remove('open');
+            }
+        }
+
+        function handleUpdateOverlayClick(event) {
+            if (event.target === document.getElementById('update-modal-overlay')) {
+                closeUpdateModal();
+            }
+        }
+
+        function fetchUpdateStatus() {
+            fetch('/api/update/status')
+                .then(res => res.json())
+                .then(data => renderUpdateStatus(data))
+                .catch(err => console.warn('[Update] 取得更新狀態失敗:', err));
+        }
+
+        function renderUpdateStatus(data) {
+            if (!data) return;
+            latestUpdateState = data;
+
+            // 1. 導覽列徽章與版本更新
+            const badgeBtn = document.getElementById('update-badge-btn');
+            const badgeText = document.getElementById('update-badge-text');
+            const currTag = document.getElementById('app-current-version-tag');
+            if (currTag && data.current_version) {
+                currTag.textContent = `v${data.current_version}`;
+            }
+
+            if (data.state === 'AVAILABLE' && data.target_version) {
+                badgeBtn.style.display = 'inline-flex';
+                badgeBtn.style.borderColor = 'var(--cyan)';
+                badgeBtn.style.color = 'var(--cyan)';
+                badgeText.textContent = `🚀 新版本可用: v${data.target_version}`;
+            } else if (data.state === 'READY_TO_INSTALL' && data.target_version) {
+                badgeBtn.style.display = 'inline-flex';
+                badgeBtn.style.borderColor = 'var(--warn)';
+                badgeBtn.style.color = 'var(--warn)';
+                badgeText.textContent = `⚠️ 更新就緒，點擊重啟套用 (v${data.target_version})`;
+            } else {
+                badgeBtn.style.display = 'none';
+            }
+
+            // 2. Modal 卡片與內容渲染
+            const upCurrVer = document.getElementById('up-curr-version');
+            const upTargetVer = document.getElementById('up-target-version');
+            const upReleaseDate = document.getElementById('up-release-date');
+            const upModeLabel = document.getElementById('up-mode-label');
+            const upNotes = document.getElementById('up-release-notes');
+            const upStatusBarMsg = document.getElementById('up-status-message');
+            const upFooterState = document.getElementById('up-footer-state');
+            const upFooterTime = document.getElementById('up-footer-time');
+
+            if (upCurrVer) upCurrVer.textContent = `v${data.current_version || '1.0.0'}`;
+            if (upTargetVer) upTargetVer.textContent = data.target_version ? `v${data.target_version}` : '---';
+            if (upReleaseDate) upReleaseDate.textContent = data.release_date || '---';
+            if (upModeLabel) {
+                upModeLabel.textContent = data.mode === 'unattended' ? '無人值守 (Unattended)' : '提示確認 (Notify)';
+            }
+            if (upNotes) {
+                upNotes.textContent = data.release_notes || (data.state === 'AVAILABLE' ? '無發布說明' : '目前已是最新版本，或尚未進行檢查。');
+            }
+            if (upStatusBarMsg) {
+                upStatusBarMsg.textContent = data.message || '就緒';
+            }
+            if (upFooterState) {
+                upFooterState.textContent = `狀態機: ${data.state}`;
+            }
+            if (upFooterTime) {
+                upFooterTime.textContent = new Date().toLocaleTimeString();
+            }
+
+            // 3. 下載進度條渲染
+            const progressContainer = document.getElementById('up-progress-container');
+            const progressFill = document.getElementById('up-progress-fill');
+            const progressPct = document.getElementById('up-progress-pct');
+            const progressDetails = document.getElementById('up-progress-details');
+            const progressSpeed = document.getElementById('up-progress-speed');
+            const progressLabel = document.getElementById('up-progress-label');
+
+            if (data.state === 'DOWNLOADING') {
+                progressContainer.style.display = 'flex';
+                progressLabel.textContent = '正在下載更新安裝包...';
+                const pct = Math.min(100, Math.max(0, data.progress || 0));
+                progressFill.style.width = `${pct}%`;
+                progressPct.textContent = `${pct.toFixed(1)}%`;
+                const currMb = ((data.downloaded_bytes || 0) / (1024 * 1024)).toFixed(1);
+                const totMb = ((data.total_bytes || 0) / (1024 * 1024)).toFixed(1);
+                progressDetails.textContent = `${currMb} MB / ${totMb} MB`;
+                progressSpeed.textContent = data.speed_text || '-- MB/s';
+            } else if (data.state === 'STAGING') {
+                progressContainer.style.display = 'flex';
+                progressLabel.textContent = '正在解壓並驗證暫存目錄...';
+                progressFill.style.width = '100%';
+                progressPct.textContent = '100%';
+                progressDetails.textContent = '校驗 SHA256 雜湊與檔案架構...';
+                progressSpeed.textContent = '解壓中';
+            } else if (data.state === 'READY_TO_INSTALL') {
+                progressContainer.style.display = 'flex';
+                progressLabel.textContent = '更新包校驗就緒！等待重啟套用';
+                progressFill.style.width = '100%';
+                progressPct.textContent = '完成';
+                progressDetails.textContent = '已暫存至 updates/staging/ 目錄';
+                progressSpeed.textContent = '就緒';
+            } else {
+                progressContainer.style.display = 'none';
+            }
+
+            // 4. 操作按鈕啟用/禁用判定
+            const checkBtn = document.getElementById('up-check-btn');
+            const downBtn = document.getElementById('up-download-btn');
+            const restartBtn = document.getElementById('up-restart-btn');
+
+            if (checkBtn) {
+                checkBtn.disabled = (data.state === 'CHECKING' || data.state === 'DOWNLOADING' || data.state === 'RESTARTING');
+            }
+            if (downBtn) {
+                downBtn.disabled = !(data.state === 'AVAILABLE' || data.state === 'FAILED');
+                if (data.state === 'AVAILABLE') {
+                    downBtn.style.borderColor = 'var(--text)';
+                    downBtn.style.color = 'var(--text)';
+                } else {
+                    downBtn.style.borderColor = 'var(--border)';
+                    downBtn.style.color = 'var(--text-dim)';
+                }
+            }
+            if (restartBtn) {
+                restartBtn.disabled = !(data.state === 'READY_TO_INSTALL');
+                if (data.state === 'READY_TO_INSTALL') {
+                    restartBtn.style.borderColor = 'var(--warn)';
+                    restartBtn.style.color = 'var(--warn)';
+                    restartBtn.style.boxShadow = '0 0 15px rgba(255, 170, 0, 0.4)';
+                } else {
+                    restartBtn.style.borderColor = 'var(--border)';
+                    restartBtn.style.color = 'var(--text-dim)';
+                    restartBtn.style.boxShadow = 'none';
+                }
+            }
+
+            // 5. 錯誤橫幅處理
+            const errBanner = document.getElementById('up-error-banner');
+            if (errBanner) {
+                if (data.error) {
+                    errBanner.style.display = 'block';
+                    errBanner.textContent = `錯誤: ${data.error}`;
+                } else {
+                    errBanner.style.display = 'none';
+                }
+            }
+
+            // 6. 重啟中全螢幕遮罩觸發
+            if (data.state === 'RESTARTING' || data.state === 'HEALTHCHECK') {
+                startRestartOverlay(data);
+            }
+        }
+
+        function triggerCheckUpdate() {
+            const checkBtn = document.getElementById('up-check-btn');
+            const statusBarMsg = document.getElementById('up-status-message');
+            if (checkBtn) checkBtn.disabled = true;
+            if (statusBarMsg) statusBarMsg.textContent = '正在向 App Management API 查詢新版本...';
+
+            fetch('/api/update/check', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mock_available: true })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    renderUpdateStatus(data.data);
+                } else {
+                    alert(data.message || '檢查更新失敗');
+                }
+            })
+            .catch(err => alert('連線失敗: ' + err));
+        }
+
+        function triggerDownloadUpdate() {
+            const downBtn = document.getElementById('up-download-btn');
+            if (downBtn) downBtn.disabled = true;
+
+            fetch('/api/update/download', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        renderUpdateStatus(data.data);
+                    } else {
+                        alert(data.message || '觸發下載失敗');
+                    }
+                })
+                .catch(err => alert('連線失敗: ' + err));
+        }
+
+        function triggerRestartUpdate() {
+            if (!confirm('系統即將執行重啟並套用新版本，確定要立即重啟嗎？')) return;
+
+            fetch('/api/update/restart', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        startRestartOverlay(data.data);
+                    } else {
+                        alert(data.message || '觸發重啟失敗');
+                    }
+                })
+                .catch(err => alert('連線失敗: ' + err));
+        }
+
+        function startRestartOverlay(data) {
+            const overlay = document.getElementById('update-restart-overlay');
+            const countdownEl = document.getElementById('restart-countdown-num');
+            const progressFill = document.getElementById('restart-progress-fill');
+            const statusText = document.getElementById('restart-status-text');
+            const resultBanner = document.getElementById('restart-result-banner');
+
+            if (!overlay) return;
+            overlay.classList.add('open');
+            closeUpdateModal();
+
+            let secondsLeft = data.restart_countdown || 30;
+            const totalSeconds = secondsLeft;
+            countdownEl.textContent = secondsLeft;
+
+            if (restartCountdownTimer) clearInterval(restartCountdownTimer);
+            restartCountdownTimer = setInterval(() => {
+                secondsLeft--;
+                if (secondsLeft < 0) secondsLeft = 0;
+                countdownEl.textContent = secondsLeft;
+                const pct = (secondsLeft / totalSeconds) * 100;
+                progressFill.style.width = `${pct}%`;
+            }, 1000);
+
+            // 啟動健康狀態輪詢探針 (/api/health)
+            if (restartPollInterval) clearInterval(restartPollInterval);
+            let pollAttempts = 0;
+            restartPollInterval = setInterval(() => {
+                pollAttempts++;
+                fetch('/api/health')
+                    .then(res => {
+                        if (!res.ok) throw new Error('HTTP ' + res.status);
+                        return res.json();
+                    })
+                    .then(healthData => {
+                        if (healthData.status === 'healthy' && pollAttempts >= 2) {
+                            clearInterval(restartPollInterval);
+                            clearInterval(restartCountdownTimer);
+                            restartPollInterval = null;
+                            restartCountdownTimer = null;
+
+                            if (healthData.rollback_occurred) {
+                                statusText.innerHTML = '<span style="color:var(--warn)">⚠️ 升級檢查失敗，已自動回滾至上一版本！</span>';
+                                resultBanner.style.display = 'block';
+                                resultBanner.className = 'ri-error-banner';
+                                resultBanner.innerHTML = `系統未通過健康檢查，已安全復原為先前版本 v${healthData.version}。<br><button class="btn-exec" onclick="location.reload()" style="margin-top:0.8rem;">重新載入頁面</button>`;
+                            } else {
+                                statusText.innerHTML = '<span style="color:var(--text)">✓ 系統升級成功！核心與推論管線已全數就緒。</span>';
+                                resultBanner.style.display = 'block';
+                                resultBanner.className = 'ri-success-banner';
+                                resultBanner.textContent = `成功升級至新版本 v${healthData.version}！即將自動重新整理...`;
+                                setTimeout(() => {
+                                    window.location.reload();
+                                }, 1800);
+                            }
+                        }
+                    })
+                    .catch(err => {
+                        // 重啟中離線為正常現象，持續等待
+                    });
+            }, 1500);
+        }
+
+        function initUpdateSse() {
+            if (updateEventSource) return;
+            try {
+                updateEventSource = new EventSource('/api/update/stream');
+                updateEventSource.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        renderUpdateStatus(data);
+                    } catch (e) {
+                        // ignore ping or json parse errors
+                    }
+                };
+                updateEventSource.onerror = function() {
+                    // SSE 斷線時會在背景自動重連
+                };
+            } catch (e) {
+                console.warn('[Update] SSE 初始化失敗:', e);
+            }
+        }
+
+        // 初始化更新狀態與 SSE
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchUpdateStatus();
+            initUpdateSse();
+        });
     </script>
 </body>
 </html>

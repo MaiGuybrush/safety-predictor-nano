@@ -47,9 +47,15 @@ import queue
 SERVER_START_TIME = time.time()
 FIRST_FRAME_INFERRED = False
 
-default_tpl_dir = os.path.join(os.path.dirname(__file__), "templates")
-if not os.path.exists(default_tpl_dir):
-    default_tpl_dir = get_resource_path("templates")
+tpl_candidates = [
+    os.path.join(os.path.dirname(__file__), "templates"),
+    get_resource_path(os.path.join("argus", "web", "templates")),
+    get_resource_path("templates"),
+    get_resource_path(os.path.join("src", "argus", "web", "templates")),
+    os.path.join(os.getcwd(), "templates"),
+    os.path.join(os.getcwd(), "src", "argus", "web", "templates"),
+]
+default_tpl_dir = next((p for p in tpl_candidates if os.path.isdir(p)), get_resource_path("templates"))
 app = Flask(__name__, template_folder=default_tpl_dir)
 CONFIG_FILE = "config.yaml"
 
