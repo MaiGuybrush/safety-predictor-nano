@@ -50,3 +50,15 @@ def test_update_manager_rollback():
     assert res["status"] == "ok"
     assert mgr.state == UpdateState.ROLLBACK
     assert mgr.rollback_occurred is True
+
+
+def test_update_manager_delta_support(tmp_path):
+    import json
+    staging = tmp_path / "staging"
+    staging.mkdir()
+    manifest = staging / "manifest.json"
+    manifest.write_text(json.dumps({"package_type": "delta", "target_version": "1.1.0"}), encoding="utf-8")
+
+    mgr = UpdateManager(current_version="1.0.0", config={"staging_dir": str(staging)})
+    assert mgr.is_delta_package() is True
+    assert mgr.is_delta_package(str(tmp_path / "non_existent")) is False

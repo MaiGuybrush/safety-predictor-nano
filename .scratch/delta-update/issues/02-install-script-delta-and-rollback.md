@@ -19,11 +19,11 @@
 
 ## Acceptance criteria
 
-- [ ] `scripts/install.sh --delta <delta_tar_gz>` 能正確識別並僅覆蓋 `argus.zip` 與前端資產。
-- [ ] 既有底層依賴庫（如 `_internal/torch/`、`_internal/cv2/`）與本機配置（`config.yaml`、`models/`、`logs/`）完全不受影響。
-- [ ] 更新前自動完成 `.patch_bak/` 備份，升級耗時在樹莓派 5 上小於 1 秒。
-- [ ] `scripts/install.sh --rollback` 能在秒級內精確還原舊版 `argus.zip` 與靜態檔案。
-- [ ] 整合測試驗證 Delta 升級與回滾流程 100% 通過。
+- [x] `scripts/install.sh --delta <delta_tar_gz>` 能正確識別並僅覆蓋 `argus.zip` 與前端資產。
+- [x] 既有底層依賴庫（如 `_internal/torch/`、`_internal/cv2/`）與本機配置（`config.yaml`、`models/`、`logs/`）完全不受影響。
+- [x] 更新前自動完成 `.patch_bak/` 備份，升級耗時在樹莓派 5 上小於 1 秒。
+- [x] `scripts/install.sh --rollback` 能在秒級內精確還原舊版 `argus.zip` 與靜態檔案。
+- [x] 整合測試驗證 Delta 升級與回滾流程 100% 通過。
 
 ## Blocked by
 

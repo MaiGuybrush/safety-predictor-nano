@@ -31,6 +31,7 @@ from argus.integration.app_update_client import (
     DEFAULT_APP_ID,
     DEFAULT_BASE_URL,
 )
+from argus.updates.delta_updater import DeltaUpdater, DeltaManifest
 
 logger = logging.getLogger("system")
 
@@ -96,6 +97,9 @@ class UpdateManager:
                 max_retries=self.config.get("max_retries", 3),
                 chunk_size=self.config.get("download_chunk_size", 1048576),
             )
+
+        # Delta 增量更新引擎
+        self.delta_updater = DeltaUpdater(base_dir=self.config.get("base_dir", "."))
 
         # 檢測回滾告警標記 (.rollback_alert)
         self._check_rollback_alert()
@@ -450,6 +454,31 @@ class UpdateManager:
         threading.Thread(target=_do_restart, daemon=True).start()
         return {"status": "ok", "message": "已觸發重啟序列", "data": self.get_status()}
 
+    def is_delta_package(self, path: Optional[str] = None) -> bool:
+        """檢查指定路徑或 staging 目錄是否為 Delta 增量包。"""
+        target = path or self.staging_dir
+        if not target or not os.path.exists(target):
+            return False
+        try:
+            if os.path.isdir(target):
+                m_file = os.path.join(target, "manifest.json")
+                if os.path.isfile(m_file):
+                    m = DeltaManifest.from_manifest_file(m_file)
+                    return m.package_type == "delta"
+            elif os.path.isfile(target):
+                m = DeltaManifest.from_archive(target)
+                return m.package_type == "delta"
+        except Exception:
+            return False
+        return False
+
+    def apply_delta_update(self, delta_source: str) -> Dict[str, Any]:
+        """透過 Delta 更新引擎執行局域原子置換。"""
+        return self.delta_updater.apply_delta(
+            delta_source=delta_source,
+            current_base_version=self.current_version,
+        )
+
     def trigger_mock_rollback(self) -> Dict[str, Any]:
         """模擬回滾情境（供測試與原型驗證）。"""
         with self._lock:
@@ -457,6 +486,11 @@ class UpdateManager:
             self.rollback_occurred = True
             self.message = "新版本健康檢查逾時未就緒，已自動回滾至上一版本！"
             self.error = "HealthCheckTimeout: /api/health 未於 30 秒內回傳 healthy 狀態"
+            if self.delta_updater.has_patch_backup():
+                try:
+                    self.delta_updater.rollback()
+                except Exception as e:
+                    logger.warning(f"[UpdateManager] Delta 局部回滾異常: {e}")
             try:
                 with open(".rollback_alert", "w", encoding="utf-8") as f:
                     f.write(self.error)
