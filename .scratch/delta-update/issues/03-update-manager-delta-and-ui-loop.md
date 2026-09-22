@@ -19,11 +19,18 @@
 
 ## Acceptance criteria
 
-- [ ] `AppUpdateClient` 能優先解析並下載 `argus_delta` 封包，下載總量約 2.4 MB。
-- [ ] 若無增量包時，自動無縫回退至全量 `argus_predictor` 封包。
-- [ ] Web UI 更新彈窗與 SSE 通道正確顯示「增量更新」標籤與真實大小。
-- [ ] 升級套用透過 `install.sh --delta` 執行，完成後觸發 Exit Code 42 並通過 30 秒健康檢查 Commit。
-- [ ] E2E 自動化測試（`tests/e2e/test_delta_update_flow.py`）執行全數通過（遵循 CI 模式）。
+- [x] `AppUpdateClient` 能優先解析並下載 `argus_delta` 封包，下載總量約 2.4 MB。
+- [x] 若無增量包時，自動無縫回退至全量 `argus_predictor` 封包。
+- [x] Web UI 更新彈窗與 SSE 通道正確顯示「增量更新」標籤與真實大小。
+- [x] 升級套用透過 `install.sh --delta` 執行，完成後觸發 Exit Code 42 並通過 30 秒健康檢查 Commit。
+- [x] E2E 自動化測試（`tests/e2e/test_delta_update_flow.py`）執行全數通過（遵循 CI 模式）。
+
+## Implementation Summary
+
+- **`AppUpdateClient`**: 擴充 `get_download_info()` 支援優先比對 `argus_delta-*.tar.gz` 增量更新包，若伺服器未提供則自動安全回退至全量封包，並在回傳中標記 `is_delta`。
+- **`UpdateManager`**: 實作增量更新狀態流，當偵測為增量包時將磁碟空間預檢由全量 650MB 調降至 20MB；解壓後動態指派 `--delta` 參數呼叫 `install.sh` 執行局部原子覆蓋；於重啟前寫入標記並呼叫 `sys.exit(42)`，由 `run.sh` 守護迴圈重啟並通過 30 秒健康檢查確認。
+- **Web UI & SSE**: 在更新彈窗中加入「📦 增量更新 (Delta Patch)」標籤與真實封包體積顯示；透過 SSE 實時回傳增量包下載進度與狀態。
+- **測試覆蓋**: 建立完整端到端測試 `tests/e2e/test_delta_update_flow.py`，驗證 Delta 優先配對與 Fallback、完整生命週期、健康檢查失敗自動回滾以及前端 Modal DOM 渲染。
 
 ## Blocked by
 

@@ -10,9 +10,16 @@
 - 服務生命週期：沿用既有 `run.sh` 監聽 Exit Code 42 重啟、30 秒健康狀態評估與原子回滾。
 - 業務解耦策略：利用 PyInstaller 排除業務模組 + Python 內建 `zipimport` 掛載 `_internal/argus.zip`。
 
+## Decisions so far
+
+- [01 — 打包端業務模組解耦與 Delta 增量包建置流程](issues/01-packaging-decoupling-and-delta-builder.md) — 於 `argus_predictor.spec` 將業務代碼抽離為獨立 `argus.zip` 並透過 `zipimport` 動態載入；建立 `scripts/build_delta_package.py` 產出 < 3MB 之 Delta 增量更新包。([Gitea #83](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/83))
+- [02 — install.sh 與更新引擎支援 Delta 局部替換與原子回滾](issues/02-install-script-delta-and-rollback.md) — `scripts/install.sh` 擴充支援 `--delta` 模式與 `.patch_bak/` 備份機制，達成秒級局域覆蓋與秒級原子回滾，完整保留底層動態庫與配置檔案。([Gitea #84](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/84))
+- [03 — UpdateManager 整合 Delta 下載、Web UI 標籤與端到端升級閉環](issues/03-update-manager-delta-and-ui-loop.md) — `AppUpdateClient` 支援優先選取 `argus_delta-*.tar.gz` 增量包與自動回退；`UpdateManager` 整合增量磁檢（20MB）、`--delta` 套用與 Exit 42 重啟；Web UI 提供 Delta 標籤與 SSE 實時進度，並通過 E2E 全流程驗證。([Gitea #85](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/85))
+
 ## Slices / Issues
 
-1. **[01 — 打包端業務模組解耦與 Delta 增量包建置流程](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/83)** (Gitea [#83](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/83))
-2. **[02 — install.sh 與更新引擎支援 Delta 局部替換與原子回滾](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/84)** (Gitea [#84](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/84))
-3. **[03 — UpdateManager 整合 Delta 下載、Web UI 標籤與端到端升級閉環](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/85)** (Gitea [#85](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/85))
+- [x] 1. **[01 — 打包端業務模組解耦與 Delta 增量包建置流程](issues/01-packaging-decoupling-and-delta-builder.md)** (Gitea [#83](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/83))
+- [x] 2. **[02 — install.sh 與更新引擎支援 Delta 局部替換與原子回滾](issues/02-install-script-delta-and-rollback.md)** (Gitea [#84](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/84))
+- [x] 3. **[03 — UpdateManager 整合 Delta 下載、Web UI 標籤與端到端升級閉環](issues/03-update-manager-delta-and-ui-loop.md)** (Gitea [#85](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/85))
+
 
