@@ -23,13 +23,22 @@ def test_api_health(client):
 
 
 def test_api_update_status(client):
-    GLOBAL_UPDATE_MANAGER.set_state(UpdateState.IDLE, message="就緒")
+    GLOBAL_UPDATE_MANAGER.set_state(UpdateState.IDLE, message="就緒", is_delta=False)
     response = client.get("/api/update/status")
     assert response.status_code == 200
     data = response.get_json()
     assert data["state"] == UpdateState.IDLE
     assert "current_version" in data
     assert "progress" in data
+    assert "is_delta" in data
+    assert data["package_type"] == "full"
+
+    GLOBAL_UPDATE_MANAGER.set_state(UpdateState.AVAILABLE, is_delta=True, total=2516582)
+    res2 = client.get("/api/update/status")
+    data2 = res2.get_json()
+    assert data2["is_delta"] is True
+    assert data2["package_type"] == "delta"
+    assert data2["total_bytes"] == 2516582
 
 
 def test_api_update_check_and_download_flow(client):
@@ -39,12 +48,13 @@ def test_api_update_check_and_download_flow(client):
     check_data = resp_check.get_json()
     assert check_data["status"] == "ok"
 
-    # 手動設定為 AVAILABLE 以便直接測試下載
+    # 手動設定為 AVAILABLE (Delta 增量更新) 以便直接測試下載
     GLOBAL_UPDATE_MANAGER.set_state(
         UpdateState.AVAILABLE,
         target_version="1.1.0",
-        message="發現新版本",
-        total=1024 * 1024 * 10,
+        message="發現新版本 (Delta Patch)",
+        total=2516582,
+        is_delta=True,
     )
 
     # 2. 觸發下載
@@ -53,10 +63,11 @@ def test_api_update_check_and_download_flow(client):
     down_data = resp_down.get_json()
     assert down_data["status"] == "ok"
     assert GLOBAL_UPDATE_MANAGER.state in (UpdateState.DOWNLOADING, UpdateState.STAGING, UpdateState.READY_TO_INSTALL)
+    assert GLOBAL_UPDATE_MANAGER.is_delta is True
 
 
 def test_api_update_restart(client):
-    GLOBAL_UPDATE_MANAGER.set_state(UpdateState.READY_TO_INSTALL, target_version="1.1.0")
+    GLOBAL_UPDATE_MANAGER.set_state(UpdateState.READY_TO_INSTALL, target_version="1.1.0", is_delta=True)
     resp_restart = client.post("/api/update/restart")
     assert resp_restart.status_code == 200
     restart_data = resp_restart.get_json()
@@ -65,7 +76,7 @@ def test_api_update_restart(client):
 
 
 def test_api_update_stream_sse(client):
-    GLOBAL_UPDATE_MANAGER.set_state(UpdateState.IDLE, message="SSE 測試")
+    GLOBAL_UPDATE_MANAGER.set_state(UpdateState.AVAILABLE, message="SSE Delta 測試", is_delta=True, total=2516582)
     response = client.get("/api/update/stream")
     assert response.status_code == 200
     assert "text/event-stream" in response.headers["Content-Type"]
@@ -74,6 +85,9 @@ def test_api_update_stream_sse(client):
     assert "data:" in text
     payload = json.loads(text.replace("data:", "").strip())
     assert "state" in payload
+    assert payload["is_delta"] is True
+    assert payload["package_type"] == "delta"
+    assert payload["total_bytes"] == 2516582
 
 
 def test_web_ui_index_contains_update_modal(client):
@@ -84,5 +98,9 @@ def test_web_ui_index_contains_update_modal(client):
     assert 'id="update-restart-overlay"' in html
     assert 'id="update-badge-btn"' in html
     assert 'id="app-current-version-tag"' in html
+    assert 'id="up-delta-badge"' in html
+    assert 'id="up-package-type"' in html
+    assert 'id="up-package-size"' in html
     assert 'openUpdateModal()' in html
+
 

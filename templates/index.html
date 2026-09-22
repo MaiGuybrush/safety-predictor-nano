@@ -1561,7 +1561,18 @@
                     </div>
                     <div class="update-card">
                         <span class="update-card-label">平台最新版本</span>
-                        <span class="update-card-val cyan" id="up-target-version">---</span>
+                        <div style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+                            <span class="update-card-val cyan" id="up-target-version">---</span>
+                            <span class="badge-delta" id="up-delta-badge" style="display:none; font-size:0.7rem; background:rgba(0, 255, 170, 0.15); color:#00ffaa; border:1px solid #00ffaa; padding:1px 6px; border-radius:3px; font-weight:bold;">📦 增量更新 (Delta Patch)</span>
+                        </div>
+                    </div>
+                    <div class="update-card">
+                        <span class="update-card-label">更新包類型</span>
+                        <span class="update-card-val" id="up-package-type" style="color: #00ffaa; font-weight: bold;">---</span>
+                    </div>
+                    <div class="update-card">
+                        <span class="update-card-label">下載大小</span>
+                        <span class="update-card-val" id="up-package-size">---</span>
                     </div>
                     <div class="update-card">
                         <span class="update-card-label">發布時間</span>
@@ -1572,6 +1583,7 @@
                         <span class="update-card-val warn" id="up-mode-label">提示確認 (Notify)</span>
                     </div>
                 </div>
+
 
                 <!-- Release Notes / Changelog Box -->
                 <div>
@@ -4381,16 +4393,22 @@
                 currTag.textContent = `v${data.current_version}`;
             }
 
+            const isDelta = !!(data.is_delta || data.package_type === 'delta');
+
             if (data.state === 'AVAILABLE' && data.target_version) {
                 badgeBtn.style.display = 'inline-flex';
-                badgeBtn.style.borderColor = 'var(--cyan)';
-                badgeBtn.style.color = 'var(--cyan)';
-                badgeText.textContent = `🚀 新版本可用: v${data.target_version}`;
+                badgeBtn.style.borderColor = isDelta ? '#00ffaa' : 'var(--cyan)';
+                badgeBtn.style.color = isDelta ? '#00ffaa' : 'var(--cyan)';
+                badgeText.textContent = isDelta
+                    ? `🚀 增量更新可用: v${data.target_version} (約 2.4 MB)`
+                    : `🚀 新版本可用: v${data.target_version}`;
             } else if (data.state === 'READY_TO_INSTALL' && data.target_version) {
                 badgeBtn.style.display = 'inline-flex';
                 badgeBtn.style.borderColor = 'var(--warn)';
                 badgeBtn.style.color = 'var(--warn)';
-                badgeText.textContent = `⚠️ 更新就緒，點擊重啟套用 (v${data.target_version})`;
+                badgeText.textContent = isDelta
+                    ? `⚠️ 增量補丁就緒，點擊重啟套用 (v${data.target_version})`
+                    : `⚠️ 更新就緒，點擊重啟套用 (v${data.target_version})`;
             } else {
                 badgeBtn.style.display = 'none';
             }
@@ -4398,6 +4416,9 @@
             // 2. Modal 卡片與內容渲染
             const upCurrVer = document.getElementById('up-curr-version');
             const upTargetVer = document.getElementById('up-target-version');
+            const upDeltaBadge = document.getElementById('up-delta-badge');
+            const upPkgType = document.getElementById('up-package-type');
+            const upPkgSize = document.getElementById('up-package-size');
             const upReleaseDate = document.getElementById('up-release-date');
             const upModeLabel = document.getElementById('up-mode-label');
             const upNotes = document.getElementById('up-release-notes');
@@ -4407,6 +4428,32 @@
 
             if (upCurrVer) upCurrVer.textContent = `v${data.current_version || '1.0.0'}`;
             if (upTargetVer) upTargetVer.textContent = data.target_version ? `v${data.target_version}` : '---';
+
+            if (upDeltaBadge) {
+                upDeltaBadge.style.display = (isDelta && data.target_version) ? 'inline-block' : 'none';
+            }
+            if (upPkgType) {
+                if (isDelta) {
+                    upPkgType.textContent = '📦 增量更新 (Delta Patch)';
+                    upPkgType.style.color = '#00ffaa';
+                } else if (data.target_version) {
+                    upPkgType.textContent = '📦 全量更新 (Full Package)';
+                    upPkgType.style.color = 'var(--cyan)';
+                } else {
+                    upPkgType.textContent = '---';
+                }
+            }
+            if (upPkgSize) {
+                if (data.total_bytes && data.total_bytes > 0) {
+                    const mb = (data.total_bytes / (1024 * 1024)).toFixed(1);
+                    upPkgSize.textContent = `${mb} MB`;
+                } else if (isDelta) {
+                    upPkgSize.textContent = '約 2.4 MB';
+                } else {
+                    upPkgSize.textContent = '---';
+                }
+            }
+
             if (upReleaseDate) upReleaseDate.textContent = data.release_date || '---';
             if (upModeLabel) {
                 upModeLabel.textContent = data.mode === 'unattended' ? '無人值守 (Unattended)' : '提示確認 (Notify)';
@@ -4434,7 +4481,7 @@
 
             if (data.state === 'DOWNLOADING') {
                 progressContainer.style.display = 'flex';
-                progressLabel.textContent = '正在下載更新安裝包...';
+                progressLabel.textContent = isDelta ? '正在下載 Delta 增量更新包...' : '正在下載更新安裝包...';
                 const pct = Math.min(100, Math.max(0, data.progress || 0));
                 progressFill.style.width = `${pct}%`;
                 progressPct.textContent = `${pct.toFixed(1)}%`;
@@ -4444,21 +4491,22 @@
                 progressSpeed.textContent = data.speed_text || '-- MB/s';
             } else if (data.state === 'STAGING') {
                 progressContainer.style.display = 'flex';
-                progressLabel.textContent = '正在解壓並驗證暫存目錄...';
+                progressLabel.textContent = isDelta ? '正在解壓 Delta 補丁並執行局部替換 (install.sh --delta)...' : '正在解壓並驗證暫存目錄...';
                 progressFill.style.width = '100%';
                 progressPct.textContent = '100%';
-                progressDetails.textContent = '校驗 SHA256 雜湊與檔案架構...';
-                progressSpeed.textContent = '解壓中';
+                progressDetails.textContent = isDelta ? '校驗 Delta SHA256 並進行局部原子置換...' : '校驗 SHA256 雜湊與檔案架構...';
+                progressSpeed.textContent = '套用中';
             } else if (data.state === 'READY_TO_INSTALL') {
                 progressContainer.style.display = 'flex';
-                progressLabel.textContent = '更新包校驗就緒！等待重啟套用';
+                progressLabel.textContent = isDelta ? '增量補丁已就緒！等待重啟套用 (Exit 42)' : '更新包校驗就緒！等待重啟套用';
                 progressFill.style.width = '100%';
                 progressPct.textContent = '完成';
-                progressDetails.textContent = '已暫存至 updates/staging/ 目錄';
+                progressDetails.textContent = isDelta ? '局部替換已就緒，重啟後載入新版' : '已暫存至 updates/staging/ 目錄';
                 progressSpeed.textContent = '就緒';
             } else {
                 progressContainer.style.display = 'none';
             }
+
 
             // 4. 操作按鈕啟用/禁用判定
             const checkBtn = document.getElementById('up-check-btn');

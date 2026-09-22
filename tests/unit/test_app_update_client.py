@@ -99,7 +99,38 @@ def test_app_update_client_check_latest_candidate():
     assert cand2 is None
 
 
-def test_app_update_client_download_info():
+def test_app_update_client_download_info_prefers_delta():
+    mock_session = MagicMock(spec=requests.Session)
+    
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "owner": "cminl",
+        "filesInfo": [
+            {
+                "fileName": "safety-predictor-nano-v1.2.0-arm64.tar.gz",
+                "filePath": "dist/v1.2.0/safety-predictor-nano-v1.2.0-arm64.tar.gz",
+                "size": 52428800,
+            },
+            {
+                "fileName": "argus_delta-v1.2.0-arm64.tar.gz",
+                "filePath": "dist/v1.2.0/argus_delta-v1.2.0-arm64.tar.gz",
+                "size": 2516582,
+            }
+        ]
+    }
+    mock_session.request.return_value = mock_resp
+
+    client = AppUpdateClient(session=mock_session)
+    info = client.get_download_info("1.2.0")
+    assert info.owner == "cminl"
+    assert info.version == "1.2.0"
+    assert info.is_delta is True
+    assert info.size == 2516582
+    assert "delta" in info.file_path
+
+
+def test_app_update_client_download_info_fallback_to_full():
     mock_session = MagicMock(spec=requests.Session)
     
     mock_resp = MagicMock()
@@ -118,7 +149,50 @@ def test_app_update_client_download_info():
 
     client = AppUpdateClient(session=mock_session)
     info = client.get_download_info("1.2.0")
-    assert info.owner == "cminl"
-    assert info.version == "1.2.0"
+    assert info.is_delta is False
     assert info.size == 52428800
     assert "arm64" in info.file_path
+
+
+def test_app_update_client_disk_space_check(tmp_path):
+    mock_session = MagicMock(spec=requests.Session)
+    client = AppUpdateClient(session=mock_session)
+
+    # 模擬 50MB 剩餘空間
+    usage_mock = MagicMock()
+    usage_mock.free = 50 * 1024 * 1024  # 50 MB
+
+    with patch("shutil.disk_usage", return_value=usage_mock):
+        # 1. 全量包需要至少 650MB，50MB 應拋出 AppUpdatePermanentError
+        full_info = DownloadInfo(
+            app_id="safety-predictor-nano",
+            version="1.2.0",
+            owner="cminl",
+            file_path="pkg.tar.gz",
+            size=52428800,
+            is_delta=False,
+        )
+        with pytest.raises(AppUpdatePermanentError, match="磁碟剩餘空間不足"):
+            client.download_package(full_info, str(tmp_path / "pkg.tar.gz"))
+
+        # 2. Delta 增量包僅需 20MB，50MB 空間足夠，不會拋出磁碟空間錯誤
+        delta_info = DownloadInfo(
+            app_id="safety-predictor-nano",
+            version="1.2.0",
+            owner="cminl",
+            file_path="delta.tar.gz",
+            size=2516582,
+            is_delta=True,
+        )
+        # Mock session response for download
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {"Content-Length": "10"}
+        mock_resp.iter_content.return_value = [b"1234567890"]
+        mock_resp.__enter__.return_value = mock_resp
+        mock_session.get.return_value = mock_resp
+
+        dest = str(tmp_path / "delta.tar.gz")
+        res = client.download_package(delta_info, dest)
+        assert res == dest
+

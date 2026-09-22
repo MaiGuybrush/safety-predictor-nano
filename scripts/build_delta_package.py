@@ -148,9 +148,10 @@ def build_delta_package(
         internal_dir = os.path.join(payload_dir, "_internal")
         os.makedirs(internal_dir, exist_ok=True)
 
-        # 1. 建立 argus.zip
+        # 1. 建立 argus.zip (code_only 模式僅打包 bytecode .pyc 以達極限壓縮 < 250KB)
         zip_output_path = os.path.join(internal_dir, "argus.zip")
-        build_argus_zip(zip_output_path, src_dir=src_dir, include_source=True)
+        build_argus_zip(zip_output_path, src_dir=src_dir, include_source=not code_only)
+
 
         # 2. 版本識別檔
         version_txt_path = os.path.join(payload_dir, "version.txt")

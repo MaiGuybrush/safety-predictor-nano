@@ -56,7 +56,17 @@ def resource_teardown_guard():
     except (ImportError, Exception):
         pass
 
-    # 4. 檢查測試執行期間新增的未終止執行緒
+    # 4. 清理測試殘留的更新標記檔
+    for dot_file in [".update_in_progress", ".rollback_alert"]:
+        p = os.path.join(ROOT_DIR, dot_file)
+        if os.path.exists(p):
+            try:
+                os.remove(p)
+            except Exception:
+                pass
+
+    # 5. 檢查測試執行期間新增的未終止執行緒
+
     current_threads = set(threading.enumerate())
     new_threads = current_threads - initial_threads
     for t in new_threads:

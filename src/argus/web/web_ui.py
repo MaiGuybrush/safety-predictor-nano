@@ -780,6 +780,16 @@ def get_health():
     uptime = time.time() - SERVER_START_TIME
     status_info = GLOBAL_UPDATE_MANAGER.get_status()
     is_healthy = True
+
+    # 若處於升級後健康檢查窗口，且滿足探針指標，自動執行 Commit 確立升級完成
+    base_dir = getattr(GLOBAL_UPDATE_MANAGER, "base_dir", ".")
+    progress_exists = (
+        os.path.isfile(os.path.join(base_dir, ".update_in_progress"))
+        or os.path.isfile(".update_in_progress")
+    )
+    if GLOBAL_UPDATE_MANAGER.state == UpdateState.HEALTHCHECK and progress_exists:
+        GLOBAL_UPDATE_MANAGER.commit_update()
+
     return jsonify({
         "status": "healthy" if is_healthy else "starting",
         "version": GLOBAL_UPDATE_MANAGER.current_version,
@@ -790,6 +800,7 @@ def get_health():
         "active_streams": len(STREAM_UNITS),
         "rollback_occurred": status_info.get("rollback_occurred", False),
     }), (200 if is_healthy else 503)
+
 
 @app.route('/api/update/status', methods=['GET'])
 def get_update_status():

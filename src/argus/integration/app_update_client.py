@@ -73,6 +73,7 @@ class DownloadInfo:
     file_path: str
     size: int
     sha256: Optional[str] = None
+    is_delta: bool = False
 
 
 def parse_semver(v_str: str):
@@ -322,13 +323,22 @@ class AppUpdateClient:
         files_info = data.get("filesInfo") or data.get("files") or []
 
         chosen_file = None
+        is_delta = False
         if isinstance(files_info, list) and files_info:
-            # 優先挑選 arm64 / .tar.gz / .zip 封包
+            # 1. 優先挑選 Delta 增量補丁封包 (如 argus_delta-*.tar.gz)
             for f in files_info:
                 fn = str(f.get("fileName") or f.get("filePath") or "").lower()
-                if "arm64" in fn and (".tar.gz" in fn or ".tgz" in fn):
+                if "delta" in fn and (".tar.gz" in fn or ".tgz" in fn or ".zip" in fn):
                     chosen_file = f
+                    is_delta = True
                     break
+            # 2. 若無增量包，自動安全降級 (Fallback) 選取全量包 (優先 arm64 / .tar.gz)
+            if not chosen_file:
+                for f in files_info:
+                    fn = str(f.get("fileName") or f.get("filePath") or "").lower()
+                    if "arm64" in fn and (".tar.gz" in fn or ".tgz" in fn):
+                        chosen_file = f
+                        break
             if not chosen_file:
                 for f in files_info:
                     fn = str(f.get("fileName") or f.get("filePath") or "").lower()
@@ -339,6 +349,9 @@ class AppUpdateClient:
                 chosen_file = files_info[0]
         elif isinstance(files_info, dict):
             chosen_file = files_info
+            fn = str(chosen_file.get("fileName") or chosen_file.get("filePath") or "").lower()
+            if "delta" in fn:
+                is_delta = True
 
         if not chosen_file:
             raise AppUpdatePermanentError(f"找不到可用之發布封包檔案資訊: {data}")
@@ -354,6 +367,7 @@ class AppUpdateClient:
             file_path=file_path,
             size=size,
             sha256=sha256,
+            is_delta=is_delta,
         )
 
     def download_package(
@@ -366,22 +380,25 @@ class AppUpdateClient:
 
         progress_callback 簽名: (downloaded_bytes, total_bytes, speed_bytes_sec, speed_text)
         """
-        # 1. 磁碟剩餘空間檢查 (至少需要 package size * 2.5)
+        # 1. 磁碟剩餘空間檢查 (Delta 僅需 20MB，全量需 2.5 倍約 650MB)
         dest_dir = os.path.dirname(os.path.abspath(dest_path))
         os.makedirs(dest_dir, exist_ok=True)
 
-        if info.size > 0:
-            required_space = int(info.size * 2.5)
-            try:
-                free_space = shutil.disk_usage(dest_dir).free
-                if free_space < required_space:
-                    raise AppUpdatePermanentError(
-                        f"磁碟剩餘空間不足: 需要 {required_space / (1024*1024):.1f} MB，但僅剩 {free_space / (1024*1024):.1f} MB"
-                    )
-            except Exception as e:
-                if isinstance(e, AppUpdatePermanentError):
-                    raise
-                logger.warning(f"[AppUpdateClient] 檢查磁碟剩餘空間失敗: {e}")
+        if info.is_delta:
+            required_space = 20 * 1024 * 1024  # 20 MB
+        else:
+            required_space = max(int(info.size * 2.5), 650 * 1024 * 1024) if info.size > 0 else 650 * 1024 * 1024
+
+        try:
+            free_space = shutil.disk_usage(dest_dir).free
+            if free_space < required_space:
+                raise AppUpdatePermanentError(
+                    f"磁碟剩餘空間不足: 需要 {required_space / (1024*1024):.1f} MB，但僅剩 {free_space / (1024*1024):.1f} MB"
+                )
+        except Exception as e:
+            if isinstance(e, AppUpdatePermanentError):
+                raise
+            logger.warning(f"[AppUpdateClient] 檢查磁碟剩餘空間失敗: {e}")
 
         # 2. 構建下載請求
         params = {

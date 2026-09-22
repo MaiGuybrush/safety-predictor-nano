@@ -8,16 +8,18 @@
 5. SSE 事件串流廣播 (支援多客戶端即時進度同步)
 """
 
+import datetime
 import json
 import logging
 import os
 import queue
 import shutil
+import subprocess
 import sys
 import tarfile
 import threading
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 try:
     from argus import __version__ as APP_VERSION
@@ -99,10 +101,15 @@ class UpdateManager:
             )
 
         # Delta 增量更新引擎
-        self.delta_updater = DeltaUpdater(base_dir=self.config.get("base_dir", "."))
+        self.base_dir = os.path.abspath(self.config.get("base_dir", "."))
+        self.delta_updater = DeltaUpdater(base_dir=self.base_dir)
+        self.is_delta: bool = False
+        self.exit_code_on_restart: int = 42
+        self._exit_func: Callable[[int], None] = sys.exit
 
-        # 檢測回滾告警標記 (.rollback_alert)
+        # 檢測回滾告警標記 (.rollback_alert) 與更新進行中標記 (.update_in_progress)
         self._check_rollback_alert()
+        self._check_update_in_progress()
 
         # SSE 訂閱者清單 (每個訂閱者擁有獨立的 Queue)
         self._subscribers: List[queue.Queue] = []
@@ -113,11 +120,31 @@ class UpdateManager:
         self._poll_thread: Optional[threading.Thread] = None
         self._stop_polling = threading.Event()
 
+    def _check_update_in_progress(self):
+        """檢查系統啟動時是否存在 .update_in_progress 標記檔。"""
+        progress_path = os.path.join(self.base_dir, ".update_in_progress")
+        if not os.path.isfile(progress_path) and os.path.isfile(".update_in_progress"):
+            progress_path = os.path.abspath(".update_in_progress")
+        if os.path.isfile(progress_path):
+            try:
+                with open(progress_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                self.target_version = data.get("target_version")
+                self.is_delta = bool(data.get("is_delta", False))
+                self.state = UpdateState.HEALTHCHECK
+                self.message = f"新版本進程啟動 (v{self.target_version})，執行 30 秒健康狀態評估..."
+                logger.info(f"[UpdateManager] 偵測到更新中標記，進入健康判定窗口: {data}")
+            except Exception as e:
+                logger.warning(f"[UpdateManager] 讀取 .update_in_progress 異常: {e}")
+
     def _check_rollback_alert(self):
         """檢查系統啟動時是否存在 .rollback_alert 標記檔。"""
-        if os.path.isfile(".rollback_alert"):
+        alert_path = os.path.join(self.base_dir, ".rollback_alert")
+        if not os.path.isfile(alert_path) and os.path.isfile(".rollback_alert"):
+            alert_path = os.path.abspath(".rollback_alert")
+        if os.path.isfile(alert_path):
             try:
-                with open(".rollback_alert", "r", encoding="utf-8") as f:
+                with open(alert_path, "r", encoding="utf-8") as f:
                     content = f.read().strip()
                 self.rollback_occurred = True
                 self.error = f"自動回滾告警: {content}"
@@ -130,12 +157,14 @@ class UpdateManager:
         with self._lock:
             self.rollback_occurred = False
             self.error = None
-            if os.path.exists(".rollback_alert"):
-                try:
-                    os.remove(".rollback_alert")
-                except Exception:
-                    pass
+            for p in {os.path.join(self.base_dir, ".rollback_alert"), os.path.abspath(".rollback_alert")}:
+                if os.path.exists(p):
+                    try:
+                        os.remove(p)
+                    except Exception:
+                        pass
         self._notify_subscribers()
+
 
     def get_status(self) -> Dict[str, Any]:
         """取得當前更新狀態之唯讀字典副本。"""
@@ -154,6 +183,8 @@ class UpdateManager:
                 "message": self.message,
                 "error": self.error,
                 "mode": self.mode,
+                "is_delta": self.is_delta,
+                "package_type": "delta" if self.is_delta else "full",
                 "rollback_occurred": self.rollback_occurred,
                 "restart_countdown": self.restart_countdown,
                 "auto_update_enabled": self.auto_update_enabled,
@@ -200,6 +231,7 @@ class UpdateManager:
         target_version: Optional[str] = None,
         release_notes: Optional[str] = None,
         release_date: Optional[str] = None,
+        is_delta: Optional[bool] = None,
     ):
         """更新狀態機屬性並觸發 SSE 廣播。"""
         with self._lock:
@@ -222,8 +254,11 @@ class UpdateManager:
                 self.release_notes = release_notes
             if release_date is not None:
                 self.release_date = release_date
+            if is_delta is not None:
+                self.is_delta = bool(is_delta)
 
         self._notify_subscribers()
+
 
     def check_for_updates(self, mock_available: Optional[bool] = None) -> Dict[str, Any]:
         """手動或定時觸發版本檢查。若無真實連線或指定 mock 則自動 fallback 模擬展示。"""
@@ -242,7 +277,7 @@ class UpdateManager:
                 if mock_available is False:
                     candidate = None
                 elif mock_available is True or self.client is None:
-                    # 模擬展示
+                    # 模擬展示 (預設提供 Delta 增量補丁)
                     time.sleep(0.8)
                     candidate = VersionInfoDTO(
                         version="1.1.0",
@@ -252,15 +287,31 @@ class UpdateManager:
                         release_date="2026-09-21 12:00:00",
                         release_notes=(
                             "◈ 系統安全性與效能維護更新 (v1.1.0)\n\n"
+                            "- [新增] 輕量增量更新 (Delta Patch)，封包僅需 2.4 MB (節省 99% 頻寬)\n"
                             "- [優化] 支援 App Management API 原子升級與多節點 Failover\n"
                             "- [新增] Web UI 實時下載進度條與 SSE 廣播狀態機\n"
                             "- [新增] 30 秒健康狀態判定與自動回滾機制 (ADR-019)\n"
                             "- [修復] 邊緣端 ARM64 頻寬節流與記憶體配置問題"
                         ),
                     )
+                    with self._lock:
+                        self.is_delta = True
+                        self.total_bytes = 2516582  # 約 2.4 MB
                 else:
                     # 呼叫真實 Client
                     candidate = self.client.check_latest_candidate(self.current_version)
+                    if candidate:
+                        try:
+                            dl_info = self.client.get_download_info(candidate.version)
+                            with self._lock:
+                                self.download_info = dl_info
+                                self.is_delta = dl_info.is_delta
+                                self.total_bytes = dl_info.size
+                        except Exception as ex:
+                            logger.debug(f"[UpdateManager] 預取下載資訊失敗: {ex}")
+                            with self._lock:
+                                self.is_delta = False
+                                self.total_bytes = 104857600
 
                 with self._lock:
                     if candidate:
@@ -269,8 +320,10 @@ class UpdateManager:
                         self.release_date = candidate.release_date or "最新發布"
                         self.release_notes = candidate.release_notes or "版本更新維護"
                         self.state = UpdateState.AVAILABLE
-                        self.message = f"發現新版本 {self.target_version}，可進行下載"
-                        self.total_bytes = 104857600  # 預設估計
+                        if self.is_delta:
+                            self.message = f"發現新版本 {self.target_version} (📦 增量更新 ~{(self.total_bytes / (1024*1024)):.1f} MB)，可進行下載"
+                        else:
+                            self.message = f"發現新版本 {self.target_version}，可進行下載"
                         self.downloaded_bytes = 0
                         self.progress = 0.0
                     else:
@@ -293,12 +346,27 @@ class UpdateManager:
             if self.state not in (UpdateState.AVAILABLE, UpdateState.FAILED):
                 return {"status": "error", "message": f"目前狀態 ({self.state}) 不支援觸發下載", "data": self.get_status()}
 
+            # 磁碟預檢空間需求：Delta 僅需 20MB，全量需 2.5 倍約 650MB
+            required_space = 20 * 1024 * 1024 if self.is_delta else max(int((self.total_bytes or 104857600) * 2.5), 650 * 1024 * 1024)
+            staging_check_dir = os.path.dirname(os.path.abspath(self.staging_dir))
+            try:
+                free_space = shutil.disk_usage(staging_check_dir).free
+                if free_space < required_space:
+                    self.state = UpdateState.FAILED
+                    err_msg = f"磁碟剩餘空間不足: 需要 {required_space / (1024*1024):.1f} MB，但僅剩 {free_space / (1024*1024):.1f} MB"
+                    self.error = err_msg
+                    self.message = err_msg
+                    self._notify_subscribers()
+                    return {"status": "error", "message": err_msg, "data": self.get_status()}
+            except Exception as e:
+                logger.warning(f"[UpdateManager] 預檢磁碟空間異常: {e}")
+
             self.state = UpdateState.DOWNLOADING
             self.progress = 0.0
             self.downloaded_bytes = 0
             if not self.total_bytes:
-                self.total_bytes = 104857600
-            self.message = "開始下載更新安裝包..."
+                self.total_bytes = 2516582 if self.is_delta else 104857600
+            self.message = "開始下載增量更新包..." if self.is_delta else "開始下載更新安裝包..."
             self.error = None
         self._notify_subscribers()
 
@@ -311,7 +379,8 @@ class UpdateManager:
                 self.speed_text = speed_txt
                 mb_curr = downloaded / (1024 * 1024)
                 mb_tot = total / (1024 * 1024)
-                self.message = f"正在下載更新包... ({mb_curr:.1f} MB / {mb_tot:.1f} MB, {speed_txt})"
+                prefix = "正在下載增量補丁..." if self.is_delta else "正在下載更新包..."
+                self.message = f"{prefix} ({mb_curr:.1f} MB / {mb_tot:.1f} MB, {speed_txt})"
             self._notify_subscribers()
 
         def _do_download():
@@ -321,10 +390,15 @@ class UpdateManager:
                 if self.client and self.target_version:
                     try:
                         download_info = self.client.get_download_info(self.target_version)
-                        dest_archive = os.path.join(
-                            "updates",
-                            f"{self.client.app_id}-v{self.target_version}-arm64.tar.gz"
-                        )
+                        self.download_info = download_info
+                        self.is_delta = download_info.is_delta
+                        self.total_bytes = download_info.size
+                        os.makedirs("updates", exist_ok=True)
+                        if self.is_delta:
+                            pkg_name = f"argus_delta-v{self.target_version}-arm64.tar.gz"
+                        else:
+                            pkg_name = f"{self.client.app_id}-v{self.target_version}-arm64.tar.gz"
+                        dest_archive = os.path.join("updates", pkg_name)
                         self.client.download_package(download_info, dest_archive, progress_callback=_progress_cb)
                         self.downloaded_archive_path = dest_archive
                         real_download_success = True
@@ -333,47 +407,67 @@ class UpdateManager:
 
                 if not real_download_success:
                     # 平滑模擬下載流程
-                    total = self.total_bytes or 104857600
+                    total = self.total_bytes or (2516582 if self.is_delta else 104857600)
                     downloaded = 0
-                    chunk = 1024 * 1024 * 5
+                    chunk = 1024 * 256 if self.is_delta else 1024 * 1024 * 5
                     start_t = time.time()
                     while downloaded < total:
-                        time.sleep(0.3)
+                        time.sleep(0.1 if self.is_delta else 0.3)
                         with self._lock:
                             if self.state != UpdateState.DOWNLOADING:
                                 break
                             downloaded = min(total, downloaded + chunk)
                             self.downloaded_bytes = downloaded
                             self.progress = (downloaded / total) * 100.0
-                            elapsed = max(0.1, time.time() - start_t)
+                            elapsed = max(0.01, time.time() - start_t)
                             speed = downloaded / elapsed
                             self.speed_bytes_sec = speed
                             self.speed_text = f"{speed / (1024 * 1024):.1f} MB/s"
                             mb_curr = downloaded / (1024 * 1024)
                             mb_tot = total / (1024 * 1024)
-                            self.message = f"正在下載更新包... ({mb_curr:.1f} MB / {mb_tot:.1f} MB, {self.speed_text})"
+                            prefix = "正在下載增量補丁..." if self.is_delta else "正在下載更新包..."
+                            self.message = f"{prefix} ({mb_curr:.1f} MB / {mb_tot:.1f} MB, {self.speed_text})"
                         self._notify_subscribers()
 
                 # 解壓縮與 Staging 驗證階段
                 with self._lock:
                     self.state = UpdateState.STAGING
                     self.progress = 100.0
-                    self.message = "下載完成，正在解壓縮並驗證暫存目錄檔案完整性..."
+                    self.message = "下載完成，正在解壓並驗證 Delta 補丁完整性..." if self.is_delta else "下載完成，正在解壓縮並驗證暫存目錄檔案完整性..."
                 self._notify_subscribers()
 
-                # 若有實際封包則解壓，否則模擬 staging 目錄建立
+                # 若有實際封包則解壓
                 os.makedirs(self.staging_dir, exist_ok=True)
                 if self.downloaded_archive_path and os.path.isfile(self.downloaded_archive_path):
                     try:
                         with tarfile.open(self.downloaded_archive_path, "r:*") as tar:
-                            tar.extractall(path=self.staging_dir)
+                            if sys.version_info >= (3, 12):
+                                tar.extractall(path=self.staging_dir, filter="data")
+                            else:
+                                tar.extractall(path=self.staging_dir)
                     except Exception as e:
                         logger.warning(f"[UpdateManager] 解壓封包警告: {e}")
-                time.sleep(1.0)
+
+                # 識別是否為 Delta package
+                if self.is_delta_package(self.staging_dir) or (self.downloaded_archive_path and self.is_delta_package(self.downloaded_archive_path)):
+                    self.is_delta = True
+
+                # 若為 Delta package，呼叫 install.sh --delta 執行局部原子替換
+                if self.is_delta and os.path.exists(self.staging_dir):
+                    try:
+                        logger.info(f"[UpdateManager] 執行 Delta 局部原子替換 (staging={self.staging_dir})")
+                        self.run_install_delta(self.staging_dir)
+                    except Exception as e:
+                        logger.warning(f"[UpdateManager] 執行 Delta 局部原子替換警告: {e}")
+
+                time.sleep(0.5)
 
                 with self._lock:
                     self.state = UpdateState.READY_TO_INSTALL
-                    self.message = f"新版本 {self.target_version} 已就緒，請點擊立即重啟套用"
+                    if self.is_delta:
+                        self.message = f"增量補丁 {self.target_version} 已就緒，請點擊立即重啟套用"
+                    else:
+                        self.message = f"新版本 {self.target_version} 已就緒，請點擊立即重啟套用"
                 self._notify_subscribers()
 
                 # 若更新模式為無人值守 (mode == 1)，延遲 3 秒直接自動觸發重啟
@@ -393,7 +487,49 @@ class UpdateManager:
         self._task_thread.start()
         return {"status": "ok", "message": "已開始下載更新包", "data": self.get_status()}
 
-    def trigger_restart(self) -> Dict[str, Any]:
+    def run_install_delta(self, delta_source: Optional[str] = None) -> Dict[str, Any]:
+        """執行 Delta 局部原子替換：優先呼叫 scripts/install.sh --delta，若無 bash 環境則使用 DeltaUpdater。"""
+        source = delta_source or self.staging_dir
+        
+        script_candidates = [
+            os.path.join(self.base_dir, "scripts", "install.sh"),
+            os.path.join(self.base_dir, "install.sh"),
+            os.path.abspath("scripts/install.sh"),
+        ]
+        install_sh = next((p for p in script_candidates if os.path.isfile(p)), None)
+
+        bash_exe = None
+        for candidate in [shutil.which("bash"), shutil.which("sh"), r"C:\Program Files\Git\bin\bash.exe"]:
+            if candidate and os.path.isfile(candidate):
+                bash_exe = candidate
+                break
+
+        if bash_exe and install_sh:
+            try:
+                clean_source = os.path.abspath(source).replace("\\", "/")
+                if len(clean_source) >= 2 and clean_source[1] == ":":
+                    clean_source = f"/{clean_source[0].lower()}{clean_source[2:]}"
+                
+                cmd = [bash_exe, install_sh, "--delta", clean_source]
+                res = subprocess.run(
+                    cmd,
+                    cwd=self.base_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                if res.returncode == 0:
+                    logger.info("[UpdateManager] install.sh --delta 執行成功")
+                    return {"status": "ok", "method": "install.sh", "output": res.stdout}
+                else:
+                    logger.warning(f"[UpdateManager] install.sh --delta 返回非零代碼 ({res.returncode}): {res.stderr}")
+            except Exception as e:
+                logger.warning(f"[UpdateManager] 調用 install.sh --delta 異常: {e}")
+
+        # Fallback to Python DeltaUpdater
+        return self.apply_delta_update(source)
+
+    def trigger_restart(self, exit_on_restart: Optional[bool] = None) -> Dict[str, Any]:
         """觸發重啟與版本目錄原子替換。"""
         with self._lock:
             if self.state != UpdateState.READY_TO_INSTALL:
@@ -407,52 +543,81 @@ class UpdateManager:
         def _do_restart():
             logger.info("AutoUpdate: Triggering restart sequence (Exit code 42 for run.sh)")
             # 寫入進行中標記
-            try:
-                with open(".update_in_progress", "w", encoding="utf-8") as f:
-                    f.write(json.dumps({
-                        "target_version": self.target_version,
-                        "timestamp": time.time(),
-                        "backup_dir": self.config.get("backup_dir", "argus_predictor_bak"),
-                    }))
-            except Exception:
-                pass
+            targets = [os.path.join(self.base_dir, ".update_in_progress")]
+            if os.path.abspath(".") != self.base_dir:
+                targets.append(".update_in_progress")
+            for p in targets:
+                try:
+                    with open(p, "w", encoding="utf-8") as f:
+                        f.write(json.dumps({
+                            "target_version": self.target_version,
+                            "timestamp": time.time(),
+                            "backup_dir": self.config.get("backup_dir", "argus_predictor_bak"),
+                            "is_delta": self.is_delta,
+                        }))
+                except Exception:
+                    pass
 
-            time.sleep(2.0)
+            time.sleep(1.0)
+
+            # 若指定 exit_on_restart 或非 pytest 測試環境，呼叫 sys.exit(42)
+            should_exit = exit_on_restart if exit_on_restart is not None else (not os.environ.get("PYTEST_CURRENT_TEST"))
+            if should_exit:
+                logger.info(f"AutoUpdate: Invoking sys.exit({self.exit_code_on_restart}) for outer runner loop restart")
+                self._exit_func(self.exit_code_on_restart)
+                return
+
+            # 模擬流程推進：HEALTHCHECK -> COMMITTED -> IDLE
             with self._lock:
                 self.state = UpdateState.HEALTHCHECK
                 self.message = "新版本進程啟動，執行 30 秒健康狀態評估..."
             self._notify_subscribers()
 
-            time.sleep(2.0)
-            with self._lock:
-                # 確立成功
-                self.current_version = self.target_version or self.current_version
-                self.target_version = None
-                self.state = UpdateState.COMMITTED
-                self.message = f"系統已成功升級至 v{self.current_version} 並通過健康檢查！"
-                self.progress = 0.0
-                self.downloaded_bytes = 0
-                self.total_bytes = 0
-                if os.path.exists(".update_in_progress"):
-                    try:
-                        os.remove(".update_in_progress")
-                    except Exception:
-                        pass
-            self._notify_subscribers()
+            time.sleep(1.0)
+            self.commit_update()
 
-            time.sleep(2.0)
+            time.sleep(1.0)
             with self._lock:
                 self.state = UpdateState.IDLE
                 self.message = "系統運作正常"
             self._notify_subscribers()
 
-            # 若非測試環境且處於執行中，呼叫 sys.exit(42) 讓外部 run.sh 守護迴圈接管
-            if not os.environ.get("PYTEST_CURRENT_TEST"):
-                logger.info("AutoUpdate: Invoking sys.exit(42) for outer runner loop restart")
-                # sys.exit(42)
-
         threading.Thread(target=_do_restart, daemon=True).start()
         return {"status": "ok", "message": "已觸發重啟序列", "data": self.get_status()}
+
+    def commit_update(self) -> Dict[str, Any]:
+        """三階段健康檢查通過後，確立 (Commit) 更新完成並移除標記檔。"""
+        with self._lock:
+            targets = [os.path.join(self.base_dir, ".update_in_progress")]
+            if os.path.abspath(".") != self.base_dir:
+                targets.append(".update_in_progress")
+            for p in targets:
+                if os.path.exists(p):
+                    try:
+                        os.remove(p)
+                    except Exception:
+                        pass
+
+            if self.target_version:
+                self.current_version = self.target_version
+                self.target_version = None
+            self.state = UpdateState.COMMITTED
+            self.message = f"系統已成功升級至 v{self.current_version} 並通過健康檢查！"
+            self.progress = 0.0
+            self.downloaded_bytes = 0
+            self.total_bytes = 0
+            try:
+                log_dirs = [os.path.join(self.base_dir, "logs")] if self.base_dir and self.base_dir != "." else []
+                log_dirs.append("logs")
+                for ld in set(log_dirs):
+                    os.makedirs(ld, exist_ok=True)
+                    with open(os.path.join(ld, "update.log"), "a", encoding="utf-8") as f:
+                        f.write(f"[{datetime.datetime.now().isoformat()}] [COMMITTED] 成功升級至 v{self.current_version} (is_delta={self.is_delta})\n")
+            except Exception:
+                pass
+        self._notify_subscribers()
+        return {"status": "ok", "message": "更新確立完成", "data": self.get_status()}
+
 
     def is_delta_package(self, path: Optional[str] = None) -> bool:
         """檢查指定路徑或 staging 目錄是否為 Delta 增量包。"""
