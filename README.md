@@ -91,26 +91,17 @@ python main.py
    - `ums-client`: `git+http://tncimweb.cminl.oa/git-server/guy.mai/ums-client.git@master`
    *(已包含在 `requirements.txt` 中，安裝時樹莓派需能存取內部 Git 伺服器)*
 
-### 方案 B：打包成單一執行檔
-如果你一定要產出包含 Web UI 與離線使用手冊的單一 `argus_predictor` 檔案，請**在樹莓派本機上**執行打包：
+### 方案 B：打包成單一執行檔（`--onefile`）
 
-1. 進入樹莓派終端機，安裝 PyInstaller 與 mdBook：
-```bash
-pip install pyinstaller
-# 確保系統已安裝 mdbook（若尚未建置 docs/user-manual/book）
-```
+> ⚠️ **此方案已不建議使用。** `--onefile` 每次啟動皆需解壓至暫存目錄，在樹莓派 5 上啟動時間約 10–20 秒，且**無法支援 Delta 增量更新**（詳見方案 C）。若無特殊需求，請優先採用**方案 C**。
 
-2. 執行建置與打包指令：
-在專案根目錄執行以下指令，將主程式、手冊與依賴封裝為單一可執行檔：
+若仍有需要，可在樹莓派本機上執行以下指令（僅供快速驗證）：
 
 ```bash
 # 1. 建置 mdBook 使用手冊
 mdbook build docs/user-manual
 
-# 2. 封裝單一可執行檔（推薦直接使用 spec 檔案）
-pyinstaller argus_predictor.spec
-
-# 或使用 CLI 完整參數：
+# 2. 使用 spec 檔封裝（加 --onefile 旗標覆蓋，僅供測試）
 pyinstaller --onefile \
             --paths src \
             --add-data "src/argus/web/templates:argus/web/templates" \
@@ -126,63 +117,65 @@ pyinstaller --onefile \
             src/argus/main.py
 ```
 
-*注意：`--collect-all` 用於確保 `ultralytics`、`flask`、`argus_eventlog` 與 `ums_client` 等相依套件能正確被打包；`--add-data` 會將 Web 範本與手冊網站打包進二進位檔。*
+### 方案 C：打包成單一目錄 (`--onedir`)（推薦正式部署）
 
-### 3. 部署至樹莓派
-封裝完成後，在 `dist/` 資料夾下會產生 `argus_predictor` 檔案。
+`--onedir` 會產出一個**資料夾**（`dist/argus_predictor/`），內含執行檔與所有相依套件。優點是**啟動速度快**（無需解壓）、記憶體佔用低，且**支援 Delta 增量更新**（每次日常更新僅需下載 ~2.4 MB，而非整包 ~256 MB）。
 
-1. 將 `dist/argus_predictor` 複製到樹莓派。
-2. 將你的模型檔案 (如 `yolo26.pt`) 及 `config.yaml` 放在同目錄。
-3. 給予執行權限：
-   ```bash
-   chmod +x argus_predictor
-   ```
-4. 直接執行：
-   ```bash
-   ./argus_predictor
-   ```
+#### 建置流程（兩步驟）
 
-- 若模型檔案過大，封裝後的檔案體積會較大，確保樹莓派有足夠空間。
-- 執行時請確保 `config.yaml` 與 `argus_predictor` 在同一目錄。
-
-### 方案 C：打包成單一目錄 (`--onedir`)
-與方案 B 不同，`--onedir` 會產出一個**資料夾**（`dist/argus_predictor/`），內含執行檔與所有相依套件。優點是**啟動速度快**（不需要每次啟動時解壓到暫存目錄）、記憶體佔用較低，且更新時只需替換整個目錄即可。
-
-1. 在樹莓派本機上執行建置與打包指令：
+**步驟一：產生 Delta 增量包與 `argus.zip`（業務模組外置）**
 
 ```bash
-# 1. 建置 mdBook 使用手冊
-mdbook build docs/user-manual
+# 完整增量包（含 Web 模板與離線手冊，< 3.5 MB）
+python scripts/build_delta_package.py
 
-# 2. 封裝為單一目錄
-pyinstaller --onedir \
-            --noupx \
-            --paths src \
-            --exclude-module triton \
-            --add-data "src/argus/web/templates:argus/web/templates" \
-            --add-data "templates:templates" \
-            --add-data "config.yaml:." \
-            --add-data "ums-api-config.json:." \
-            --add-data "docs/user-manual/book:docs/user-manual/book" \
-            --collect-all ultralytics \
-            --collect-all flask \
-            --collect-all argus_eventlog \
-            --collect-all ums_client \
-            --name argus_predictor \
-            src/argus/main.py
+# 或純代碼修復模式（< 250 KB，不含手冊）
+python scripts/build_delta_package.py --code-only
 ```
 
-*注意：*
-- *`--noupx`：停用 UPX 壓縮。UPX 壓縮後的二進位檔在 ARM64 (樹莓派) 上可能因壓縮格式不相容而無法啟動，停用可避免此問題。*
-- *`--exclude-module triton`：排除 `triton` 模組。`triton` 是 NVIDIA GPU 的 JIT 編譯器，本專案僅使用 CPU 推論，排除可大幅縮小打包體積並避免不必要的相依衝突。*
+此步驟會在 `dist/` 下產生：
+- `argus_delta-v{VERSION}-arm64.tar.gz` — 增量補丁包
+- `argus_delta-v{VERSION}-arm64.tar.gz.sha256` — SHA-256 校驗檔
 
-2. 部署至樹莓派：
-   - 封裝完成後，`dist/` 下會產生 `argus_predictor/` **整個資料夾**，部署時需**完整複製整個目錄**（不可只複製執行檔）。
-   - 將你的模型檔案 (如 `yolo26.pt`) 及 `config.yaml` 放在該目錄內。
-   - 給予執行權限並執行：
-     ```bash
-     chmod +x argus_predictor/argus_predictor
-     ./argus_predictor/argus_predictor
-     ```
+**步驟二：用 Spec 封裝完整安裝包**
 
-- 更新版本時，直接以新的 `argus_predictor/` 目錄覆蓋舊目錄即可（`config.yaml` 與模型檔若放在目錄內，覆蓋前請先備份）。
+```bash
+# 建置 mdBook 使用手冊（首次或手冊有異動時）
+mdbook build docs/user-manual
+
+# 用 argus_predictor.spec 封裝（業務模組已外置至 _internal/argus.zip）
+pyinstaller argus_predictor.spec
+```
+
+#### 產出目錄結構（PyInstaller 6.0+）
+
+```
+dist/argus_predictor/
+├── argus_predictor          ← 主執行檔
+└── _internal/               ← 所有相依與資料（PyInstaller 6.0+ 統一放於此）
+    ├── argus.zip            ← 業務代碼（可單獨被 Delta 更新取代）
+    ├── config.yaml
+    ├── ums-api-config.json
+    ├── argus/web/templates/
+    ├── docs/user-manual/book/
+    └── (ultralytics, flask 等第三方庫...)
+```
+
+> **為什麼 `_internal/` 是子目錄？**  
+> PyInstaller 6.0 起，`--onedir` 模式預設將所有依賴移入 `_internal/` 子目錄，讓根目錄只保留主執行檔，結構更清晰，且不影響執行行為。
+
+#### 部署至樹莓派
+
+封裝完成後，複製整個 `dist/argus_predictor/` 資料夾至樹莓派（**不可只複製執行檔**）：
+
+```bash
+# 將模型檔案與 config.yaml 放在目錄內
+cp yolo26.pt dist/argus_predictor/
+cp config.yaml dist/argus_predictor/
+
+# 給予執行權限並執行
+chmod +x argus_predictor/argus_predictor
+./argus_predictor/argus_predictor
+```
+
+後續版本升級時，透過 **Delta 增量包**（步驟一產出的 `.tar.gz`）局部替換 `_internal/argus.zip` 即可，無需重新下載整包。`config.yaml` 與模型檔不受影響。

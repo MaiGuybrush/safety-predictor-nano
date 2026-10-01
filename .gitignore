@@ -63,3 +63,6 @@ argus_predictor_bak/
 argus_predictor_failed_*/
 
 
+
+/dist_patch/
+/scripts/updates/mock_repo
