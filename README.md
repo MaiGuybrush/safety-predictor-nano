@@ -179,3 +179,24 @@ chmod +x argus_predictor/argus_predictor
 ```
 
 後續版本升級時，透過 **Delta 增量包**（步驟一產出的 `.tar.gz`）局部替換 `_internal/argus.zip` 即可，無需重新下載整包。`config.yaml` 與模型檔不受影響。
+
+#### 打包完整性驗證（強烈建議）
+
+封裝完成後，在樹莓派上執行內建探針，確認所有 import 與資料檔均正確打包：
+
+```bash
+# 人類可讀輸出（建置後立即執行）
+./argus_predictor/argus_predictor --probe
+
+# JSON 輸出（CI/CD 自動化整合，exit code 0=PASS / 1=FAIL）
+./argus_predictor/argus_predictor --probe --json > probe_report.json
+if [ $? -ne 0 ]; then
+    echo "❌ 打包驗證失敗，請勿發佈！"
+    cat probe_report.json
+    exit 1
+fi
+echo "✅ 打包驗證通過，可部署至廠區"
+```
+
+探針涵蓋項目：第三方套件 import（cv2、ultralytics、flask、ncnn 等）、argus 所有業務子模組、`_internal/argus.zip` 與模板目錄存在性、YOLO 推論引擎類別可達性、Flask 路由完整性。
+詳細說明見 [`scripts/probe_package.py`](scripts/probe_package.py)。
