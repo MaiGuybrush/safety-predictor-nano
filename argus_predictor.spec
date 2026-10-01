@@ -15,11 +15,11 @@ datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
 a = Analysis(
-    ['src/argus/main.py'],
-    pathex=['src'],
+    ['main.py'],
+    pathex=['src', '.'],
     binaries=binaries,
     datas=datas,
-    hiddenimports=hiddenimports,
+    hiddenimports=hiddenimports + ['scripts.probe_package'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

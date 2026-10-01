@@ -59,7 +59,13 @@ mount_argus_zip()
 
 
 if __name__ == "__main__":
-    if "--report-issue" in sys.argv or "-r" in sys.argv:
+    if "--probe" in sys.argv:
+        # 打包完整性探針：驗證所有 import 與資料檔是否正確打包
+        # 用法：./argus_predictor --probe [--json]
+        json_out = "--json" in sys.argv
+        from scripts.probe_package import run_probe
+        sys.exit(run_probe(json_output=json_out))
+    elif "--report-issue" in sys.argv or "-r" in sys.argv:
         from argus.integration.report_issue import run_cli
         cli_args = [arg for arg in sys.argv[1:] if arg not in ("--report-issue", "-r")]
         sys.exit(run_cli(cli_args))
