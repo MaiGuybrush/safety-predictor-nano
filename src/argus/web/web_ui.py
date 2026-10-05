@@ -810,9 +810,7 @@ def get_update_status():
 @app.route('/api/update/check', methods=['POST'])
 def trigger_update_check():
     """手動觸發版本檢查。"""
-    data = request.get_json(silent=True) or {}
-    mock_avail = data.get("mock_available", None)
-    res = GLOBAL_UPDATE_MANAGER.check_for_updates(mock_available=mock_avail)
+    res = GLOBAL_UPDATE_MANAGER.check_for_updates()
     return jsonify(res)
 
 @app.route('/api/update/download', methods=['POST'])

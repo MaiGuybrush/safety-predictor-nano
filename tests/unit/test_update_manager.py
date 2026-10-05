@@ -1,5 +1,7 @@
 import queue
 import time
+from unittest.mock import MagicMock, patch
+from argus.integration.app_update_client import VersionInfoDTO, DownloadInfo
 from argus.updates.update_manager import UpdateManager, UpdateState
 
 
@@ -65,17 +67,64 @@ def test_update_manager_delta_support(tmp_path):
 
 
 def test_update_manager_check_updates_delta_mock():
-    mgr = UpdateManager(current_version="1.0.0")
-    res = mgr.check_for_updates(mock_available=True)
+    mock_client = MagicMock()
+    mock_candidate = VersionInfoDTO(
+        version="1.1.0",
+        released=True,
+        auto_update=True,
+        locked=False,
+        release_date="2026-09-21 12:00:00",
+        release_notes="◈ 系統安全性與效能維護更新 (v1.1.0)",
+    )
+    mock_dl = DownloadInfo(
+        app_id="safety-predictor-nano",
+        version="1.1.0",
+        owner="release",
+        file_path="/packages/argus_delta-v1.1.0-arm64.tar.gz",
+        size=2516582,
+        sha256="abcdef123456",
+        is_delta=True,
+    )
+    mock_client.check_latest_candidate.return_value = mock_candidate
+    mock_client.get_download_info.return_value = mock_dl
+
+    mgr = UpdateManager(current_version="1.0.0", client=mock_client)
+    res = mgr.check_for_updates()
     assert res["status"] == "ok"
     # 等待背景檢查執行完畢
-    time.sleep(1.0)
+    time.sleep(0.5)
     status = mgr.get_status()
     assert status["state"] == UpdateState.AVAILABLE
     assert status["is_delta"] is True
     assert status["package_type"] == "delta"
     assert status["target_version"] == "1.1.0"
     assert status["total_bytes"] == 2516582
+
+
+def test_update_manager_check_updates_no_update_found():
+    mock_client = MagicMock()
+    mock_client.check_latest_candidate.return_value = None
+
+    mgr = UpdateManager(current_version="1.0.0", client=mock_client)
+    res = mgr.check_for_updates()
+    assert res["status"] == "ok"
+    time.sleep(0.5)
+    status = mgr.get_status()
+    assert status["state"] == UpdateState.IDLE
+    assert "最新版本" in status["message"]
+
+
+def test_update_manager_check_updates_client_error():
+    mock_client = MagicMock()
+    mock_client.check_latest_candidate.side_effect = RuntimeError("連線逾時")
+
+    mgr = UpdateManager(current_version="1.0.0", client=mock_client)
+    res = mgr.check_for_updates()
+    assert res["status"] == "ok"
+    time.sleep(0.5)
+    status = mgr.get_status()
+    assert status["state"] == UpdateState.IDLE
+    assert "未成功" in status["message"]
 
 
 def test_update_manager_disk_precheck_delta(tmp_path):

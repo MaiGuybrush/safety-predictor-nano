@@ -1,5 +1,7 @@
 import json
+from unittest.mock import MagicMock, patch
 import pytest
+from argus.integration.app_update_client import VersionInfoDTO, DownloadInfo
 from argus.web.web_ui import app
 from argus.updates.update_manager import GLOBAL_UPDATE_MANAGER, UpdateState
 
@@ -42,11 +44,33 @@ def test_api_update_status(client):
 
 
 def test_api_update_check_and_download_flow(client):
-    # 1. 觸發檢查
-    resp_check = client.post("/api/update/check", json={"mock_available": True})
-    assert resp_check.status_code == 200
-    check_data = resp_check.get_json()
-    assert check_data["status"] == "ok"
+    mock_client = MagicMock()
+    mock_candidate = VersionInfoDTO(
+        version="1.1.0",
+        released=True,
+        auto_update=True,
+        locked=False,
+        release_date="2026-09-21 12:00:00",
+        release_notes="◈ 系統安全性與效能維護更新 (v1.1.0)",
+    )
+    mock_dl = DownloadInfo(
+        app_id="safety-predictor-nano",
+        version="1.1.0",
+        owner="release",
+        file_path="/packages/argus_delta-v1.1.0-arm64.tar.gz",
+        size=2516582,
+        sha256="abcdef123456",
+        is_delta=True,
+    )
+    mock_client.check_latest_candidate.return_value = mock_candidate
+    mock_client.get_download_info.return_value = mock_dl
+
+    with patch.object(GLOBAL_UPDATE_MANAGER, "client", mock_client):
+        # 1. 觸發檢查
+        resp_check = client.post("/api/update/check")
+        assert resp_check.status_code == 200
+        check_data = resp_check.get_json()
+        assert check_data["status"] == "ok"
 
     # 手動設定為 AVAILABLE (Delta 增量更新) 以便直接測試下載
     GLOBAL_UPDATE_MANAGER.set_state(

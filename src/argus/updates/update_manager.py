@@ -339,8 +339,8 @@ class UpdateManager:
         self._notify_subscribers()
 
 
-    def check_for_updates(self, mock_available: Optional[bool] = None) -> Dict[str, Any]:
-        """手動或定時觸發版本檢查。若無真實連線或指定 mock 則自動 fallback 模擬展示。"""
+    def check_for_updates(self) -> Dict[str, Any]:
+        """手動或定時觸發版本檢查。一律透過 AppUpdateClient 查詢最新版本。"""
         with self._lock:
             if self.state in (UpdateState.DOWNLOADING, UpdateState.STAGING, UpdateState.RESTARTING):
                 return {"status": "busy", "message": f"目前更新狀態為 {self.state}，請稍候", "data": self.get_status()}
@@ -353,30 +353,7 @@ class UpdateManager:
         def _do_check():
             try:
                 candidate = None
-                if mock_available is False:
-                    candidate = None
-                elif mock_available is True:
-                    # 明確指定 mock 模擬展示 (預設提供 Delta 增量補丁)
-                    time.sleep(0.8)
-                    candidate = VersionInfoDTO(
-                        version="1.1.0",
-                        released=True,
-                        auto_update=True,
-                        locked=False,
-                        release_date="2026-09-21 12:00:00",
-                        release_notes=(
-                            "◈ 系統安全性與效能維護更新 (v1.1.0)\n\n"
-                            "- [新增] 輕量增量更新 (Delta Patch)，封包僅需 2.4 MB (節省 99% 頻寬)\n"
-                            "- [優化] 支援 App Management API 原子升級與多節點 Failover\n"
-                            "- [新增] Web UI 實時下載進度條與 SSE 廣播狀態機\n"
-                            "- [新增] 30 秒健康狀態判定與自動回滾機制 (ADR-019)\n"
-                            "- [修復] 邊緣端 ARM64 頻寬節流與記憶體配置問題"
-                        ),
-                    )
-                    with self._lock:
-                        self.is_delta = True
-                        self.total_bytes = 2516582  # 約 2.4 MB
-                elif self.client is not None:
+                if self.client is not None:
                     # 呼叫真實 Client
                     try:
                         candidate = self.client.check_latest_candidate(self.current_version)
@@ -397,26 +374,7 @@ class UpdateManager:
                                 self.is_delta = False
                                 self.total_bytes = 104857600
                 else:
-                    # 未設定 client 且未指定 mock，自動 fallback 模擬展示
-                    time.sleep(0.8)
-                    candidate = VersionInfoDTO(
-                        version="1.1.0",
-                        released=True,
-                        auto_update=True,
-                        locked=False,
-                        release_date="2026-09-21 12:00:00",
-                        release_notes=(
-                            "◈ 系統安全性與效能維護更新 (v1.1.0)\n\n"
-                            "- [新增] 輕量增量更新 (Delta Patch)，封包僅需 2.4 MB (節省 99% 頻寬)\n"
-                            "- [優化] 支援 App Management API 原子升級與多節點 Failover\n"
-                            "- [新增] Web UI 實時下載進度條與 SSE 廣播狀態機\n"
-                            "- [新增] 30 秒健康狀態判定與自動回滾機制 (ADR-019)\n"
-                            "- [修復] 邊緣端 ARM64 頻寬節流與記憶體配置問題"
-                        ),
-                    )
-                    with self._lock:
-                        self.is_delta = True
-                        self.total_bytes = 2516582
+                    logger.warning("[UpdateManager] 未設定 AppUpdateClient，無法進行版本檢查")
 
                 with self._lock:
                     if candidate:
