@@ -126,5 +126,20 @@ def test_web_ui_index_contains_update_modal(client):
     assert 'id="up-package-type"' in html
     assert 'id="up-package-size"' in html
     assert 'openUpdateModal()' in html
+    assert 'id="up-key-missing-badge"' in html
+    assert '⚠️ 未配置 API KEY，自動更新已暫停' in html
+
+
+def test_api_update_check_returns_error_when_api_key_missing(client):
+    prev_missing = getattr(GLOBAL_UPDATE_MANAGER, "api_key_missing", False)
+    GLOBAL_UPDATE_MANAGER.api_key_missing = True
+    try:
+        resp = client.post("/api/update/check")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "error"
+        assert data["message"] == "未設定 API KEY，無法進行更新檢查，請至設定頁配置 auto_update.api_key"
+    finally:
+        GLOBAL_UPDATE_MANAGER.api_key_missing = prev_missing
 
 

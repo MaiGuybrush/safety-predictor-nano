@@ -265,3 +265,38 @@ def test_config_manager_auto_update_schema(tmp_path):
     assert auto_cfg["ums_fab"] == "t1"
 
 
+def test_update_manager_skips_startup_and_polling_when_api_key_missing(caplog):
+    import logging
+    cfg = {
+        "enabled": True,
+        "app_id": "test-app",
+        "check_interval_seconds": 3600,
+        "check_on_startup": True,
+        "api_key": "",
+    }
+    with patch("argus.updates.update_manager.AppUpdateClient") as MockClientCls:
+        mock_instance = MockClientCls.return_value
+        mock_instance.api_key = ""
+        mock_instance.api_key_missing = True
+
+        with caplog.at_level(logging.WARNING):
+            mgr = UpdateManager(current_version="1.0.0", config=cfg)
+            assert mgr.api_key_missing is True
+
+            mgr.configure(cfg)
+            assert mgr.api_key_missing is True
+            # 開機檢查與定時輪詢應跳過
+            assert mgr._poll_thread is None
+            assert mock_instance.check_latest_candidate.call_count == 0
+
+            # 手動呼叫 start_polling 也應直接跳過
+            mgr.start_polling(interval=300)
+            assert mgr._poll_thread is None
+
+            # 手動呼叫 check_for_updates 應直接返回 error
+            res = mgr.check_for_updates()
+            assert res["status"] == "error"
+            assert "未設定 API KEY，無法進行更新檢查，請至設定頁配置 auto_update.api_key" in res["message"]
+            assert mock_instance.check_latest_candidate.call_count == 0
+
+

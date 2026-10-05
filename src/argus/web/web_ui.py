@@ -810,12 +810,22 @@ def get_update_status():
 @app.route('/api/update/check', methods=['POST'])
 def trigger_update_check():
     """手動觸發版本檢查。"""
+    if getattr(GLOBAL_UPDATE_MANAGER, "api_key_missing", False):
+        return jsonify({
+            "status": "error",
+            "message": "未設定 API KEY，無法進行更新檢查，請至設定頁配置 auto_update.api_key"
+        })
     res = GLOBAL_UPDATE_MANAGER.check_for_updates()
     return jsonify(res)
 
 @app.route('/api/update/download', methods=['POST'])
 def trigger_update_download():
     """觸發下載更新包並解壓至 Staging 目錄。"""
+    if getattr(GLOBAL_UPDATE_MANAGER, "api_key_missing", False):
+        return jsonify({
+            "status": "error",
+            "message": "未設定 API KEY，無法進行更新下載，請至設定頁配置 auto_update.api_key"
+        })
     res = GLOBAL_UPDATE_MANAGER.start_download()
     return jsonify(res)
 

@@ -190,7 +190,7 @@ def test_app_update_client_prefers_delta_package_and_fallback():
     }
     mock_session.request.return_value = mock_resp_delta
 
-    client = AppUpdateClient(session=mock_session)
+    client = AppUpdateClient(api_key="test-api-key", session=mock_session)
     info = client.get_download_info("1.1.0")
     assert info.is_delta is True
     assert info.size == 2516582
@@ -292,6 +292,7 @@ def test_delta_update_full_lifecycle_e2e(tmp_path):
     mock_client = AppUpdateClient(
         app_id="safety-predictor-nano",
         base_urls=["http://test-gateway.cminl.oa/AppManagementApi"],
+        api_key="test-api-key",
         session=mock_session,
     )
 
@@ -348,7 +349,11 @@ def test_delta_update_full_lifecycle_e2e(tmp_path):
     # 6. 階段三：觸發下載並執行局部原子置換 (install.sh --delta)
     down_res = mgr.start_download()
     assert down_res["status"] == "ok"
-    time.sleep(1.5)  # 等待下載、解壓與 install.sh --delta 執行
+    start_wait = time.time()
+    while time.time() - start_wait < 6.0:
+        if mgr.get_status()["state"] == UpdateState.READY_TO_INSTALL:
+            break
+        time.sleep(0.2)
 
     status_ready = mgr.get_status()
     assert status_ready["state"] == UpdateState.READY_TO_INSTALL

@@ -126,6 +126,9 @@ pyinstaller --onefile \
 **步驟一：產生 Delta 增量包與 `argus.zip`（業務模組外置）**
 
 ```bash
+# 建置 mdBook 使用手冊（首次或手冊有異動時）
+mdbook build docs/user-manual
+
 # 完整增量包（含 Web 模板與離線手冊，< 3.5 MB）
 python scripts/build_delta_package.py
 
@@ -140,9 +143,6 @@ python scripts/build_delta_package.py --code-only
 **步驟二：用 Spec 封裝完整安裝包**
 
 ```bash
-# 建置 mdBook 使用手冊（首次或手冊有異動時）
-mdbook build docs/user-manual
-
 # 用 argus_predictor.spec 封裝（業務模組已外置至 _internal/argus.zip）
 pyinstaller argus_predictor.spec
 ```

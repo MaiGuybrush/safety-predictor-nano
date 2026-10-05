@@ -180,7 +180,7 @@ class AppUpdateClient:
         self.base_urls = resolve_app_management_base_urls(base_urls=base_urls, base_url_path=base_url_path)
         self.channel = channel.strip().lower() if channel else "stable"
         self.fab = fab.strip().lower() if fab else ""
-        self.api_key = self._resolve_api_key(api_key, ums_api_key)
+        self.api_key = self._resolve_api_key(api_key)
         self.api_key_missing: bool = not bool(self.api_key)
         if self.api_key_missing:
             logger.warning("[AppUpdateClient] 未設定 API KEY 無法進行自動更新")
@@ -191,22 +191,17 @@ class AppUpdateClient:
         self.active_index = 0
 
     def _resolve_api_key(self, explicit_key: Optional[str], ums_api_key: Optional[str] = None) -> str:
-        """4 級 API Key 退避鏈：
+        """API Key 解析（嚴格隔離）：
+        僅支援：
         1. auto_update.api_key (explicit_key)
-        2. ums_api_key
-        3. 環境變數 APP_MGR_API_KEY
-        4. 環境變數 UMS_API_KEY
+        2. 環境變數 APP_MGR_API_KEY
+        徹底隔離 UMS API Key 與環境變數 UMS_API_KEY。
         """
         if explicit_key and str(explicit_key).strip():
             return str(explicit_key).strip()
-        if ums_api_key and str(ums_api_key).strip():
-            return str(ums_api_key).strip()
         env_app_mgr = os.environ.get("APP_MGR_API_KEY", "").strip()
         if env_app_mgr:
             return env_app_mgr
-        env_ums = os.environ.get("UMS_API_KEY", "").strip()
-        if env_ums:
-            return env_ums
         return ""
 
     def _get_headers(self) -> Dict[str, str]:
@@ -222,6 +217,9 @@ class AppUpdateClient:
 
     def _request_with_failover(self, method: str, path: str, **kwargs) -> requests.Response:
         """多節點自動 Failover 與重試請求。"""
+        if self.api_key_missing:
+            raise AppUpdatePermanentError("未設定 API KEY，無法進行更新請求")
+
         urls = self._ordered_base_urls()
         last_exception = None
 
@@ -400,6 +398,9 @@ class AppUpdateClient:
 
         progress_callback 簽名: (downloaded_bytes, total_bytes, speed_bytes_sec, speed_text)
         """
+        if self.api_key_missing:
+            raise AppUpdatePermanentError("未設定 API KEY，無法進行更新下載")
+
         # 1. 磁碟剩餘空間檢查 (Delta 僅需 20MB，全量需 2.5 倍約 650MB)
         dest_dir = os.path.dirname(os.path.abspath(dest_path))
         os.makedirs(dest_dir, exist_ok=True)

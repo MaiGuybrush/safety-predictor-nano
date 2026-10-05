@@ -51,13 +51,13 @@
 > **步驟一：產生業務模組外置包（`argus.zip`）與 Delta 增量包**
 > ```bash
 > # 在專案根目錄（開發機或樹莓派）執行
+> mdbook build docs/user-manual    # 首次或手冊異動時
 > python scripts/build_delta_package.py
 > # 產出：dist/argus_delta-v{VERSION}-arm64.tar.gz 及 .sha256
 > ```
 >
 > **步驟二：使用 Spec 封裝完整安裝包（需在樹莓派 ARM64 本機執行）**
 > ```bash
-> mdbook build docs/user-manual    # 首次或手冊異動時
 > pyinstaller argus_predictor.spec # 業務模組將外置為 _internal/argus.zip
 > # 產出：dist/argus_predictor/ 完整目錄
 > ```

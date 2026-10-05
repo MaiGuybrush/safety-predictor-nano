@@ -87,8 +87,8 @@ class UpdateManager:
         self.downloaded_archive_path: Optional[str] = None
 
         # 注入或初始化 client
+        self._api_key_missing: bool = False
         self.client = client
-        self.api_key_missing: bool = False
         if self.client is None and self.config:
             self.client = AppUpdateClient(
                 app_id=self.config.get("app_id", DEFAULT_APP_ID),
@@ -96,15 +96,13 @@ class UpdateManager:
                 base_url_path=self.config.get("base_url_path", DEFAULT_BASE_URL),
                 channel=self.config.get("channel", "stable"),
                 api_key=self.config.get("api_key"),
-                ums_api_key=self.config.get("ums_api_key"),
                 fab=self.config.get("ums_fab"),
                 timeout=self.config.get("timeout_seconds", 30),
                 max_retries=self.config.get("max_retries", 3),
                 chunk_size=self.config.get("download_chunk_size", 1048576),
             )
-            self.api_key_missing = getattr(self.client, "api_key_missing", False)
-            if self.api_key_missing:
-                logger.warning("[UpdateManager] 未設定 API KEY 無法進行自動更新")
+        if self.api_key_missing:
+            logger.warning("[UpdateManager] 未設定 API KEY 無法進行自動更新")
 
         # Delta 增量更新引擎
         self.base_dir = os.path.abspath(self.config.get("base_dir", "."))
@@ -126,6 +124,21 @@ class UpdateManager:
         self._poll_thread: Optional[threading.Thread] = None
         self._stop_polling = threading.Event()
 
+    @property
+    def api_key_missing(self) -> bool:
+        if self.client is not None:
+            return getattr(self.client, "api_key_missing", False) is True
+        return getattr(self, "_api_key_missing", False) is True
+
+    @api_key_missing.setter
+    def api_key_missing(self, val: bool):
+        self._api_key_missing = (val is True)
+        if self.client is not None and hasattr(self.client, "api_key_missing"):
+            try:
+                self.client.api_key_missing = (val is True)
+            except Exception:
+                pass
+
     def configure(
         self,
         config: Dict[str, Any],
@@ -140,7 +153,6 @@ class UpdateManager:
             self.mode = "notify" if self.config.get("mode", 2) == 2 else "unattended"
 
             client_api_key = self.config.get("api_key")
-            resolved_ums_api_key = ums_api_key or self.config.get("ums_api_key")
             resolved_fab = ums_fab or self.config.get("ums_fab")
             self.client = AppUpdateClient(
                 app_id=self.config.get("app_id", DEFAULT_APP_ID),
@@ -148,17 +160,15 @@ class UpdateManager:
                 base_url_path=self.config.get("base_url_path", DEFAULT_BASE_URL),
                 channel=self.config.get("channel", "stable"),
                 api_key=client_api_key,
-                ums_api_key=resolved_ums_api_key,
                 fab=resolved_fab,
                 timeout=self.config.get("timeout_seconds", 30),
                 max_retries=self.config.get("max_retries", 3),
                 chunk_size=self.config.get("download_chunk_size", 1048576),
             )
-            self.api_key_missing = getattr(self.client, "api_key_missing", False)
             if self.api_key_missing:
                 logger.warning("[UpdateManager] 未設定 API KEY 無法進行自動更新")
 
-        if self.auto_update_enabled:
+        if self.auto_update_enabled and not self.api_key_missing:
             self.start_polling(interval=self.config.get("check_interval_seconds", 3600))
             if self.config.get("check_on_startup", True):
                 logger.info("[UpdateManager] 開機啟動，觸發 check_on_startup 版本檢查")
@@ -170,6 +180,10 @@ class UpdateManager:
 
     def start_polling(self, interval: int = 3600):
         """啟動背景定時輪詢執行緒。"""
+        if getattr(self, "api_key_missing", False):
+            logger.info("[UpdateManager] 未設定 API KEY，跳過背景版本輪詢")
+            return
+
         interval = max(300, int(interval))
         with self._lock:
             if self._poll_thread and self._poll_thread.is_alive():
@@ -179,7 +193,7 @@ class UpdateManager:
             def _poll_worker():
                 logger.info(f"[UpdateManager] 背景版本輪詢已啟動 (週期: {interval} 秒)")
                 while not self._stop_polling.wait(timeout=interval):
-                    if not self.auto_update_enabled:
+                    if not self.auto_update_enabled or getattr(self, "api_key_missing", False):
                         break
                     if self.state in (UpdateState.IDLE, UpdateState.AVAILABLE, UpdateState.FAILED):
                         try:
@@ -341,6 +355,12 @@ class UpdateManager:
 
     def check_for_updates(self) -> Dict[str, Any]:
         """手動或定時觸發版本檢查。一律透過 AppUpdateClient 查詢最新版本。"""
+        if getattr(self, "api_key_missing", False):
+            return {
+                "status": "error",
+                "message": "未設定 API KEY，無法進行更新檢查，請至設定頁配置 auto_update.api_key",
+            }
+
         with self._lock:
             if self.state in (UpdateState.DOWNLOADING, UpdateState.STAGING, UpdateState.RESTARTING):
                 return {"status": "busy", "message": f"目前更新狀態為 {self.state}，請稍候", "data": self.get_status()}

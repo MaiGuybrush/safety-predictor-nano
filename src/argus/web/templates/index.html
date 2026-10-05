@@ -1553,6 +1553,11 @@
                 <button class="up-close-btn" onclick="closeUpdateModal()" title="關閉 (ESC)">✕</button>
             </div>
             <div id="update-modal-content">
+                <!-- API Key Missing Warning Tag (Issue #87) -->
+                <div id="up-key-missing-badge" style="display: {{ 'flex' if update_status and update_status.get('api_key_missing') else 'none' }}; padding: 0.6rem 0.8rem; margin-bottom: 0.6rem; background: rgba(255, 170, 0, 0.12); border: 1px solid var(--warn); color: var(--warn); font-size: 0.8rem; font-weight: bold; border-radius: 4px; align-items: center; gap: 0.5rem;">
+                    <span>⚠️ 未配置 API KEY，自動更新已暫停</span>
+                </div>
+
                 <!-- Version Info Cards -->
                 <div class="update-grid">
                     <div class="update-card">
@@ -4512,9 +4517,21 @@
             const checkBtn = document.getElementById('up-check-btn');
             const downBtn = document.getElementById('up-download-btn');
             const restartBtn = document.getElementById('up-restart-btn');
+            const keyMissingBadge = document.getElementById('up-key-missing-badge');
+
+            const isKeyMissing = !!data.api_key_missing;
+            if (keyMissingBadge) {
+                keyMissingBadge.style.display = isKeyMissing ? 'flex' : 'none';
+            }
 
             if (checkBtn) {
-                checkBtn.disabled = (data.state === 'CHECKING' || data.state === 'DOWNLOADING' || data.state === 'RESTARTING');
+                if (isKeyMissing) {
+                    checkBtn.disabled = true;
+                    checkBtn.title = '未配置 API KEY，無法進行更新檢查';
+                } else {
+                    checkBtn.disabled = (data.state === 'CHECKING' || data.state === 'DOWNLOADING' || data.state === 'RESTARTING');
+                    checkBtn.title = '';
+                }
             }
             if (downBtn) {
                 downBtn.disabled = !(data.state === 'AVAILABLE' || data.state === 'FAILED');
@@ -4557,6 +4574,10 @@
         }
 
         function triggerCheckUpdate() {
+            if (latestUpdateState && latestUpdateState.api_key_missing) {
+                alert('未設定 API KEY，無法進行更新檢查，請至設定頁配置 auto_update.api_key');
+                return;
+            }
             const checkBtn = document.getElementById('up-check-btn');
             const statusBarMsg = document.getElementById('up-status-message');
             if (checkBtn) checkBtn.disabled = true;
@@ -4572,6 +4593,7 @@
                 if (data.status === 'ok') {
                     renderUpdateStatus(data.data);
                 } else {
+                    if (statusBarMsg) statusBarMsg.textContent = data.message || '檢查更新失敗';
                     alert(data.message || '檢查更新失敗');
                 }
             })

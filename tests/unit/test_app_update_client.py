@@ -86,6 +86,7 @@ def test_app_update_client_check_latest_candidate():
         app_id="safety-predictor-nano",
         base_urls=["http://gateway.oa/AppManagementApi"],
         channel="stable",
+        api_key="test-key",
         session=mock_session,
     )
 
@@ -121,7 +122,7 @@ def test_app_update_client_download_info_prefers_delta():
     }
     mock_session.request.return_value = mock_resp
 
-    client = AppUpdateClient(session=mock_session)
+    client = AppUpdateClient(api_key="test-key", session=mock_session)
     info = client.get_download_info("1.2.0")
     assert info.owner == "cminl"
     assert info.version == "1.2.0"
@@ -147,7 +148,7 @@ def test_app_update_client_download_info_fallback_to_full():
     }
     mock_session.request.return_value = mock_resp
 
-    client = AppUpdateClient(session=mock_session)
+    client = AppUpdateClient(api_key="test-key", session=mock_session)
     info = client.get_download_info("1.2.0")
     assert info.is_delta is False
     assert info.size == 52428800
@@ -156,7 +157,7 @@ def test_app_update_client_download_info_fallback_to_full():
 
 def test_app_update_client_disk_space_check(tmp_path):
     mock_session = MagicMock(spec=requests.Session)
-    client = AppUpdateClient(session=mock_session)
+    client = AppUpdateClient(api_key="test-key", session=mock_session)
 
     # 模擬 50MB 剩餘空間
     usage_mock = MagicMock()
@@ -197,35 +198,66 @@ def test_app_update_client_disk_space_check(tmp_path):
         assert res == dest
 
 
-def test_app_update_client_api_key_fallback_chain(monkeypatch):
-    # Tier 1: explicit api_key
-    c1 = AppUpdateClient(api_key="key1", ums_api_key="key2")
-    assert c1.api_key == "key1"
+def test_app_update_client_api_key_strict_isolation(monkeypatch, caplog):
+    import logging
+    # 1. explicit api_key
+    c1 = AppUpdateClient(api_key="mgr_key_1", ums_api_key="ums_key_2")
+    assert c1.api_key == "mgr_key_1"
     assert c1.api_key_missing is False
 
-    # Tier 2: ums_api_key
-    c2 = AppUpdateClient(api_key="", ums_api_key="key2")
-    assert c2.api_key == "key2"
-    assert c2.api_key_missing is False
+    # 2. ums_api_key 必須徹底被忽略，不得作為退避
+    monkeypatch.delenv("APP_MGR_API_KEY", raising=False)
+    monkeypatch.delenv("UMS_API_KEY", raising=False)
+    with caplog.at_level(logging.WARNING):
+        c2 = AppUpdateClient(api_key="", ums_api_key="ums_key_2")
+        assert c2.api_key == ""
+        assert c2.api_key_missing is True
+        assert "[AppUpdateClient] 未設定 API KEY 無法進行自動更新" in caplog.text
 
-    # Tier 3: APP_MGR_API_KEY
+    # 3. APP_MGR_API_KEY 環境變數支援
     monkeypatch.setenv("APP_MGR_API_KEY", "env_app_mgr")
     c3 = AppUpdateClient(api_key="", ums_api_key="")
     assert c3.api_key == "env_app_mgr"
     assert c3.api_key_missing is False
 
-    # Tier 4: UMS_API_KEY
+    # 4. UMS_API_KEY 環境變數必須徹底被忽略，不得作為退避
     monkeypatch.delenv("APP_MGR_API_KEY", raising=False)
     monkeypatch.setenv("UMS_API_KEY", "env_ums")
     c4 = AppUpdateClient(api_key="", ums_api_key="")
-    assert c4.api_key == "env_ums"
-    assert c4.api_key_missing is False
+    assert c4.api_key == ""
+    assert c4.api_key_missing is True
 
-    # None: Missing API Key
+
+def test_app_update_client_intercepts_requests_when_key_missing(monkeypatch):
+    monkeypatch.delenv("APP_MGR_API_KEY", raising=False)
     monkeypatch.delenv("UMS_API_KEY", raising=False)
-    c5 = AppUpdateClient(api_key="", ums_api_key="")
-    assert c5.api_key == ""
-    assert c5.api_key_missing is True
+    mock_session = MagicMock(spec=requests.Session)
+    client = AppUpdateClient(api_key="", session=mock_session)
+    assert client.api_key_missing is True
+
+    # 發起請求前應直接拋出 AppUpdatePermanentError，不發出任何 HTTP 請求
+    with pytest.raises(AppUpdatePermanentError, match="未設定 API KEY"):
+        client.get_version_list()
+    assert mock_session.request.call_count == 0
+
+    with pytest.raises(AppUpdatePermanentError, match="未設定 API KEY"):
+        client.check_latest_candidate("1.0.0")
+    assert mock_session.request.call_count == 0
+
+    with pytest.raises(AppUpdatePermanentError, match="未設定 API KEY"):
+        client.get_download_info("1.1.0")
+    assert mock_session.request.call_count == 0
+
+    dummy_info = DownloadInfo(
+        app_id="safety-predictor-nano",
+        version="1.1.0",
+        owner="cminl",
+        file_path="pkg.tar.gz",
+        size=1000,
+    )
+    with pytest.raises(AppUpdatePermanentError, match="未設定 API KEY"):
+        client.download_package(dummy_info, "dest/path.tar.gz")
+    assert mock_session.get.call_count == 0
 
 
 def test_app_update_client_release_fab_filtering():
@@ -258,13 +290,13 @@ def test_app_update_client_release_fab_filtering():
     mock_session.request.return_value = mock_resp
 
     # Client fab 為 fab1，應挑選 1.2.0 (1.3.0 為 fab2 應過濾)
-    client_fab1 = AppUpdateClient(fab="fab1", session=mock_session)
+    client_fab1 = AppUpdateClient(api_key="test-key", fab="fab1", session=mock_session)
     candidate = client_fab1.check_latest_candidate("1.0.0")
     assert candidate is not None
     assert candidate.version == "1.2.0"
 
     # Client fab 為 other，應挑選 1.1.0 (releaseFab="ALL")
-    client_other = AppUpdateClient(fab="fab_other", session=mock_session)
+    client_other = AppUpdateClient(api_key="test-key", fab="fab_other", session=mock_session)
     cand_other = client_other.check_latest_candidate("1.0.0")
     assert cand_other is not None
     assert cand_other.version == "1.1.0"
