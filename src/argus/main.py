@@ -403,6 +403,14 @@ def initialize_runtime(config_mgr):
     GLOBAL_STATE_POLLER.update_config(config_mgr.get_external_states())
     GLOBAL_STATE_POLLER.start()
 
+    # 套用自動更新設定並啟動開機檢查與定時輪詢
+    auto_update_cfg = config_mgr.get_auto_update_config()
+    web_ui.GLOBAL_UPDATE_MANAGER.configure(
+        auto_update_cfg,
+        ums_api_key=config.get("ums_api_key"),
+        ums_fab=config.get("ums_fab"),
+    )
+
     return {
         "config": config,
         "logger": logger,
@@ -578,6 +586,11 @@ def main():
                 if compliance_engine:
                     compliance_engine.set_mapping(config_mgr.get_ppe_class_mapping())
                 GLOBAL_STATE_POLLER.update_config(config_mgr.get_external_states())
+                web_ui.GLOBAL_UPDATE_MANAGER.configure(
+                    config_mgr.get_auto_update_config(),
+                    ums_api_key=new_config.get("ums_api_key"),
+                    ums_fab=new_config.get("ums_fab"),
+                )
 
                 context["stream_units"] = stream_units
                 context["config"] = config

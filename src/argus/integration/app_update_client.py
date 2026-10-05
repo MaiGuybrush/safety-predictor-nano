@@ -169,6 +169,8 @@ class AppUpdateClient:
         base_url_path: str = DEFAULT_BASE_URL,
         channel: str = "stable",
         api_key: Optional[str] = None,
+        ums_api_key: Optional[str] = None,
+        fab: Optional[str] = None,
         timeout: int = DEFAULT_TIMEOUT,
         max_retries: int = DEFAULT_MAX_RETRIES,
         chunk_size: int = DEFAULT_CHUNK_SIZE,
@@ -177,23 +179,35 @@ class AppUpdateClient:
         self.app_id = app_id.strip() if app_id else DEFAULT_APP_ID
         self.base_urls = resolve_app_management_base_urls(base_urls=base_urls, base_url_path=base_url_path)
         self.channel = channel.strip().lower() if channel else "stable"
-        self.api_key = self._resolve_api_key(api_key)
+        self.fab = fab.strip().lower() if fab else ""
+        self.api_key = self._resolve_api_key(api_key, ums_api_key)
+        self.api_key_missing: bool = not bool(self.api_key)
+        if self.api_key_missing:
+            logger.warning("[AppUpdateClient] 未設定 API KEY 無法進行自動更新")
         self.timeout = timeout
         self.max_retries = max_retries
         self.chunk_size = chunk_size
         self.session = session or requests.Session()
         self.active_index = 0
 
-    def _resolve_api_key(self, explicit_key: Optional[str]) -> str:
+    def _resolve_api_key(self, explicit_key: Optional[str], ums_api_key: Optional[str] = None) -> str:
         """4 級 API Key 退避鏈：
-        1. 明確傳入的 api_key
-        2. 環境變數 APP_MGR_API_KEY
-        3. 環境變數 UMS_API_KEY
-        4. 空字串
+        1. auto_update.api_key (explicit_key)
+        2. ums_api_key
+        3. 環境變數 APP_MGR_API_KEY
+        4. 環境變數 UMS_API_KEY
         """
         if explicit_key and str(explicit_key).strip():
             return str(explicit_key).strip()
-        return os.environ.get("APP_MGR_API_KEY") or os.environ.get("UMS_API_KEY") or ""
+        if ums_api_key and str(ums_api_key).strip():
+            return str(ums_api_key).strip()
+        env_app_mgr = os.environ.get("APP_MGR_API_KEY", "").strip()
+        if env_app_mgr:
+            return env_app_mgr
+        env_ums = os.environ.get("UMS_API_KEY", "").strip()
+        if env_ums:
+            return env_ums
+        return ""
 
     def _get_headers(self) -> Dict[str, str]:
         headers = {"Accept": "application/json"}
@@ -301,6 +315,12 @@ class AppUpdateClient:
         for v in versions:
             if not v.released or not v.auto_update or v.locked:
                 continue
+            # 廠區發布規則篩選 (release_fab)
+            if v.release_fab:
+                rf = v.release_fab.strip().lower()
+                if rf not in ("all", "*", ""):
+                    if self.fab and rf != self.fab:
+                        continue
             if is_newer_version(v.version, current_version, allow_prerelease=allow_prerelease):
                 candidates.append(v)
 

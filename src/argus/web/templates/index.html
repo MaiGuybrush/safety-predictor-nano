@@ -4565,7 +4565,7 @@
             fetch('/api/update/check', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mock_available: true })
+                body: JSON.stringify({})
             })
             .then(res => res.json())
             .then(data => {

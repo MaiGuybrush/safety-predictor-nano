@@ -811,7 +811,7 @@ def get_update_status():
 def trigger_update_check():
     """手動觸發版本檢查。"""
     data = request.get_json(silent=True) or {}
-    mock_avail = data.get("mock_available", True)
+    mock_avail = data.get("mock_available", None)
     res = GLOBAL_UPDATE_MANAGER.check_for_updates(mock_available=mock_avail)
     return jsonify(res)
 

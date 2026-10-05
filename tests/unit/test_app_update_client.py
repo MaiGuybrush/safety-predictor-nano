@@ -196,3 +196,77 @@ def test_app_update_client_disk_space_check(tmp_path):
         res = client.download_package(delta_info, dest)
         assert res == dest
 
+
+def test_app_update_client_api_key_fallback_chain(monkeypatch):
+    # Tier 1: explicit api_key
+    c1 = AppUpdateClient(api_key="key1", ums_api_key="key2")
+    assert c1.api_key == "key1"
+    assert c1.api_key_missing is False
+
+    # Tier 2: ums_api_key
+    c2 = AppUpdateClient(api_key="", ums_api_key="key2")
+    assert c2.api_key == "key2"
+    assert c2.api_key_missing is False
+
+    # Tier 3: APP_MGR_API_KEY
+    monkeypatch.setenv("APP_MGR_API_KEY", "env_app_mgr")
+    c3 = AppUpdateClient(api_key="", ums_api_key="")
+    assert c3.api_key == "env_app_mgr"
+    assert c3.api_key_missing is False
+
+    # Tier 4: UMS_API_KEY
+    monkeypatch.delenv("APP_MGR_API_KEY", raising=False)
+    monkeypatch.setenv("UMS_API_KEY", "env_ums")
+    c4 = AppUpdateClient(api_key="", ums_api_key="")
+    assert c4.api_key == "env_ums"
+    assert c4.api_key_missing is False
+
+    # None: Missing API Key
+    monkeypatch.delenv("UMS_API_KEY", raising=False)
+    c5 = AppUpdateClient(api_key="", ums_api_key="")
+    assert c5.api_key == ""
+    assert c5.api_key_missing is True
+
+
+def test_app_update_client_release_fab_filtering():
+    mock_session = MagicMock(spec=requests.Session)
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = [
+        {
+            "version": "1.3.0",
+            "released": True,
+            "autoUpdate": True,
+            "locked": False,
+            "releaseFab": "Fab2",
+        },
+        {
+            "version": "1.2.0",
+            "released": True,
+            "autoUpdate": True,
+            "locked": False,
+            "releaseFab": "Fab1",
+        },
+        {
+            "version": "1.1.0",
+            "released": True,
+            "autoUpdate": True,
+            "locked": False,
+            "releaseFab": "ALL",
+        },
+    ]
+    mock_session.request.return_value = mock_resp
+
+    # Client fab 為 fab1，應挑選 1.2.0 (1.3.0 為 fab2 應過濾)
+    client_fab1 = AppUpdateClient(fab="fab1", session=mock_session)
+    candidate = client_fab1.check_latest_candidate("1.0.0")
+    assert candidate is not None
+    assert candidate.version == "1.2.0"
+
+    # Client fab 為 other，應挑選 1.1.0 (releaseFab="ALL")
+    client_other = AppUpdateClient(fab="fab_other", session=mock_session)
+    cand_other = client_other.check_latest_candidate("1.0.0")
+    assert cand_other is not None
+    assert cand_other.version == "1.1.0"
+
+

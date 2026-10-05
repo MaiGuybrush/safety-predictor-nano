@@ -131,3 +131,88 @@ def test_update_manager_commit_update(tmp_path):
     assert mgr.current_version == "1.1.0"
     assert not progress_file.exists()
 
+
+def test_update_manager_configure_and_check_on_startup():
+    from unittest.mock import MagicMock, patch
+    mgr = UpdateManager(current_version="1.0.0")
+
+    mock_candidate = MagicMock()
+    mock_candidate.version = "1.2.0"
+    mock_candidate.released = True
+    mock_candidate.auto_update = True
+    mock_candidate.locked = False
+    mock_candidate.release_date = "2026-09-22"
+    mock_candidate.release_notes = "新功能"
+
+    mock_dl_info = MagicMock()
+    mock_dl_info.is_delta = True
+    mock_dl_info.size = 2000000
+
+    with patch("argus.updates.update_manager.AppUpdateClient") as MockClientCls:
+        mock_instance = MockClientCls.return_value
+        mock_instance.api_key = "ums_key_123"
+        mock_instance.api_key_missing = False
+        mock_instance.check_latest_candidate.return_value = mock_candidate
+        mock_instance.get_download_info.return_value = mock_dl_info
+
+        cfg = {
+            "enabled": True,
+            "app_id": "test-app",
+            "check_interval_seconds": 3600,
+            "check_on_startup": True,
+            "staging_dir": "custom/staging",
+        }
+        mgr.configure(cfg, ums_api_key="ums_key_123")
+        assert mgr.auto_update_enabled is True
+        assert mgr.staging_dir == "custom/staging"
+        assert mgr.client is not None
+        assert mgr.api_key_missing is False
+
+        # 等待背景 check_on_startup 完成
+        time.sleep(0.5)
+        status = mgr.get_status()
+        assert status["state"] in (UpdateState.CHECKING, UpdateState.AVAILABLE)
+        assert status["target_version"] == "1.2.0"
+        mgr.stop_polling()
+
+
+def test_update_manager_polling_start_and_stop():
+    mgr = UpdateManager(current_version="1.0.0")
+    assert mgr._poll_thread is None
+
+    mgr.start_polling(interval=300)
+    assert mgr._poll_thread is not None
+    assert mgr._poll_thread.is_alive()
+
+    mgr.stop_polling()
+    assert mgr._stop_polling.is_set()
+
+
+def test_config_manager_auto_update_schema(tmp_path):
+    from argus.core.config_manager import ConfigManager
+    import yaml
+
+    cfg_data = {
+        "ums_api_key": "root_ums_key",
+        "ums_fab": "T1",
+        "auto_update": {
+            "enabled": True,
+            "temp_dir": "temp/updates",
+            "check_on_startup": True,
+            "check_interval_seconds": 600,
+        }
+    }
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text(yaml.dump(cfg_data), encoding="utf-8")
+
+    mgr = ConfigManager(str(cfg_file))
+    auto_cfg = mgr.get_auto_update_config()
+
+    assert auto_cfg["enabled"] is True
+    assert auto_cfg["staging_dir"] == "temp/updates"
+    assert auto_cfg["check_on_startup"] is True
+    assert auto_cfg["check_interval_seconds"] == 600
+    assert auto_cfg["ums_api_key"] == "root_ums_key"
+    assert auto_cfg["ums_fab"] == "t1"
+
+

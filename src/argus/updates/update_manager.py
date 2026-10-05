@@ -88,6 +88,7 @@ class UpdateManager:
 
         # 注入或初始化 client
         self.client = client
+        self.api_key_missing: bool = False
         if self.client is None and self.config:
             self.client = AppUpdateClient(
                 app_id=self.config.get("app_id", DEFAULT_APP_ID),
@@ -95,10 +96,15 @@ class UpdateManager:
                 base_url_path=self.config.get("base_url_path", DEFAULT_BASE_URL),
                 channel=self.config.get("channel", "stable"),
                 api_key=self.config.get("api_key"),
+                ums_api_key=self.config.get("ums_api_key"),
+                fab=self.config.get("ums_fab"),
                 timeout=self.config.get("timeout_seconds", 30),
                 max_retries=self.config.get("max_retries", 3),
                 chunk_size=self.config.get("download_chunk_size", 1048576),
             )
+            self.api_key_missing = getattr(self.client, "api_key_missing", False)
+            if self.api_key_missing:
+                logger.warning("[UpdateManager] 未設定 API KEY 無法進行自動更新")
 
         # Delta 增量更新引擎
         self.base_dir = os.path.abspath(self.config.get("base_dir", "."))
@@ -119,6 +125,78 @@ class UpdateManager:
         self._task_thread: Optional[threading.Thread] = None
         self._poll_thread: Optional[threading.Thread] = None
         self._stop_polling = threading.Event()
+
+    def configure(
+        self,
+        config: Dict[str, Any],
+        ums_api_key: Optional[str] = None,
+        ums_fab: Optional[str] = None,
+    ):
+        """由主程序配置或熱重載更新管理員設定，並管理背景輪詢與開機檢查。"""
+        with self._lock:
+            self.config = config or {}
+            self.staging_dir = self.config.get("staging_dir", "updates/staging")
+            self.auto_update_enabled = bool(self.config.get("enabled", True))
+            self.mode = "notify" if self.config.get("mode", 2) == 2 else "unattended"
+
+            client_api_key = self.config.get("api_key")
+            resolved_ums_api_key = ums_api_key or self.config.get("ums_api_key")
+            resolved_fab = ums_fab or self.config.get("ums_fab")
+            self.client = AppUpdateClient(
+                app_id=self.config.get("app_id", DEFAULT_APP_ID),
+                base_urls=self.config.get("base_urls"),
+                base_url_path=self.config.get("base_url_path", DEFAULT_BASE_URL),
+                channel=self.config.get("channel", "stable"),
+                api_key=client_api_key,
+                ums_api_key=resolved_ums_api_key,
+                fab=resolved_fab,
+                timeout=self.config.get("timeout_seconds", 30),
+                max_retries=self.config.get("max_retries", 3),
+                chunk_size=self.config.get("download_chunk_size", 1048576),
+            )
+            self.api_key_missing = getattr(self.client, "api_key_missing", False)
+            if self.api_key_missing:
+                logger.warning("[UpdateManager] 未設定 API KEY 無法進行自動更新")
+
+        if self.auto_update_enabled:
+            self.start_polling(interval=self.config.get("check_interval_seconds", 3600))
+            if self.config.get("check_on_startup", True):
+                logger.info("[UpdateManager] 開機啟動，觸發 check_on_startup 版本檢查")
+                self.check_for_updates()
+        else:
+            self.stop_polling()
+
+        self._notify_subscribers()
+
+    def start_polling(self, interval: int = 3600):
+        """啟動背景定時輪詢執行緒。"""
+        interval = max(300, int(interval))
+        with self._lock:
+            if self._poll_thread and self._poll_thread.is_alive():
+                return
+            self._stop_polling.clear()
+
+            def _poll_worker():
+                logger.info(f"[UpdateManager] 背景版本輪詢已啟動 (週期: {interval} 秒)")
+                while not self._stop_polling.wait(timeout=interval):
+                    if not self.auto_update_enabled:
+                        break
+                    if self.state in (UpdateState.IDLE, UpdateState.AVAILABLE, UpdateState.FAILED):
+                        try:
+                            logger.debug("[UpdateManager] 定時觸發版本檢查...")
+                            self.check_for_updates()
+                        except Exception as ex:
+                            logger.warning(f"[UpdateManager] 背景定時輪詢檢查異常: {ex}")
+                logger.info("[UpdateManager] 背景版本輪詢已停止")
+
+            self._poll_thread = threading.Thread(target=_poll_worker, daemon=True, name="UpdateManagerPoller")
+            self._poll_thread.start()
+
+    def stop_polling(self):
+        """停止背景定時輪詢執行緒。"""
+        self._stop_polling.set()
+        with self._lock:
+            self._poll_thread = None
 
     def _check_update_in_progress(self):
         """檢查系統啟動時是否存在 .update_in_progress 標記檔。"""
@@ -188,6 +266,7 @@ class UpdateManager:
                 "rollback_occurred": self.rollback_occurred,
                 "restart_countdown": self.restart_countdown,
                 "auto_update_enabled": self.auto_update_enabled,
+                "api_key_missing": getattr(self, "api_key_missing", False),
                 "timestamp": time.time(),
             }
 
@@ -276,8 +355,8 @@ class UpdateManager:
                 candidate = None
                 if mock_available is False:
                     candidate = None
-                elif mock_available is True or self.client is None:
-                    # 模擬展示 (預設提供 Delta 增量補丁)
+                elif mock_available is True:
+                    # 明確指定 mock 模擬展示 (預設提供 Delta 增量補丁)
                     time.sleep(0.8)
                     candidate = VersionInfoDTO(
                         version="1.1.0",
@@ -297,9 +376,14 @@ class UpdateManager:
                     with self._lock:
                         self.is_delta = True
                         self.total_bytes = 2516582  # 約 2.4 MB
-                else:
+                elif self.client is not None:
                     # 呼叫真實 Client
-                    candidate = self.client.check_latest_candidate(self.current_version)
+                    try:
+                        candidate = self.client.check_latest_candidate(self.current_version)
+                    except Exception as client_err:
+                        logger.warning(f"[UpdateManager] Client 查詢新版本異常: {client_err}")
+                        raise client_err
+
                     if candidate:
                         try:
                             dl_info = self.client.get_download_info(candidate.version)
@@ -312,6 +396,27 @@ class UpdateManager:
                             with self._lock:
                                 self.is_delta = False
                                 self.total_bytes = 104857600
+                else:
+                    # 未設定 client 且未指定 mock，自動 fallback 模擬展示
+                    time.sleep(0.8)
+                    candidate = VersionInfoDTO(
+                        version="1.1.0",
+                        released=True,
+                        auto_update=True,
+                        locked=False,
+                        release_date="2026-09-21 12:00:00",
+                        release_notes=(
+                            "◈ 系統安全性與效能維護更新 (v1.1.0)\n\n"
+                            "- [新增] 輕量增量更新 (Delta Patch)，封包僅需 2.4 MB (節省 99% 頻寬)\n"
+                            "- [優化] 支援 App Management API 原子升級與多節點 Failover\n"
+                            "- [新增] Web UI 實時下載進度條與 SSE 廣播狀態機\n"
+                            "- [新增] 30 秒健康狀態判定與自動回滾機制 (ADR-019)\n"
+                            "- [修復] 邊緣端 ARM64 頻寬節流與記憶體配置問題"
+                        ),
+                    )
+                    with self._lock:
+                        self.is_delta = True
+                        self.total_bytes = 2516582
 
                 with self._lock:
                     if candidate:

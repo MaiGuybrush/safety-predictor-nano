@@ -56,6 +56,14 @@ def resource_teardown_guard():
     except (ImportError, Exception):
         pass
 
+    # 4. 停止全域 UpdateManager 背景輪詢 (若有被啟動)
+    try:
+        from argus.updates.update_manager import GLOBAL_UPDATE_MANAGER
+        if GLOBAL_UPDATE_MANAGER:
+            GLOBAL_UPDATE_MANAGER.stop_polling()
+    except (ImportError, Exception):
+        pass
+
     # 4. 清理測試殘留的更新標記檔
     for dot_file in [".update_in_progress", ".rollback_alert"]:
         p = os.path.join(ROOT_DIR, dot_file)

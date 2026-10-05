@@ -479,6 +479,10 @@ class ConfigManager:
         elif not isinstance(base_urls, list):
             base_urls = []
 
+        staging_dir = str(raw.get("staging_dir") or raw.get("temp_dir") or raw.get("target_dir") or "updates/staging").strip()
+        ums_api_key = str(self.config.get("ums_api_key", "")).strip()
+        ums_fab = str(self.config.get("ums_fab", "")).strip()
+
         return {
             "enabled": bool(raw.get("enabled", True)),
             "app_id": str(raw.get("app_id", "safety-predictor-nano")).strip() or "safety-predictor-nano",
@@ -489,10 +493,12 @@ class ConfigManager:
             "check_on_startup": bool(raw.get("check_on_startup", True)),
             "mode": mode,
             "api_key": str(raw.get("api_key", "")).strip(),
+            "ums_api_key": ums_api_key,
+            "ums_fab": ums_fab,
             "timeout_seconds": timeout,
             "max_retries": retries,
             "download_chunk_size": chunk_size,
-            "staging_dir": str(raw.get("staging_dir", "updates/staging")).strip(),
+            "staging_dir": staging_dir,
             "backup_dir": str(raw.get("backup_dir", "argus_predictor_bak")).strip(),
             "healthcheck_timeout_seconds": max(10, int(raw.get("healthcheck_timeout_seconds", 30))),
         }
