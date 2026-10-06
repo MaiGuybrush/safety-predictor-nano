@@ -497,6 +497,8 @@ class ConfigManager:
             "ums_fab": ums_fab,
             "timeout_seconds": timeout,
             "max_retries": retries,
+            "query_timeout_seconds": max(1, int(raw.get("query_timeout_seconds", 5))),
+            "query_max_retries": max(0, int(raw.get("query_max_retries", 1))),
             "download_chunk_size": chunk_size,
             "staging_dir": staging_dir,
             "backup_dir": str(raw.get("backup_dir", "argus_predictor_bak")).strip(),

@@ -302,3 +302,25 @@ def test_app_update_client_release_fab_filtering():
     assert cand_other.version == "1.1.0"
 
 
+def test_app_update_client_fast_fail_timeout_and_retries():
+    """驗證查詢版本列表使用短逾時 (query_timeout) 與最少重試 (query_max_retries)，達成快速失敗。"""
+    mock_session = MagicMock(spec=requests.Session)
+    mock_session.request.side_effect = requests.RequestException("Connection timed out")
+
+    client = AppUpdateClient(
+        api_key="test-key",
+        query_timeout=6,
+        query_max_retries=1,
+        session=mock_session,
+    )
+
+    with pytest.raises(AppUpdateTransientError, match="所有 API 端點皆無法連線"):
+        client.get_version_list()
+
+    # 驗證傳給 session.request 的 timeout 是 query_timeout (6)，且重試次數符合 query_max_retries
+    assert mock_session.request.call_count >= 1
+    call_kwargs = mock_session.request.call_args[1]
+    assert call_kwargs["timeout"] == 6
+
+
+

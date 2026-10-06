@@ -157,8 +157,12 @@ def test_update_manager_trigger_restart_exit_42(tmp_path):
     assert res["status"] == "ok"
     assert mgr.state == UpdateState.RESTARTING
 
-    # 等待背景執行緒觸發 _exit_func(42)
-    time.sleep(1.5)
+    # 等待背景執行緒觸發 _exit_func(42)（最長等待 3 秒）
+    start_wait = time.time()
+    while time.time() - start_wait < 3.0:
+        if exit_mock.called:
+            break
+        time.sleep(0.1)
     exit_mock.assert_called_once_with(42)
 
     # 檢查 .update_in_progress 已寫入
@@ -321,6 +325,62 @@ def test_argus_init_version_txt_priority(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     resolved = argus._resolve_version()
     assert resolved == "2.4.6"
+
+
+def test_update_manager_checksum_mismatch_blocks_ready_to_install(tmp_path):
+    """驗證當 Delta 補丁檔案雜湊不符時，UpdateManager 必須進入 FAILED 狀態，絕不可進入 READY_TO_INSTALL 或觸發重啟。"""
+    import json
+    staging_dir = tmp_path / "updates" / "staging"
+    staging_dir.mkdir(parents=True, exist_ok=True)
+    payload_dir = staging_dir / "payload"
+    payload_dir.mkdir(parents=True, exist_ok=True)
+    internal_dir = tmp_path / "_internal"
+    internal_dir.mkdir(parents=True, exist_ok=True)
+
+    fake_zip = payload_dir / "argus.zip"
+    fake_zip.write_text("corrupted_content", encoding="utf-8")
+
+    manifest_data = {
+        "target_version": "1.2.0",
+        "min_compatible_base": "1.0.0",
+        "package_type": "delta",
+        "files": {
+            "argus.zip": {
+                "sha256": "expected_valid_hash_but_mismatched",
+                "size": 100,
+            }
+        }
+    }
+    manifest_path = staging_dir / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest_data), encoding="utf-8")
+
+    mgr = UpdateManager(
+        current_version="1.0.0",
+        config={
+            "base_dir": str(tmp_path),
+            "staging_dir": str(staging_dir),
+        },
+    )
+    mgr.target_version = "1.2.0"
+    mgr.state = UpdateState.AVAILABLE
+    mgr.is_delta = True
+
+    mgr.start_download()
+
+    start_t = time.time()
+    while time.time() - start_t < 5.0:
+        if mgr.state in (UpdateState.FAILED, UpdateState.READY_TO_INSTALL):
+            break
+        time.sleep(0.1)
+
+    assert mgr.state == UpdateState.FAILED
+    assert mgr.state != UpdateState.READY_TO_INSTALL
+    assert "雜湊不符" in str(mgr.error)
+    assert "更新失敗" in mgr.message
+
+    restart_res = mgr.trigger_restart()
+    assert restart_res["status"] == "error"
+    assert "尚未就緒安裝" in restart_res["message"]
 
 
 

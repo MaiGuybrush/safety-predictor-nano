@@ -101,11 +101,24 @@ def test_api_update_restart(client):
     assert GLOBAL_UPDATE_MANAGER.state in (UpdateState.RESTARTING, UpdateState.HEALTHCHECK, UpdateState.COMMITTED, UpdateState.IDLE)
 
 
+def test_api_update_restart_rejected_when_failed(client):
+    """驗證當更新狀態為 FAILED（例如雜湊不符）時，觸發立即更新重啟必須被拒絕。"""
+    GLOBAL_UPDATE_MANAGER.set_state(UpdateState.FAILED, message="更新失敗: 雜湊不符", error="Checksum mismatch")
+    resp_restart = client.post("/api/update/restart")
+    assert resp_restart.status_code == 400
+    restart_data = resp_restart.get_json()
+    assert restart_data["status"] == "error"
+    assert "尚未就緒" in restart_data["message"] or "校驗失敗" in restart_data["message"]
+
+
 def test_api_update_stream_sse(client):
     GLOBAL_UPDATE_MANAGER.set_state(UpdateState.AVAILABLE, message="SSE Delta 測試", is_delta=True, total=2516582)
     response = client.get("/api/update/stream")
     assert response.status_code == 200
     assert "text/event-stream" in response.headers["Content-Type"]
+    assert response.headers.get("Cache-Control") == "no-cache"
+    assert response.headers.get("Connection") == "keep-alive"
+    assert response.headers.get("X-Accel-Buffering") == "no"
     chunk = next(response.response)
     text = chunk.decode("utf-8") if isinstance(chunk, bytes) else chunk
     assert "data:" in text
@@ -128,6 +141,8 @@ def test_web_ui_index_contains_update_modal(client):
     assert 'id="up-package-type"' in html
     assert 'id="up-package-size"' in html
     assert 'openUpdateModal()' in html
+    assert 'startUpdateCheckPolling()' in html
+    assert 'stopUpdateCheckPolling()' in html
     assert 'id="up-key-missing-badge"' in html
     assert '⚠️ 未配置 API KEY，自動更新已暫停' in html
 
@@ -143,5 +158,23 @@ def test_api_update_check_returns_error_when_api_key_missing(client):
         assert data["message"] == "未設定 API KEY，無法進行更新檢查，請至設定頁配置 auto_update.api_key"
     finally:
         GLOBAL_UPDATE_MANAGER.api_key_missing = prev_missing
+
+
+def test_api_update_polling_status_flow(client):
+    """驗證前端定時輪詢 /api/update/status 流程：後端更新完成或返回結果時，輪詢可即時取得非 CHECKING 之就緒狀態。"""
+    # 模擬設定為 CHECKING
+    GLOBAL_UPDATE_MANAGER.set_state(UpdateState.CHECKING, message="正在向 App Management API 查詢新版本...")
+    status_resp = client.get("/api/update/status")
+    assert status_resp.status_code == 200
+    assert status_resp.get_json()["state"] == UpdateState.CHECKING
+
+    # 模擬後端檢查完成（切換為 IDLE 或 AVAILABLE）
+    GLOBAL_UPDATE_MANAGER.set_state(UpdateState.IDLE, message="目前已是最新版本 (1.0.0)")
+    poll_resp = client.get("/api/update/status")
+    assert poll_resp.status_code == 200
+    poll_data = poll_resp.get_json()
+    assert poll_data["state"] == UpdateState.IDLE
+    assert "最新版本" in poll_data["message"]
+
 
 

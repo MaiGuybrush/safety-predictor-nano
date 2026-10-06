@@ -832,6 +832,12 @@ def trigger_update_download():
 @app.route('/api/update/restart', methods=['POST'])
 def trigger_update_restart():
     """觸發系統重啟與版本目錄原子替換。"""
+    if GLOBAL_UPDATE_MANAGER.state != UpdateState.READY_TO_INSTALL:
+        return jsonify({
+            "status": "error",
+            "message": f"目前狀態 ({GLOBAL_UPDATE_MANAGER.state}) 尚未就緒安裝或校驗失敗，無法執行重啟套用",
+            "data": GLOBAL_UPDATE_MANAGER.get_status()
+        }), 400
     res = GLOBAL_UPDATE_MANAGER.trigger_restart()
     return jsonify(res)
 
@@ -854,7 +860,12 @@ def update_stream():
         finally:
             GLOBAL_UPDATE_MANAGER.unsubscribe(q)
 
-    return Response(event_stream(), mimetype='text/event-stream')
+    headers = {
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+    }
+    return Response(event_stream(), mimetype='text/event-stream', headers=headers)
 
 @app.route('/video_feed')
 def video_feed():

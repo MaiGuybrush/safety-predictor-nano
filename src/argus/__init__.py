@@ -1,7 +1,7 @@
 import os
 import sys
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 def _resolve_version() -> str:
     """探測執行端環境目錄之 version.txt，若存在則優先採用。"""

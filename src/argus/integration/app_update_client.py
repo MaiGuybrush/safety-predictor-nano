@@ -8,6 +8,7 @@
 5. 整合 Gateway 多節點自動容錯切換 (Failover) 與指數退避重試
 """
 
+import hashlib
 import json
 import logging
 import os
@@ -24,11 +25,23 @@ from argus.integration import ums_config
 
 logger = logging.getLogger("app_update_client")
 
+
+def compute_sha256(filepath: str) -> str:
+    """計算指定檔案之 SHA256 雜湊字串（十六進位小寫）。"""
+    hasher = hashlib.sha256()
+    with open(filepath, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest().lower()
+
+
 # 預設常數
 DEFAULT_APP_ID = "safety-predictor-nano"
 DEFAULT_BASE_URL = "AppManagementApi"
 DEFAULT_TIMEOUT = 30
 DEFAULT_MAX_RETRIES = 3
+DEFAULT_QUERY_TIMEOUT = 5
+DEFAULT_QUERY_MAX_RETRIES = 1
 DEFAULT_CHUNK_SIZE = 1024 * 1024  # 1MB
 DEFAULT_GATEWAY_HOSTS = [
     "http://tncimweb1.cminl.oa",
@@ -173,6 +186,8 @@ class AppUpdateClient:
         fab: Optional[str] = None,
         timeout: int = DEFAULT_TIMEOUT,
         max_retries: int = DEFAULT_MAX_RETRIES,
+        query_timeout: int = DEFAULT_QUERY_TIMEOUT,
+        query_max_retries: int = DEFAULT_QUERY_MAX_RETRIES,
         chunk_size: int = DEFAULT_CHUNK_SIZE,
         session: Optional[requests.Session] = None,
     ):
@@ -186,6 +201,8 @@ class AppUpdateClient:
             logger.warning("[AppUpdateClient] 未設定 API KEY 無法進行自動更新")
         self.timeout = timeout
         self.max_retries = max_retries
+        self.query_timeout = query_timeout
+        self.query_max_retries = query_max_retries
         self.chunk_size = chunk_size
         self.session = session or requests.Session()
         self.active_index = 0
@@ -222,20 +239,23 @@ class AppUpdateClient:
 
         urls = self._ordered_base_urls()
         last_exception = None
+        retries_limit = kwargs.pop("max_retries", self.max_retries)
+        timeout_val = kwargs.pop("timeout", self.timeout)
+        custom_headers = kwargs.pop("headers", None)
 
         for base_url in urls:
             full_url = f"{base_url.rstrip('/')}/{path.lstrip('/')}"
             headers = self._get_headers()
-            if "headers" in kwargs:
-                headers.update(kwargs.pop("headers"))
+            if custom_headers:
+                headers.update(custom_headers)
 
-            for attempt in range(1, self.max_retries + 1):
+            for attempt in range(1, retries_limit + 1):
                 try:
                     resp = self.session.request(
                         method=method,
                         url=full_url,
                         headers=headers,
-                        timeout=kwargs.get("timeout", self.timeout),
+                        timeout=timeout_val,
                         **kwargs,
                     )
                     # 401 / 403 / 404 為永久性錯誤，不進行輪替重試
@@ -259,9 +279,9 @@ class AppUpdateClient:
                 except Exception as e:
                     last_exception = e
                     logger.warning(
-                        f"[AppUpdateClient] 請求 {full_url} 失敗 (嘗試 {attempt}/{self.max_retries}): {e}"
+                        f"[AppUpdateClient] 請求 {full_url} 失敗 (嘗試 {attempt}/{retries_limit}): {e}"
                     )
-                    if attempt < self.max_retries:
+                    if attempt < retries_limit:
                         time.sleep(0.5 * (2 ** (attempt - 1)))  # 指數退避
 
         raise AppUpdateTransientError(f"所有 API 端點皆無法連線: {last_exception}")
@@ -270,11 +290,23 @@ class AppUpdateClient:
         """查詢應用程式所有版本清單 (GET /App/{appId}/Version/nocache 或 /Version)。"""
         path = f"App/{self.app_id}/Version/nocache"
         try:
-            resp = self._request_with_failover("GET", path)
+            resp = self._request_with_failover(
+                "GET",
+                path,
+                timeout=self.query_timeout,
+                max_retries=self.query_max_retries,
+            )
+        except AppUpdatePermanentError:
+            raise
         except AppUpdateError:
-            # Fallback to without nocache
+            # Fallback to without nocache (僅當非永久性錯誤時嘗試一次)
             path = f"App/{self.app_id}/Version"
-            resp = self._request_with_failover("GET", path)
+            resp = self._request_with_failover(
+                "GET",
+                path,
+                timeout=self.query_timeout,
+                max_retries=self.query_max_retries,
+            )
 
         data = resp.json()
         if not isinstance(data, list):
@@ -332,7 +364,12 @@ class AppUpdateClient:
     def get_download_info(self, version: str) -> DownloadInfo:
         """取得下載發布檔案元數據 (GET /File/{appId}/DownloadInfo?version={version})。"""
         path = f"File/{self.app_id}/DownloadInfo?version={version}"
-        resp = self._request_with_failover("GET", path)
+        resp = self._request_with_failover(
+            "GET",
+            path,
+            timeout=self.query_timeout,
+            max_retries=self.query_max_retries,
+        )
         data = resp.json()
         if not isinstance(data, dict):
             raise AppUpdatePermanentError(f"DownloadInfo 回應格式錯誤: {data}")
@@ -472,7 +509,18 @@ class AppUpdateClient:
                                         pass
                                     last_callback_time = now
 
-                    # 下載完畢，原子替換
+                    # 下載完畢，校驗 SHA256 雜湊
+                    if info.sha256 and str(info.sha256).strip():
+                        actual_sha = compute_sha256(temp_dest)
+                        expected_sha = str(info.sha256).strip().lower()
+                        if actual_sha != expected_sha:
+                            if os.path.exists(temp_dest):
+                                os.remove(temp_dest)
+                            raise AppUpdatePermanentError(
+                                f"檔案校驗失敗: 下載封包雜湊不符 (預期 {info.sha256}，實際 {actual_sha})"
+                            )
+
+                    # 下載完畢且校驗通過，原子替換
                     if os.path.exists(dest_path):
                         os.remove(dest_path)
                     os.replace(temp_dest, dest_path)

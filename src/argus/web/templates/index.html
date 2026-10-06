@@ -4357,6 +4357,8 @@
         let latestUpdateState = null;
         let restartPollInterval = null;
         let restartCountdownTimer = null;
+        let updateCheckPollInterval = null;
+        let updateCheckTimeoutTimer = null;
 
         function openUpdateModal() {
             const overlay = document.getElementById('update-modal-overlay');
@@ -4533,6 +4535,10 @@
                     checkBtn.title = '';
                 }
             }
+
+            if (data.state !== 'CHECKING') {
+                stopUpdateCheckPolling();
+            }
             if (downBtn) {
                 downBtn.disabled = !(data.state === 'AVAILABLE' || data.state === 'FAILED');
                 if (data.state === 'AVAILABLE') {
@@ -4573,15 +4579,74 @@
             }
         }
 
+        function stopUpdateCheckPolling() {
+            if (updateCheckPollInterval) {
+                clearInterval(updateCheckPollInterval);
+                updateCheckPollInterval = null;
+            }
+            if (updateCheckTimeoutTimer) {
+                clearTimeout(updateCheckTimeoutTimer);
+                updateCheckTimeoutTimer = null;
+            }
+        }
+
+        function startUpdateCheckPolling() {
+            stopUpdateCheckPolling();
+
+            // 每 1.5 秒主動輪詢一次 /api/update/status
+            updateCheckPollInterval = setInterval(() => {
+                fetch('/api/update/status')
+                    .then(res => res.json())
+                    .then(statusData => {
+                        renderUpdateStatus(statusData);
+                        if (statusData && statusData.state !== 'CHECKING') {
+                            stopUpdateCheckPolling();
+                        }
+                    })
+                    .catch(err => {
+                        console.warn('[Update] 檢查輪詢請求失敗:', err);
+                    });
+            }, 1500);
+
+            // 最多輪詢 15 秒保護超時
+            updateCheckTimeoutTimer = setTimeout(() => {
+                stopUpdateCheckPolling();
+                fetch('/api/update/status')
+                    .then(res => res.json())
+                    .then(statusData => {
+                        renderUpdateStatus(statusData);
+                        const checkBtn = document.getElementById('up-check-btn');
+                        const statusBarMsg = document.getElementById('up-status-message');
+                        if (statusData && statusData.state === 'CHECKING') {
+                            if (statusBarMsg) statusBarMsg.textContent = '檢查請求逾時，伺服器連線中或無回應';
+                        }
+                        if (checkBtn && (!statusData || !statusData.api_key_missing)) {
+                            checkBtn.disabled = false;
+                        }
+                    })
+                    .catch(() => {
+                        const checkBtn = document.getElementById('up-check-btn');
+                        const statusBarMsg = document.getElementById('up-status-message');
+                        if (statusBarMsg) statusBarMsg.textContent = '檢查連線逾時，請稍後再試';
+                        if (checkBtn) checkBtn.disabled = false;
+                    });
+            }, 15000);
+        }
+
         function triggerCheckUpdate() {
             if (latestUpdateState && latestUpdateState.api_key_missing) {
                 alert('未設定 API KEY，無法進行更新檢查，請至設定頁配置 auto_update.api_key');
+                const checkBtn = document.getElementById('up-check-btn');
+                if (checkBtn) checkBtn.disabled = true;
                 return;
             }
             const checkBtn = document.getElementById('up-check-btn');
             const statusBarMsg = document.getElementById('up-status-message');
             if (checkBtn) checkBtn.disabled = true;
             if (statusBarMsg) statusBarMsg.textContent = '正在向 App Management API 查詢新版本...';
+
+            // 啟動定時輪詢保護（不依賴 SSE 是否順暢）
+            startUpdateCheckPolling();
 
             fetch('/api/update/check', {
                 method: 'POST',
@@ -4593,11 +4658,22 @@
                 if (data.status === 'ok') {
                     renderUpdateStatus(data.data);
                 } else {
+                    stopUpdateCheckPolling();
                     if (statusBarMsg) statusBarMsg.textContent = data.message || '檢查更新失敗';
+                    if (checkBtn && (!latestUpdateState || !latestUpdateState.api_key_missing)) {
+                        checkBtn.disabled = false;
+                    }
                     alert(data.message || '檢查更新失敗');
                 }
             })
-            .catch(err => alert('連線失敗: ' + err));
+            .catch(err => {
+                stopUpdateCheckPolling();
+                if (checkBtn && (!latestUpdateState || !latestUpdateState.api_key_missing)) {
+                    checkBtn.disabled = false;
+                }
+                if (statusBarMsg) statusBarMsg.textContent = '檢查更新連線失敗: ' + err;
+                alert('連線失敗: ' + err);
+            });
         }
 
         function triggerDownloadUpdate() {
@@ -4617,6 +4693,10 @@
         }
 
         function triggerRestartUpdate() {
+            if (!latestUpdateState || latestUpdateState.state !== 'READY_TO_INSTALL') {
+                alert('更新尚未就緒或檔案校驗失敗，無法套用更新！');
+                return;
+            }
             if (!confirm('系統即將執行重啟並套用新版本，確定要立即重啟嗎？')) return;
 
             fetch('/api/update/restart', { method: 'POST' })

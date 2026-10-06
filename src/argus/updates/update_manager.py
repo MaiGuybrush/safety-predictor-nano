@@ -33,7 +33,7 @@ from argus.integration.app_update_client import (
     DEFAULT_APP_ID,
     DEFAULT_BASE_URL,
 )
-from argus.updates.delta_updater import DeltaUpdater, DeltaManifest
+from argus.updates.delta_updater import DeltaUpdater, DeltaManifest, compute_sha256
 
 logger = logging.getLogger("system")
 
@@ -99,6 +99,8 @@ class UpdateManager:
                 fab=self.config.get("ums_fab"),
                 timeout=self.config.get("timeout_seconds", 30),
                 max_retries=self.config.get("max_retries", 3),
+                query_timeout=self.config.get("query_timeout_seconds", 5),
+                query_max_retries=self.config.get("query_max_retries", 1),
                 chunk_size=self.config.get("download_chunk_size", 1048576),
             )
         if self.api_key_missing:
@@ -166,6 +168,8 @@ class UpdateManager:
                 fab=resolved_fab,
                 timeout=self.config.get("timeout_seconds", 30),
                 max_retries=self.config.get("max_retries", 3),
+                query_timeout=self.config.get("query_timeout_seconds", 5),
+                query_max_retries=self.config.get("query_max_retries", 1),
                 chunk_size=self.config.get("download_chunk_size", 1048576),
             )
             if self.api_key_missing:
@@ -387,7 +391,7 @@ class UpdateManager:
             }
 
         with self._lock:
-            if self.state in (UpdateState.DOWNLOADING, UpdateState.STAGING, UpdateState.RESTARTING):
+            if self.state in (UpdateState.CHECKING, UpdateState.DOWNLOADING, UpdateState.STAGING, UpdateState.RESTARTING):
                 return {"status": "busy", "message": f"目前更新狀態為 {self.state}，請稍候", "data": self.get_status()}
 
             self.state = UpdateState.CHECKING
@@ -511,7 +515,10 @@ class UpdateManager:
                         self.downloaded_archive_path = dest_archive
                         real_download_success = True
                     except Exception as ex:
-                        logger.warning(f"[UpdateManager] 真實 API 下載遭遇錯誤，切換為平滑展示流程: {ex}")
+                        if self.client and not self.client.api_key_missing:
+                            # 正式環境有配置 API KEY，下載失敗或校驗失敗必須立即報錯，不可走模擬展示
+                            raise RuntimeError(f"更新包下載或校驗失敗: {ex}") from ex
+                        logger.warning(f"[UpdateManager] 模擬模式下載切換為展示流程: {ex}")
 
                 if not real_download_success:
                     # 平滑模擬下載流程
@@ -544,9 +551,18 @@ class UpdateManager:
                     self.message = "下載完成，正在解壓並驗證 Delta 補丁完整性..." if self.is_delta else "下載完成，正在解壓縮並驗證暫存目錄檔案完整性..."
                 self._notify_subscribers()
 
-                # 若有實際封包則解壓
-                os.makedirs(self.staging_dir, exist_ok=True)
+                # 下載封包整體 SHA256 雜湊校驗
                 if self.downloaded_archive_path and os.path.isfile(self.downloaded_archive_path):
+                    if self.download_info and self.download_info.sha256 and str(self.download_info.sha256).strip():
+                        actual_archive_sha = compute_sha256(self.downloaded_archive_path)
+                        expected_archive_sha = str(self.download_info.sha256).strip().lower()
+                        if actual_archive_sha != expected_archive_sha:
+                            raise RuntimeError(
+                                f"檔案校驗失敗: 下載更新包雜湊不符 (預期 {self.download_info.sha256}，實際 {actual_archive_sha})"
+                            )
+
+                    # 若有實際封包則解壓至 staging 目錄
+                    os.makedirs(self.staging_dir, exist_ok=True)
                     try:
                         with tarfile.open(self.downloaded_archive_path, "r:*") as tar:
                             if sys.version_info >= (3, 12):
@@ -554,19 +570,29 @@ class UpdateManager:
                             else:
                                 tar.extractall(path=self.staging_dir)
                     except Exception as e:
-                        logger.warning(f"[UpdateManager] 解壓封包警告: {e}")
+                        raise RuntimeError(f"解壓更新封包失敗: {e}") from e
 
                 # 識別是否為 Delta package
                 if self.is_delta_package(self.staging_dir) or (self.downloaded_archive_path and self.is_delta_package(self.downloaded_archive_path)):
                     self.is_delta = True
 
-                # 若為 Delta package，呼叫 install.sh --delta 執行局部原子替換
+                # 若為 Delta package，呼叫 install.sh --delta 或 DeltaUpdater 執行局部原子替換與雜湊校驗
                 if self.is_delta and os.path.exists(self.staging_dir):
-                    try:
-                        logger.info(f"[UpdateManager] 執行 Delta 局部原子替換 (staging={self.staging_dir})")
-                        self.run_install_delta(self.staging_dir)
-                    except Exception as e:
-                        logger.warning(f"[UpdateManager] 執行 Delta 局部原子替換警告: {e}")
+                    logger.info(f"[UpdateManager] 執行 Delta 局部原子替換與校驗 (staging={self.staging_dir})")
+                    delta_res = self.run_install_delta(self.staging_dir)
+                    if isinstance(delta_res, dict) and delta_res.get("status") != "ok":
+                        err_msg = delta_res.get("error") or delta_res.get("message") or "Delta 局部原子替換失敗"
+                        raise RuntimeError(f"Delta 增量替換失敗: {err_msg}")
+                elif os.path.exists(self.staging_dir):
+                    # 全量包或一般包若包含 manifest.json，執行檔案雜湊校驗
+                    manifest_file = os.path.join(self.staging_dir, "manifest.json")
+                    if os.path.isfile(manifest_file):
+                        manifest = DeltaManifest.from_manifest_file(manifest_file)
+                        payload_dir = os.path.join(self.staging_dir, "payload")
+                        if os.path.isdir(payload_dir) and manifest.files:
+                            valid, mismatches = manifest.verify_payload(payload_dir)
+                            if not valid:
+                                raise RuntimeError(f"檔案校驗失敗: {'; '.join(mismatches)}")
 
                 time.sleep(0.5)
 
@@ -584,11 +610,11 @@ class UpdateManager:
                     self.trigger_restart()
 
             except Exception as e:
-                logger.error(f"[UpdateManager] 下載失敗: {e}")
+                logger.error(f"[UpdateManager] 更新準備或校驗失敗: {e}")
                 with self._lock:
                     self.state = UpdateState.FAILED
                     self.error = str(e)
-                    self.message = f"更新下載失敗: {e}"
+                    self.message = f"更新失敗: {e}"
                 self._notify_subscribers()
 
         self._task_thread = threading.Thread(target=_do_download, daemon=True)
@@ -607,18 +633,16 @@ class UpdateManager:
         install_sh = next((p for p in script_candidates if os.path.isfile(p)), None)
 
         bash_exe = None
-        for candidate in [shutil.which("bash"), shutil.which("sh"), r"C:\Program Files\Git\bin\bash.exe"]:
-            if candidate and os.path.isfile(candidate):
-                bash_exe = candidate
-                break
+        # 在 Windows 環境下避免調用 bash scripts/install.sh（因路徑斜線問題易報錯），直接使用 Python DeltaUpdater
+        if sys.platform != "win32":
+            for candidate in [shutil.which("bash"), shutil.which("sh")]:
+                if candidate and os.path.isfile(candidate):
+                    bash_exe = candidate
+                    break
 
         if bash_exe and install_sh:
             try:
-                clean_source = os.path.abspath(source).replace("\\", "/")
-                if len(clean_source) >= 2 and clean_source[1] == ":":
-                    clean_source = f"/{clean_source[0].lower()}{clean_source[2:]}"
-                
-                cmd = [bash_exe, install_sh, "--delta", clean_source]
+                cmd = [bash_exe, install_sh, "--delta", source]
                 res = subprocess.run(
                     cmd,
                     cwd=self.base_dir,
@@ -634,7 +658,7 @@ class UpdateManager:
             except Exception as e:
                 logger.warning(f"[UpdateManager] 調用 install.sh --delta 異常: {e}")
 
-        # Fallback to Python DeltaUpdater
+        # Fallback to Python DeltaUpdater (校驗失敗拋出異常，向上冒泡)
         return self.apply_delta_update(source)
 
     def trigger_restart(self, exit_on_restart: Optional[bool] = None) -> Dict[str, Any]:
