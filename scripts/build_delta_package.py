@@ -151,8 +151,17 @@ def build_delta_package(
     Returns:
         Tuple[str, str]: (tar_gz_path, sha256_path)
     """
-    if not version:
-        version = get_project_version(src_dir)
+    repo_version = get_project_version(src_dir)
+    if version:
+        if version != repo_version:
+            raise ValueError(
+                f"版本衝突錯誤！指定之 --version ({version}) 與代碼庫 "
+                f"{os.path.join(src_dir, 'argus', '__init__.py')} ({repo_version}) 不一致。\n"
+                f"請先更新原始碼 __version__ 再進行打包，以確保 Git 倉庫與 Release 補丁版本一致。"
+            )
+    else:
+        version = repo_version
+
     if not min_compatible_base:
         min_compatible_base = "1.0.0"
 

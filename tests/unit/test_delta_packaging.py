@@ -104,9 +104,28 @@ class TestDeltaPackaging:
         assert "dist_scripts" in content
 
 
+    def test_version_alignment_guardrail(self):
+        """Verify build_delta_package raises ValueError when version mismatches src/argus/__init__.py."""
+        from scripts.build_delta_package import build_delta_package
+
+        dist_dir = os.path.join(self.tmp_dir, "dist_mismatch")
+        with pytest.raises(ValueError, match="版本衝突錯誤"):
+            build_delta_package(
+                version="9.9.9",
+                src_dir="src",
+                output_dir=dist_dir,
+            )
+
     def test_build_delta_package_full(self):
         """Verify building full delta package with templates and mdbook."""
-        from scripts.build_delta_package import build_delta_package
+        from scripts.build_delta_package import build_delta_package, get_project_version
+
+        # 準備獨立自訂版本的 src_dir 以模擬 bump version 後的建置
+        custom_src = os.path.join(self.tmp_dir, "custom_src")
+        shutil.copytree("src", custom_src)
+        init_file = os.path.join(custom_src, "argus", "__init__.py")
+        with open(init_file, "w", encoding="utf-8") as f:
+            f.write('__version__ = "1.2.3"\n')
 
         dist_dir = os.path.join(self.tmp_dir, "dist")
         tar_path, sha256_path = build_delta_package(
@@ -117,6 +136,7 @@ class TestDeltaPackaging:
             code_only=False,
             include_manual=True,
             include_templates=True,
+            src_dir=custom_src,
         )
 
         assert os.path.isfile(tar_path)
@@ -173,6 +193,12 @@ class TestDeltaPackaging:
         """Verify building pure code-fix delta package (< 250 KB)."""
         from scripts.build_delta_package import build_delta_package
 
+        custom_src = os.path.join(self.tmp_dir, "custom_src_code_only")
+        shutil.copytree("src", custom_src)
+        init_file = os.path.join(custom_src, "argus", "__init__.py")
+        with open(init_file, "w", encoding="utf-8") as f:
+            f.write('__version__ = "1.2.4"\n')
+
         dist_dir = os.path.join(self.tmp_dir, "dist_code_only")
         tar_path, sha256_path = build_delta_package(
             version="1.2.4",
@@ -180,6 +206,7 @@ class TestDeltaPackaging:
             arch="arm64",
             output_dir=dist_dir,
             code_only=True,
+            src_dir=custom_src,
         )
 
         assert os.path.isfile(tar_path)
@@ -203,20 +230,22 @@ class TestDeltaPackaging:
     def test_cli_execution(self):
         """Verify executing scripts/build_delta_package.py via CLI."""
         import subprocess
+        from scripts.build_delta_package import get_project_version
 
+        curr_ver = get_project_version("src")
         out_dir = os.path.join(self.tmp_dir, "cli_test_out")
         cmd = [
             sys.executable,
             "scripts/build_delta_package.py",
             "-v",
-            "1.9.9",
+            curr_ver,
             "--code-only",
             "-o",
             out_dir,
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
         assert res.returncode == 0, f"CLI build failed: {res.stderr}"
-        expected_tar = os.path.join(out_dir, "argus_delta-v1.9.9-arm64.tar.gz")
+        expected_tar = os.path.join(out_dir, f"argus_delta-v{curr_ver}-arm64.tar.gz")
         assert os.path.isfile(expected_tar)
         assert os.path.isfile(expected_tar + ".sha256")
 
