@@ -1,4 +1,5 @@
 import json
+import time
 from unittest.mock import MagicMock, patch
 import pytest
 from argus.integration.app_update_client import VersionInfoDTO, DownloadInfo
@@ -71,23 +72,24 @@ def test_api_update_check_and_download_flow(client):
         assert resp_check.status_code == 200
         check_data = resp_check.get_json()
         assert check_data["status"] == "ok"
+        time.sleep(0.3)
 
-    # 手動設定為 AVAILABLE (Delta 增量更新) 以便直接測試下載
-    GLOBAL_UPDATE_MANAGER.set_state(
-        UpdateState.AVAILABLE,
-        target_version="1.1.0",
-        message="發現新版本 (Delta Patch)",
-        total=2516582,
-        is_delta=True,
-    )
+        # 手動設定為 AVAILABLE (Delta 增量更新) 以便直接測試下載
+        GLOBAL_UPDATE_MANAGER.set_state(
+            UpdateState.AVAILABLE,
+            target_version="1.1.0",
+            message="發現新版本 (Delta Patch)",
+            total=2516582,
+            is_delta=True,
+        )
 
-    # 2. 觸發下載
-    resp_down = client.post("/api/update/download")
-    assert resp_down.status_code == 200
-    down_data = resp_down.get_json()
-    assert down_data["status"] == "ok"
-    assert GLOBAL_UPDATE_MANAGER.state in (UpdateState.DOWNLOADING, UpdateState.STAGING, UpdateState.READY_TO_INSTALL)
-    assert GLOBAL_UPDATE_MANAGER.is_delta is True
+        # 2. 觸發下載
+        resp_down = client.post("/api/update/download")
+        assert resp_down.status_code == 200
+        down_data = resp_down.get_json()
+        assert down_data["status"] == "ok"
+        assert GLOBAL_UPDATE_MANAGER.state in (UpdateState.DOWNLOADING, UpdateState.STAGING, UpdateState.READY_TO_INSTALL)
+        assert GLOBAL_UPDATE_MANAGER.is_delta is True
 
 
 def test_api_update_restart(client):

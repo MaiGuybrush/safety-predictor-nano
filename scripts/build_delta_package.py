@@ -50,6 +50,7 @@ def build_argus_zip(
     output_zip: str,
     src_dir: str = "src",
     include_source: bool = True,
+    version: Optional[str] = None,
 ) -> str:
     """將 src/argus 編譯為 bytecode zip 檔。
 
@@ -57,6 +58,7 @@ def build_argus_zip(
         output_zip: 輸出的 zip 檔案路徑。
         src_dir: 來源程式碼目錄 (預設: "src")。
         include_source: 是否在 zip 中保留 .py 原始碼（有利於 Traceback 行號顯示）。
+        version: 指定注入 argus/__init__.py 之版本號 (若提供則動態置換 __version__)。
 
     Returns:
         str: 產出之 zip 檔案絕對路徑。
@@ -82,12 +84,30 @@ def build_argus_zip(
                     zip_arcname_pyc = rel_from_src.replace("\\", "/") + "c"
                     zip_arcname_py = rel_from_src.replace("\\", "/")
 
+                    source_path_to_compile = full_path
+
+                    # 若有指定 version 且為 argus/__init__.py，則動態置換其版本號
+                    if version and rel_from_src.replace("\\", "/") == "argus/__init__.py":
+                        temp_init = os.path.join(temp_dir, "__init__.py")
+                        with open(full_path, "r", encoding="utf-8") as rf:
+                            init_code = rf.read()
+                        new_init_code = re.sub(
+                            r'__version__\s*=\s*["\'][^"\']+["\']',
+                            f'__version__ = "{version}"',
+                            init_code,
+                        )
+                        if '__version__ =' not in new_init_code:
+                            new_init_code += f'\n__version__ = "{version}"\n'
+                        with open(temp_init, "w", encoding="utf-8") as wf:
+                            wf.write(new_init_code)
+                        source_path_to_compile = temp_init
+
                     # 編譯 bytecode
                     cfile_name = f"{file}c"
                     cfile_path = os.path.join(temp_dir, cfile_name)
                     try:
                         py_compile.compile(
-                            full_path,
+                            source_path_to_compile,
                             cfile_path,
                             doraise=True,
                             optimize=0,
@@ -101,7 +121,7 @@ def build_argus_zip(
                                 pass
 
                     if include_source:
-                        zf.write(full_path, arcname=zip_arcname_py)
+                        zf.write(source_path_to_compile, arcname=zip_arcname_py)
 
     return output_zip
 
@@ -150,7 +170,12 @@ def build_delta_package(
 
         # 1. 建立 argus.zip (code_only 模式僅打包 bytecode .pyc 以達極限壓縮 < 250KB)
         zip_output_path = os.path.join(internal_dir, "argus.zip")
-        build_argus_zip(zip_output_path, src_dir=src_dir, include_source=not code_only)
+        build_argus_zip(
+            zip_output_path,
+            src_dir=src_dir,
+            include_source=not code_only,
+            version=version,
+        )
 
 
         # 2. 版本識別檔
@@ -193,7 +218,17 @@ def build_delta_package(
                 os.makedirs(os.path.dirname(dest_book), exist_ok=True)
                 shutil.copytree(book_dir, dest_book, dirs_exist_ok=True)
 
-        # 5. 掃描收集 payload 檔案清單並計算 SHA-256
+        # 5. 維運與守護腳本收集（讓 Delta 增量補丁亦可更新 scripts/，無需全量更新）
+        scripts_src = os.path.abspath("scripts")
+        if os.path.isdir(scripts_src):
+            dest_scripts = os.path.join(payload_dir, "scripts")
+            os.makedirs(dest_scripts, exist_ok=True)
+            for sname in ["run.sh", "install.sh", "ask_and_report.sh", "ask_and_report.bat"]:
+                sf = os.path.join(scripts_src, sname)
+                if os.path.isfile(sf):
+                    shutil.copy2(sf, os.path.join(dest_scripts, sname))
+
+        # 6. 掃描收集 payload 檔案清單並計算 SHA-256
         files_manifest: Dict[str, Dict[str, object]] = {}
         for root, _, files in os.walk(payload_dir):
             for file in files:
@@ -283,7 +318,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.zip_only:
-        out = build_argus_zip(args.zip_only)
+        out = build_argus_zip(args.zip_only, version=args.version)
         print(f"[OK] argus.zip 建立成功: {out}")
         return 0
 

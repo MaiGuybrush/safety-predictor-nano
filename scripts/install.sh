@@ -124,6 +124,16 @@ if [ "$DO_ROLLBACK" = true ]; then
             echo "[install.sh] [✓] 版本資訊已還原至: $(cat "$PATCH_BAK/version.txt" | tr -d '\r\n')"
         fi
 
+        # 還原維運腳本
+        if [ -d "$PATCH_BAK/scripts" ]; then
+            DEST_SCRIPTS="$TARGET_DIR/scripts"
+            [ -d "$DEST_SCRIPTS" ] || DEST_SCRIPTS="scripts"
+            mkdir -p "$DEST_SCRIPTS"
+            cp -a "$PATCH_BAK/scripts"/* "$DEST_SCRIPTS/" 2>/dev/null || true
+            chmod +x "$DEST_SCRIPTS"/*.sh 2>/dev/null || true
+            echo "[install.sh] [✓] 維運腳本 (scripts/) 已還原至原版本"
+        fi
+
         # 清除備份目錄
         rm -rf "$PATCH_BAK"
 
@@ -245,6 +255,14 @@ if [ "$IS_DELTA" = true ]; then
         cp -a "version.txt" "$PATCH_BAK/"
     fi
 
+    # 備份維運腳本
+    SRC_SCRIPTS="$TARGET_DIR/scripts"
+    [ -d "$SRC_SCRIPTS" ] || SRC_SCRIPTS="scripts"
+    if [ -d "$SRC_SCRIPTS" ]; then
+        mkdir -p "$PATCH_BAK/scripts"
+        cp -a "$SRC_SCRIPTS"/* "$PATCH_BAK/scripts/" 2>/dev/null || true
+    fi
+
     # 執行局域原子替換
     echo "[install.sh] 正在套用 Delta 載荷至 $TARGET_DIR (底層重型動態函式庫嚴格保留)..."
 
@@ -280,7 +298,17 @@ if [ "$IS_DELTA" = true ]; then
         echo "[install.sh] [✓] 版本資訊已更新至: $(cat "$DELTA_PAYLOAD/version.txt" | tr -d '\r\n')"
     fi
 
-    # 5. 清除暫存目錄
+    # 5. 替換維運腳本
+    if [ -d "$DELTA_PAYLOAD/scripts" ]; then
+        DEST_SCRIPTS="$TARGET_DIR/scripts"
+        [ -d "$DEST_SCRIPTS" ] || DEST_SCRIPTS="scripts"
+        mkdir -p "$DEST_SCRIPTS"
+        cp -a "$DELTA_PAYLOAD/scripts"/* "$DEST_SCRIPTS/" 2>/dev/null || true
+        chmod +x "$DEST_SCRIPTS"/*.sh 2>/dev/null || true
+        echo "[install.sh] [✓] 維運腳本 (scripts/) 已更新至新版本"
+    fi
+
+    # 6. 清除暫存目錄
     if [ -n "$DELTA_TEMP_DIR" ] && [ -d "$DELTA_TEMP_DIR" ]; then
         rm -rf "$DELTA_TEMP_DIR" 2>/dev/null || true
     fi

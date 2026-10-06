@@ -70,6 +70,8 @@ REQUIRED_DATA_FILES: List[tuple] = [
     ("_internal/argus.zip",                     False, True),
     ("_internal/argus/web/templates",            True,  True),
     ("_internal/docs/user-manual/book",          True,  False),  # 可選：手冊
+    ("scripts/run.sh",                           False, False),  # 守護重啟腳本
+    ("scripts/install.sh",                       False, False),  # 安裝/回滾腳本
     # config.yaml 與模型檔由使用者部署，不在此強制驗
 ]
 

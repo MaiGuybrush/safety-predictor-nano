@@ -42,8 +42,10 @@ echo 正在啟動問題回報工具 (main.py --report-issue)...
 :: 切換至專案根目錄（此腳本位於 scripts/ 目錄下）
 pushd "%~dp0\.."
 
-:: 執行 Python 腳本並傳遞參數（帶引號避免空格被切斷）
-if exist ".\venv\Scripts\python.exe" (
+:: 優先支援二進位發布環境，若無則回退至 Python 腳本
+if exist ".\argus_predictor.exe" (
+    .\argus_predictor.exe --report-issue --title "%ISSUE_TITLE%" --severity "%SEVERITY%" --description "%DESCRIPTION%"
+) else if exist ".\venv\Scripts\python.exe" (
     .\venv\Scripts\python.exe main.py --report-issue --title "%ISSUE_TITLE%" --severity "%SEVERITY%" --description "%DESCRIPTION%"
 ) else (
     python main.py --report-issue --title "%ISSUE_TITLE%" --severity "%SEVERITY%" --description "%DESCRIPTION%"

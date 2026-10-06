@@ -22,6 +22,10 @@ datas = [
     ('config.yaml', '.'),
     ('ums-api-config.json', '.'),
     ('docs/user-manual/book', 'docs/user-manual/book'),
+    ('scripts/run.sh', 'scripts'),
+    ('scripts/install.sh', 'scripts'),
+    ('scripts/ask_and_report.sh', 'scripts'),
+    ('scripts/ask_and_report.bat', 'scripts'),
 ]
 if os.path.isfile(argus_zip):
     datas.append((argus_zip, '.'))
@@ -83,3 +87,13 @@ coll = COLLECT(
     upx_exclude=[],
     name='argus_predictor',
 )
+
+# 確保守護與維運腳本同步部署至 dist/argus_predictor/scripts/ (遵循 ADR-005 與 ADR-019)
+import shutil
+dist_scripts = os.path.join(SPECPATH, 'dist', 'argus_predictor', 'scripts')
+os.makedirs(dist_scripts, exist_ok=True)
+for sname in ['run.sh', 'install.sh', 'ask_and_report.sh', 'ask_and_report.bat']:
+    src_s = os.path.join(SPECPATH, 'scripts', sname)
+    if os.path.isfile(src_s):
+        shutil.copy2(src_s, os.path.join(dist_scripts, sname))
+

@@ -149,9 +149,14 @@ pyinstaller argus_predictor.spec
 
 #### 產出目錄結構（PyInstaller 6.0+）
 
-```
+```text
 dist/argus_predictor/
 ├── argus_predictor          ← 主執行檔
+├── scripts/                 ← 部署、維運與守護腳本
+│   ├── run.sh               ← 守護啟動腳本 (監聽 Exit 42 重啟、崩潰自動回滾)
+│   ├── install.sh           ← Delta 增量補丁套用與原子回滾腳本
+│   ├── ask_and_report.sh    ← CLI 問題回報互動精靈 (Linux)
+│   └── ask_and_report.bat   ← CLI 問題回報互動精靈 (Windows)
 └── _internal/               ← 所有相依與資料（PyInstaller 6.0+ 統一放於此）
     ├── argus.zip            ← 業務代碼（可單獨被 Delta 更新取代）
     ├── config.yaml
@@ -162,7 +167,7 @@ dist/argus_predictor/
 ```
 
 > **為什麼 `_internal/` 是子目錄？**  
-> PyInstaller 6.0 起，`--onedir` 模式預設將所有依賴移入 `_internal/` 子目錄，讓根目錄只保留主執行檔，結構更清晰，且不影響執行行為。
+> PyInstaller 6.0 起，`--onedir` 模式預設將所有依賴移入 `_internal/` 子目錄，讓根目錄只保留主執行檔與外置腳本，結構更清晰，且不影響執行行為。
 
 #### 部署至樹莓派
 
@@ -173,9 +178,16 @@ dist/argus_predictor/
 cp yolo26.pt dist/argus_predictor/
 cp config.yaml dist/argus_predictor/
 
-# 給予執行權限並執行
-chmod +x argus_predictor/argus_predictor
-./argus_predictor/argus_predictor
+# 給予執行權限
+chmod +x dist/argus_predictor/argus_predictor
+chmod +x dist/argus_predictor/scripts/*.sh
+
+# 推薦啟動方式：透過守護腳本啟動（支援 Exit 42 自動重啟與故障安全回滾）
+cd dist/argus_predictor
+bash scripts/run.sh
+
+# 或直接執行主二進位檔
+./argus_predictor
 ```
 
 後續版本升級時，透過 **Delta 增量包**（步驟一產出的 `.tar.gz`）局部替換 `_internal/argus.zip` 即可，無需重新下載整包。`config.yaml` 與模型檔不受影響。

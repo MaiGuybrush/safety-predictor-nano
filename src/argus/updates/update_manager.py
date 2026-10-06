@@ -111,6 +111,9 @@ class UpdateManager:
         self.exit_code_on_restart: int = 42
         self._exit_func: Callable[[int], None] = sys.exit
 
+        # 優先從 base_dir 或執行環境探測 version.txt
+        self._probe_version_file()
+
         # 檢測回滾告警標記 (.rollback_alert) 與更新進行中標記 (.update_in_progress)
         self._check_rollback_alert()
         self._check_update_in_progress()
@@ -211,6 +214,28 @@ class UpdateManager:
         self._stop_polling.set()
         with self._lock:
             self._poll_thread = None
+
+    def _probe_version_file(self):
+        """探測執行端環境目錄之 version.txt，若存在則優先採用。"""
+        candidates = [
+            os.path.join(self.base_dir, "version.txt"),
+            os.path.join(self.base_dir, "_internal", "version.txt"),
+        ]
+        if os.path.abspath(".") != self.base_dir:
+            candidates.append(os.path.abspath("version.txt"))
+            candidates.append(os.path.abspath("_internal/version.txt"))
+
+        for path in candidates:
+            if os.path.isfile(path):
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        ver = f.read().strip()
+                    if ver:
+                        self.current_version = ver
+                        logger.info(f"[UpdateManager] 自 version.txt 成功載入當前版本號: v{ver} ({path})")
+                        return
+                except Exception as ex:
+                    logger.debug(f"[UpdateManager] 讀取 {path} 失敗: {ex}")
 
     def _check_update_in_progress(self):
         """檢查系統啟動時是否存在 .update_in_progress 標記檔。"""

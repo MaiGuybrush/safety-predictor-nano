@@ -21,5 +21,6 @@
 - [x] 1. **[01 — 打包端業務模組解耦與 Delta 增量包建置流程](issues/01-packaging-decoupling-and-delta-builder.md)** (Gitea [#83](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/83))
 - [x] 2. **[02 — install.sh 與更新引擎支援 Delta 局部替換與原子回滾](issues/02-install-script-delta-and-rollback.md)** (Gitea [#84](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/84))
 - [x] 3. **[03 — UpdateManager 整合 Delta 下載、Web UI 標籤與端到端升級閉環](issues/03-update-manager-delta-and-ui-loop.md)** (Gitea [#85](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/85))
+- [x] 4. **[04 — 修復 Delta 更新版本不同步：build_delta_package 注入版號至 argus.zip 且執行端優先載入 version.txt](issues/04-fix-delta-version-desync-and-runtime-fallback.md)** (Gitea [#88](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/88))
 
 

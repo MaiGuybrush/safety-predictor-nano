@@ -97,6 +97,13 @@ class TestDeltaPackaging:
         # 4. Entrypoint must be main.py
         assert "['main.py']" in content
 
+        # 5. Must include deployment scripts in datas and copy to dist scripts dir
+        assert "'scripts/run.sh'" in content
+        assert "'scripts/install.sh'" in content
+        assert "'scripts/ask_and_report.sh'" in content
+        assert "dist_scripts" in content
+
+
     def test_build_delta_package_full(self):
         """Verify building full delta package with templates and mdbook."""
         from scripts.build_delta_package import build_delta_package
@@ -133,6 +140,7 @@ class TestDeltaPackaging:
             assert "manifest.json" in names
             assert "payload/_internal/argus.zip" in names
             assert "payload/version.txt" in names
+            assert any(name.startswith("payload/scripts/") for name in names)
 
             # Extract and inspect manifest.json
             manifest_file = tf.extractfile("manifest.json")
@@ -150,8 +158,16 @@ class TestDeltaPackaging:
             argus_zip_entry = manifest["files"]["_internal/argus.zip"]
             argus_zip_file = tf.extractfile("payload/_internal/argus.zip")
             assert argus_zip_file is not None
-            calc_zip_sha = hashlib.sha256(argus_zip_file.read()).hexdigest()
+            zip_bytes = argus_zip_file.read()
+            calc_zip_sha = hashlib.sha256(zip_bytes).hexdigest()
             assert calc_zip_sha == argus_zip_entry["sha256"]
+
+            # Validate __version__ injected into argus.zip
+            import io
+            with zipfile.ZipFile(io.BytesIO(zip_bytes)) as inner_zf:
+                assert "argus/__init__.py" in inner_zf.namelist()
+                init_content = inner_zf.read("argus/__init__.py").decode("utf-8")
+                assert '__version__ = "1.2.3"' in init_content
 
     def test_build_delta_package_code_only(self):
         """Verify building pure code-fix delta package (< 250 KB)."""

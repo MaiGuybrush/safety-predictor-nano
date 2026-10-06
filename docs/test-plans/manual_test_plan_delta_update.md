@@ -65,10 +65,12 @@
 > **沙盒快速準備（軌道 B，跳過 ARM64 建置）：**
 > ```bash
 > # 建立沙盒目錄，模擬已部署的 argus_predictor/ 結構
-> mkdir -p sandbox/argus_predictor/_internal
+> mkdir -p sandbox/argus_predictor/_internal/torch sandbox/argus_predictor/_internal/cv2
+> touch sandbox/argus_predictor/_internal/torch/libtorch.so sandbox/argus_predictor/_internal/cv2/cv2.so
 > python scripts/build_delta_package.py --zip-only sandbox/argus_predictor/_internal/argus.zip
 > echo "1.0.0" > sandbox/argus_predictor/version.txt
-> cp config.yaml ums-api-config.json sandbox/argus_predictor/
+> cp config.yaml ums-api-config.json main.py sandbox/argus_predictor/
+> mkdir -p sandbox/argus_predictor/scripts
 > cp scripts/install.sh scripts/run.sh sandbox/argus_predictor/scripts/ 2>/dev/null || true
 > ```
 
@@ -119,13 +121,12 @@ auto_update:
 | **TC-01** | 打包端業務解耦與 Delta 封包建置 | P0 | `build_delta_package.py` 產出與體積限制 | 全量 Delta < 3.5MB，純代碼 < 250KB，含 manifest.json | `[ ] PASS` |
 | **TC-02** | CIM API 優先配對 Delta 封包 | P0 | `AppUpdateClient` 解析與優先選擇 | 命中 2.4MB 增量包，不選取 256MB 全量包 | `[ ] PASS` |
 | **TC-03** | 無 Delta 封包時安全降級 (Fallback) | P1 | 伺服器僅有全量包時的相容性 | 自動回退選取全量包 (256MB)，不中斷流程 | `[ ] PASS` |
-| **TC-04** | Web UI 增量更新標籤與 SSE 進度串流 | P1 | 前端 Cyberpunk 視覺與即時下載進度 | 顯示「增量更新」徽章、2.4MB 大小與百分比平滑增加 | `[ ] PASS` |
-| **TC-05** | `install.sh --delta` 局部原子置換 | P0 | 僅更新業務層，保護重型庫與設定檔 | `argus.zip` 更新，`torch/cv2/config.yaml` 完好 | `[ ] PASS` |
-| **TC-06** | Exit 42 守護重啟與 30 秒健康評估 Commit | P0 | 重啟生命週期與健康檢查確立版本 | `sys.exit(42)` 觸發，30 秒通過健康判定並更新版本 | `[ ] PASS` |
-| **TC-07** | [異常 1] 健康檢查超時自動局部回滾 | P0 | 注入新版崩潰，測試 `.patch_bak/` 秒級還原 | 30 秒內自動還原舊版 `argus.zip` 並發出 Web UI 告警 | `[ ] PASS` |
-| **TC-08** | [異常 2] 磁檢空間不足防護 | P1 | 磁碟剩餘空間低於 20MB 時攔截 | 拒絕下載並記錄 `PermanentError: Insufficient disk` | `[ ] PASS` |
-| **TC-09** | [異常 3] 封包雜湊不符與不相容基底攔截 | P1 | 偽造/損毀之 Delta 封包與版號防護 | 解壓前校驗失敗，拒絕覆蓋，保持原狀 | `[ ] PASS` |
-| **TC-10** | [異常 4] 連續崩潰防護 (Loop Guard) | P2 | 舊版還原後依然崩潰的看門狗防護 | 進入 `FATAL_HALT`，避免無窮重啟打滿日誌 | `[ ] PASS` |
+| **TC-04** | `install.sh --delta` 局部原子置換與零資料遺失 | P0 | 純 CLI 沙盒執行，僅更新業務層，保護重型庫與設定檔 | `argus.zip` 更新，`torch/cv2/config.yaml` 完好 | `[ ] PASS` |
+| **TC-05** | Web UI 增量升級與 Exit 42 守護重啟 Commit 端到端驗證 | P0 | 前端 Cyberpunk 視覺、SSE 下載進度、立即重啟防呆、全螢幕倒數遮罩、Exit 42 重啟與健康 Commit | 完整經歷下載至重啟自動刷新，版本躍遷至 v1.1.0，標記自動清除 | `[ ] PASS` |
+| **TC-06** | [異常 1] 健康檢查超時/崩潰自動局部回滾 | P0 | 注入新版崩潰，測試 `.patch_bak/` 秒級還原與 Web UI 告警 | 啟動失敗自動還原舊版 `argus.zip` 並發出 Web UI 告警 | `[ ] PASS` |
+| **TC-07** | [異常 2] 磁檢空間不足防護 | P1 | 磁碟剩餘空間低於 20MB 時攔截 | 拒絕下載並記錄 `Insufficient disk space` 錯誤 | `[ ] PASS` |
+| **TC-08** | [異常 3] 封包雜湊不符與損毀攔截 | P1 | 偽造/損毀之 Delta 封包防護 | 解壓前校驗失敗，拒絕覆蓋，保持原狀並顯示錯誤橫幅 | `[ ] PASS` |
+| **TC-09** | [異常 4] 連續崩潰終止防護 (Rollback Loop Guard) | P2 | 舊版還原後依然崩潰的看門狗防護 | 一次回滾後若仍崩潰，直接退出，防止無窮重啟死迴圈 | `[ ] PASS` |
 
 ---
 
@@ -219,123 +220,140 @@ auto_update:
 
 ---
 
-### TC-04：Web UI 增量更新標籤與 SSE 進度串流
+### TC-04：`install.sh --delta` 局部原子置換與零資料遺失 (純 CLI 沙盒驗證)
 
-* **測試目的**：驗證操作員在瀏覽器端能直觀辨識「增量更新」狀態與體驗毫秒級進度回傳。
-* **前置條件**：主程式運作中，瀏覽器開啟 `http://<設備IP>:8188`。
+* **測試目的**：驗證底層維運腳本 `scripts/install.sh --delta` 於命令列獨立執行時，能正確解壓 Delta 載荷、建立 `.patch_bak/` 備份，僅替換核心業務模組（`argus.zip`、前端模板、手冊），且嚴格保留龐大動態函式庫（`torch/`、`cv2/`）與既有設定檔（`config.yaml`）。
+* **前置條件**：沙盒環境已依 2.1 節快速準備完成（含 mock `torch/libtorch.so` 與 `cv2/cv2.so`），TC-01 產出之 `dist/argus_delta-v1.1.0-arm64.tar.gz` 位於專案根目錄。
 * **操作步驟**：
-  1. 確保 Mock 伺服器以 Delta 模式運行（提供 v1.1.0）。
-  2. 進入 Web UI 首頁，觀察頂端導覽列。
-  3. 點擊導覽列呼吸徽章 `[ 🚀 新版本可用: v1.1.0 ]`，呼叫更新彈窗。
-  4. 檢查彈窗呈現項目：
-     - 是否具有藍綠色高亮徽章 `[ 📦 增量更新 (Delta Patch) ]`。
-     - 「更新類型」欄位是否顯示 `增量更新 (Delta)`。
-     - 「封包大小」欄位是否顯示約 `2.4 MB`。
-  5. 點擊彈窗內 `[ 立即下載更新 ]` 按鈕，觀察 SSE 串流：
-     - 下載進度條在 1~3 秒內從 0% 推進至 100%。
-     - 傳輸速率數值即時跳動（如 `1.8 MB/s`）。
-     - 進度達 100% 後，狀態自動躍遷為 `[ 就緒，等待重啟套用 ]`。
-* **預期結果**：
-  - [x] Web UI 清楚標示 Delta Patch 增量屬性，避免操作員誤以為要下載 300MB。
-  - [x] SSE 通道實時推播下載位元組，無卡頓或頁面凍結現象。
-  - [x] 成功進入 `READY_TO_INSTALL` 狀態，且「立即重啟」按鈕變為可點擊。
-* **驗收簽核**：`[ ] PASS  [ ] FAIL` ＿＿＿＿＿＿＿＿＿＿＿＿
-
----
-
-### TC-05：`install.sh --delta` 局部原子置換與零資料遺失
-
-* **測試目的**：驗證 `scripts/install.sh --delta` 僅替換核心業務模組，嚴格保留龐大動態庫與客製配置。
-* **前置條件**：沙盒環境已就緒，內含舊版 `argus.zip`、`config.yaml` 及 `_internal/torch/libtorch.so`。
-* **操作步驟**：
-  1. 記錄執行前檔案特徵與時間戳：
+  1. 切換至沙盒目錄，記錄執行前檔案特徵與時間戳：
      ```bash
+     cd sandbox/argus_predictor
      sha256sum _internal/argus.zip
      sha256sum config.yaml
      ls -l _internal/torch/libtorch.so
      ```
-  2. 手動執行 Delta 安裝指令：
+  2. 手動執行 Delta 安裝指令（指定相對於沙盒目錄的增量包路徑）：
      ```bash
-     bash scripts/install.sh --delta dist/argus_delta-v1.1.0-arm64.tar.gz
+     bash scripts/install.sh --delta ../../dist/argus_delta-v1.1.0-arm64.tar.gz
      ```
-  3. 驗證局部備份是否存在：
+  3. 驗證局部備份目錄與檔案是否存在：
      ```bash
      ls -ld _internal/.patch_bak/
      ls -l _internal/.patch_bak/argus.zip
      ```
   4. 驗證置換結果與保護項目：
      ```bash
-     # 業務代碼已更新
-     unzip -p _internal/argus.zip argus/__init__.py | grep __version__
+     # 業務代碼已更新 (雜湊變更)
+     sha256sum _internal/argus.zip
      # 既有配置完全未動
      sha256sum config.yaml
-     # 重型庫未受波及
+     # 重型深度學習庫未受波及
      ls -l _internal/torch/libtorch.so
+     # 版本檔案已更新
+     cat version.txt
      ```
 * **預期結果**：
   - [x] 執行時間在樹莓派 5 上小於 1 秒。
-  - [x] `_internal/.patch_bak/` 成功建立且包含舊版備份。
-  - [x] `_internal/argus.zip` 成功替換為新版。
+  - [x] `_internal/.patch_bak/` 成功建立且包含舊版 `argus.zip` 與 `version.txt` 備份。
+  - [x] `_internal/argus.zip` 成功替換為新版，雜湊改變。
   - [x] `config.yaml` 雜湊與升級前完全一致，無任何修改。
   - [x] `_internal/torch/` 與 `_internal/cv2/` 修改時間與內容未變。
+  - [x] `version.txt` 內容更新為 `1.1.0`。
 * **驗收簽核**：`[ ] PASS  [ ] FAIL` ＿＿＿＿＿＿＿＿＿＿＿＿
 
 ---
 
-### TC-06：Exit 42 守護重啟與 30 秒健康狀態評估 Commit
+### TC-05：Web UI 增量更新、SSE 進度串流與 Exit 42 守護重啟 Commit 端到端驗證
 
-* **測試目的**：驗證服務退出代碼 42 能被 `run.sh` 守護迴圈捕捉並自動重啟新版，並在通過 30 秒健康檢查後 Commit。
-* **前置條件**：以 `bash scripts/run.sh` 啟動主服務。
-* **操作步驟**：
-  1. 觀察終端輸出，確認守護迴圈正常監聽。
-  2. 於 Web UI 更新彈窗點擊 `[ 立即重啟生效 ]`（或 API 發送 POST `/api/update/restart`）。
-  3. 觀察主行程終端 Log：
-     - 主行程呼叫 `sys.exit(42)` 終止推論。
-     - `run.sh` 輸出 `[run.sh] 收到重啟代碼 42 (RESTART_FOR_UPDATE)，準備載入新版本...`。
-     - `run.sh` 自動重新呼叫新版二進位檔。
-  4. 觀察 Web UI 前端全螢幕倒數遮罩（30 秒倒數）：
-     - 前端以 1.5 秒為週期持續向 `/api/health` 探針請求。
-     - 伺服器重啟完成後，探針回傳 HTTP 200。
-     - 網頁自動刷新 (`window.location.reload()`)。
-  5. 檢查日誌與狀態標記：
+* **測試目的**：驗證操作員在瀏覽器端能直觀辨識「增量更新」標記、即時監看 SSE 下載進度條、完成安全二度確認後點擊「立即重啟套用」、觀察全螢幕 30 秒 Cyberpunk 重啟倒數與探針輪詢，並在背景捕捉 Exit Code 42 完成重啟且通過健康檢查 Commit。
+* **前置條件**：
+  1. Mock API 伺服器以 Delta 模式運行（提供 v1.1.0）：
      ```bash
-     cat logs/update.log | grep COMMITTED
-     ls -a | grep update_in_progress  # 應已自動清除
+     python scripts/mock_app_update_server.py --port 8190 --version 1.1.0
      ```
+  2. 主程式以守護腳本 `run.sh` 啟動運行（實機或沙盒環境）：
+     ```bash
+     bash scripts/run.sh
+     ```
+  3. 瀏覽器開啟 Web UI 首頁：`http://<設備IP>:8188`。
+* **操作步驟**：
+  1. **檢查更新與增量視覺識別**：
+     - 進入 Web UI 首頁，觀察頂端導覽列是否亮起動態呼吸徽章：`[ 🚀 增量更新可用: v1.1.0 (約 2.4 MB) ]`（若未自動出現，可點擊 `[ 系統更新 UPDATE ]` 彈窗並按 `[ ↻ 檢查最新版本 ]`）。
+     - 點擊呼吸徽章開啟更新彈窗。
+     - 檢查彈窗呈現項目：
+       - 是否具有藍綠色高亮徽章 `[ 📦 增量更新 (Delta Patch) ]`。
+       - 「更新類型」欄位是否顯示 `增量更新 (Delta)`。
+       - 「封包大小」欄位是否顯示約 `2.4 MB`。
+       - 動作按鈕 `[ ⬇ 下載更新包 ]` 為可點擊狀態，`[ ⚡ 立即重啟套用 ]` 初始為禁用狀態。
+  2. **觸發下載與 SSE 進度串流觀察**：
+     - 點擊彈窗內 `[ ⬇ 下載更新包 ]` 按鈕。
+     - 觀察進度條追蹤區塊：
+       - 下載進度條於 1~3 秒內從 0% 推進至 100%。
+       - 傳輸速率與位元組即時跳動（如 `2.1 MB / 2.4 MB // 1.8 MB/s`）。
+       - 進度達 100% 後，後端解壓完成並自動調用 Delta 局域置換，狀態躍遷為 `READY_TO_INSTALL`。
+       - 進度文字顯示 `增量補丁已就緒！等待重啟套用 (Exit 42)`。
+       - 導覽列徽章更新為：`⚠️ 增量補丁就緒，點擊重啟套用 (v1.1.0)`。
+       - `[ ⚡ 立即重啟套用 ]` 按鈕變為橘黃色高亮啟用（具霓虹光暈陰影）。
+  3. **觸發立即重啟套用與防呆確認**：
+     - 點擊 `[ ⚡ 立即重啟套用 ]` 按鈕。
+     - 觀察瀏覽器彈出二次防呆確認對話框：`系統即將執行重啟並套用新版本，確定要立即重啟嗎？`。
+     - 點擊「確定」。
+  4. **全螢幕重啟遮罩與探針健康評估觀察**：
+     - 更新彈窗自動關閉，畫面彈出全螢幕 Cyberpunk 重啟遮罩（`#update-restart-overlay`）。
+     - 遮罩標題顯示：`◈ ARGUS // 核心重啟升級中 (SYSTEM REBOOT) ◈`。
+     - 提示警語：`正在進行二進位目錄原子替換與重啟程序... 背景守護行程即將喚起新版程式，請勿切斷電源或關閉瀏覽器。`
+     - 圓形計時器自 `30` 秒開始每秒平滑遞減，下方進度條同步縮減。
+     - 觀察主進程終端 Log：
+       - 主行程呼叫 `sys.exit(42)` 正常終止退出。
+       - `run.sh` 終端輸出：`[run.sh] 收到重啟代碼 42 (RESTART_FOR_UPDATE)，準備載入新版本...`。
+       - `run.sh` 自動重新喚起新版程式，建立 `.update_in_progress` 評估標記。
+     - 前端以 1.5 秒為週期持續向 `/api/health` 探針發送請求。
+  5. **成功確立 (Commit) 與自動重新整理**：
+     - 伺服器重新就緒，探針回傳 HTTP 200 Healthy。
+     - 遮罩顯示綠色成功橫幅：`✓ 系統升級成功！核心與推論管線已全數就緒。成功升級至新版本 v1.1.0！即將自動重新整理...`。
+     - 1.8 秒後網頁自動刷新 (`window.location.reload()`)。
+  6. **重載後狀態核驗**：
+     - 頂端導覽列版本標籤更新為 `v1.1.0`。
+     - 頂端導覽列呼吸徽章自動隱藏消失。
+     - 檢查日誌與進行中標記：
+       ```bash
+       grep "COMMITTED" logs/update.log
+       test ! -f .update_in_progress && echo "[✓] .update_in_progress 已自動清除"
+       ```
 * **預期結果**：
-  - [x] 行程重啟時間在 5~10 秒內完成。
-  - [x] `.update_in_progress` 暫存檔在健康確認後自動移除。
-  - [x] `logs/update.log` 記錄 `[COMMITTED] 應用程式已成功更新至 v1.1.0`。
-  - [x] Web UI 導覽列版本標籤更新為 `v1.1.0`。
+  - [x] Web UI 清楚標示 Delta Patch 增量屬性，避免操作員誤以為要下載 300MB。
+  - [x] SSE 通道實時推播下載位元組，無卡頓或頁面凍結現象。
+  - [x] 成功進入 `READY_TO_INSTALL` 狀態，且「立即重啟套用」按鈕亮起。
+  - [x] 點擊後彈出防呆對話框，確認後無縫進入全螢幕 30 秒倒數遮罩。
+  - [x] 主進程發出 Exit Code 42，`run.sh` 成功重啟新版程式。
+  - [x] 健康檢查通過後，遮罩提示成功並自動刷新頁面，版本變為 v1.1.0。
+  - [x] `logs/update.log` 記錄 `[COMMITTED]`，`.update_in_progress` 已被刪除。
 * **驗收簽核**：`[ ] PASS  [ ] FAIL` ＿＿＿＿＿＿＿＿＿＿＿＿
 
 ---
 
-### TC-07：[異常注入 1] 健康檢查超時/崩潰自動局部回滾
+### TC-06：[異常注入 1] 健康檢查超時/崩潰自動局部回滾
 
 * **測試目的**：模擬新版 Delta 補丁存在缺陷（如語法錯誤或開機崩潰），驗證看門狗能於 30 秒內自動秒級還原上一穩定版本。
 * **前置條件**：系統處於 v1.0.0 穩定運行狀態，透過 `run.sh` 啟動。
 * **操作步驟**：
-  1. 套用 Delta 更新至 `READY_TO_INSTALL`，並使系統進入更新重啟流程（生成 `.update_in_progress` 與 `.patch_bak/`）。
-  2. **故障注入**：故意損毀新版 `argus.zip` 或強制令主程序開機拋出致命例外：
+  1. 依 TC-05 流程下載 Delta 補丁至 `READY_TO_INSTALL` 狀態（此時 `_internal/argus.zip` 已被替換，且舊版已備份至 `_internal/.patch_bak/`）。**在此時暫勿點擊重啟**。
+  2. **故障注入**：故意損毀剛替換之新版 `argus.zip`（模擬新版本 bytecode 損毀或語法致命錯誤）：
      ```bash
-     # 注入破壞性 bytecode 或清空 zip
      echo "CORRUPTED_BYTECODE" > _internal/argus.zip
      ```
-  3. 觸發重啟或殺死進程：
-     ```bash
-     kill -9 $(pgrep -f argus_predictor)
-     ```
-  4. 觀察 `run.sh` 捕捉非 0 且非 42 異常：
-     - `run.sh` 偵測到 `.update_in_progress` 存在。
-     - 自動呼叫 `scripts/install.sh --rollback`。
+  3. 於 Web UI 更新彈窗點擊 `[ ⚡ 立即重啟套用 ]`（或 API 發送 POST `/api/update/restart`），確認防呆視窗，觸發 Exit 42 重啟。
+  4. 觀察 `run.sh` 捕捉啟動崩潰異常：
+     - 主行程重啟嘗試載入 `argus.zip` 失敗，拋出致命例外並以非 0 代碼（Exit Code 1）退出。
+     - `run.sh` 捕捉到異常崩潰，且偵測到 `.update_in_progress` 存在。
+     - `run.sh` 自動呼叫 `scripts/install.sh --rollback`。
      - `install.sh` 偵測到 `_internal/.patch_bak/`，執行局部秒級還原。
-     - 生成 `.rollback_alert` 標記檔。
-     - `run.sh` 自動重新喚醒還原後的 v1.0.0。
+     - 生成 `.rollback_alert` 標記檔並清除 `.update_in_progress`。
+     - `run.sh` 自動重新喚醒還原後的穩定版 v1.0.0。
   5. 驗證回滾成效：
      - 檢查 `_internal/argus.zip` 是否已復原為原 v1.0.0 代碼。
-     - 檢查 Web UI 是否彈出紅色警示橫幅：`⚠️ 系統更新未通過健康檢查，已自動安全回滾至原版本`。
-     - 檢查 `curl http://127.0.0.1:8188/api/health` 回傳 `{"rollback_occurred": true}`。
+     - 觀察 Web UI 前端全螢幕遮罩：探針 `/api/health` 偵測到 `rollback_occurred: true`，顯示紅色警示橫幅：`⚠️ 系統更新未通過健康檢查，已自動安全回滾至原版本`。
+     - 點擊「重新載入頁面」後，系統持續正常運行，未成為磚機 (Brick)。
 * **預期結果**：
   - [x] 回滾過程不搬移 1GB 全量目錄，耗時小於 1 秒。
   - [x] 系統未成為「磚機 (Brick)」，自動恢復正常工安推論。
@@ -344,14 +362,14 @@ auto_update:
 
 ---
 
-### TC-08：[異常注入 2] 磁檢空間不足防護
+### TC-07：[異常注入 2] 磁檢空間不足防護
 
 * **測試目的**：驗證邊緣裝置磁碟空間不足時，更新管理器能精準攔截，避免下載中途磁碟爆滿導致死機。
-* **前置條件**：了解 Delta 預檢門檻（20 MB）與全量預檢門檻（650 MB）。
+* **前置條件**：了解 Delta 預檢門檻（20 MB）與全量預檢門檻（650 MB）。測試於 Linux / 樹莓派環境或沙盒中進行。
 * **操作步驟**：
-  1. 透過暫存大檔案填滿受測磁碟分區，使剩餘空間小於 20 MB：
+  1. 透過暫存大檔案填滿受測磁碟分區，使剩餘空間小於 20 MB（或在獨立測試分區掛載小容量 tmpfs 模擬）：
      ```bash
-     # 於測試分割區建立暫存大檔使剩餘空間剩下約 10MB
+     # 於測試分割區建立暫存大檔使剩餘空間剩下約 10MB (Linux/樹莓派)
      fallocate -l $(($(df -B1 . | awk 'NR==2{print $4}') - 10485760)) ./fill_disk.tmp
      ```
   2. 嘗試透過 Web UI 或 API 觸發下載：
@@ -371,36 +389,38 @@ auto_update:
 
 ---
 
-### TC-09：[異常注入 3] 封包雜湊不符與不相容基底版本攔截
+### TC-08：[異常注入 3] 封包雜湊不符與損毀攔截
 
-* **測試目的**：驗證被竄改、傳輸中斷損毀之 Delta 封包，或基準版本低於 `min_compatible_base` 時被嚴格攔截。
+* **測試目的**：驗證被竄改、傳輸中斷損毀之 Delta 封包在解壓與套用前被嚴格攔截。
 * **前置條件**：啟動 Mock 伺服器並加上 `--corrupt` 參數。
 * **操作步驟**：
   1. 啟動損毀模擬伺服器：
      ```bash
      python scripts/mock_app_update_server.py --port 8190 --version 1.1.0 --corrupt
      ```
-  2. 於 Web UI 或 CLI 觸發下載與套用。
-  3. 觀察 `UpdateManager` 解壓後比對 `manifest.json` 之 SHA-256 雜湊流程。
+  2. 於 Web UI 點擊 `[ 系統更新 UPDATE ]` 彈窗中的 `[ ⬇ 下載更新包 ]`（或 API 發送 POST `/api/update/download`）。
+  3. 觀察 `UpdateManager` 解壓後比對 `manifest.json` 與封包 SHA-256 雜湊之流程。
 * **預期結果**：
   - [x] 解壓或雜湊檢查報錯 `Checksum mismatch` 或 `Manifest validation failed`。
-  - [x] `install.sh` 中止執行，不建立 `.patch_bak/`，更不覆蓋運行中之 `argus.zip`。
-  - [x] Web UI 顯示紅色錯誤提示：「更新套用失敗：校驗碼不符」。
+  - [x] 系統狀態躍遷為 `FAILED`，不建立 `.patch_bak/`，更不覆蓋運行中之 `argus.zip`。
+  - [x] Web UI 顯示紅色錯誤提示：「更新下載失敗：校驗碼不符」或「Checksum mismatch」。
 * **驗收簽核**：`[ ] PASS  [ ] FAIL` ＿＿＿＿＿＿＿＿＿＿＿＿
 
 ---
 
-### TC-10：[異常注入 4] 連續崩潰防護 (Rollback Loop Guard)
+### TC-09：[異常注入 4] 連續崩潰終止防護 (Rollback Loop Guard)
 
-* **測試目的**：驗證當回滾後之舊版依然發生致命錯誤時，系統具備防止無窮重啟 (Infinite Restart Loop) 的終止保護。
-* **前置條件**：`run.sh` 正在執行。
+* **測試目的**：驗證當回滾後之舊版本依然發生致命錯誤時，守護行程具備終止保護，防止無窮重啟 (Infinite Restart Loop) 打滿磁碟日誌。
+* **前置條件**：`run.sh` 正在執行中，且舊版本亦遭破壞。
 * **操作步驟**：
-  1. 人為破壞系統（如刪除 `main.py` 或核心二進位檔）。
-  2. 模擬連續異常崩潰達 3 次以上。
-  3. 檢查 `run.sh` 之退出行為。
+  1. 人為破壞系統（如於主程序注入無法修復之語法錯誤）。
+  2. 觀察 `run.sh` 的運行生命週期：
+     - 第一次崩潰：`run.sh` 若偵測到 `.update_in_progress`，執行一次回滾並立即移除 `.update_in_progress`。
+     - 第二次崩潰：重新喚起之舊版依然發生致命錯誤 (Exit Code != 0 且 != 42)，此時因 `.update_in_progress` 已不存在，`run.sh` 進入退出分支。
+  3. 檢查 `run.sh` 之終端輸出與退出行為。
 * **預期結果**：
-  - [x] 看門狗偵測到已連續回滾失敗，停止呼叫重啟。
-  - [x] 行程以明確錯誤碼退出，防止磁碟寫滿死迴圈日誌。
+  - [x] `run.sh` 輸出 `[run.sh] 程式異常終止 (Code: 1)，退出。`。
+  - [x] 守護迴圈終止並退出行程，未陷入無窮死迴圈重啟。
 * **驗收簽核**：`[ ] PASS  [ ] FAIL` ＿＿＿＿＿＿＿＿＿＿＿＿
 
 ---

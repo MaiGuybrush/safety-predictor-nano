@@ -300,3 +300,27 @@ def test_update_manager_skips_startup_and_polling_when_api_key_missing(caplog):
             assert mock_instance.check_latest_candidate.call_count == 0
 
 
+def test_update_manager_version_txt_priority(tmp_path):
+    """驗證執行端環境存在 version.txt 時，UpdateManager 優先採用該版本。"""
+    version_file = tmp_path / "version.txt"
+    version_file.write_text("1.3.5\n", encoding="utf-8")
+
+    mgr = UpdateManager(
+        current_version="1.0.0",
+        config={"base_dir": str(tmp_path)},
+    )
+    assert mgr.current_version == "1.3.5"
+
+
+def test_argus_init_version_txt_priority(tmp_path, monkeypatch):
+    """驗證 argus.__init__._resolve_version 優先讀取工作目錄下的 version.txt。"""
+    import argus
+    version_file = tmp_path / "version.txt"
+    version_file.write_text("2.4.6\n", encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+    resolved = argus._resolve_version()
+    assert resolved == "2.4.6"
+
+
+
