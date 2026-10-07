@@ -17,6 +17,7 @@
 """
 
 import argparse
+import hashlib
 import http.server
 import json
 import os
@@ -26,6 +27,15 @@ import tarfile
 import tempfile
 import urllib.parse
 import zipfile
+
+
+def compute_sha256(filepath: str) -> str:
+    """計算指定檔案之 SHA-256 雜湊值。"""
+    h = hashlib.sha256()
+    with open(filepath, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest().lower()
 
 
 def create_dummy_delta_package(target_path: str, version: str = "1.1.0", corrupt: bool = False) -> str:
@@ -61,22 +71,28 @@ def create_dummy_delta_package(target_path: str, version: str = "1.1.0", corrupt
             f.write(f"{version}\n")
 
         # 4. manifest.json
+        files_manifest = {}
+        for root, _, files in os.walk(payload_dir):
+            for file in files:
+                full_path = os.path.join(root, file)
+                rel_to_payload = os.path.relpath(full_path, payload_dir).replace("\\", "/")
+                file_sha = (
+                    "fake_sha_if_corrupt"
+                    if (corrupt and "argus.zip" in rel_to_payload)
+                    else compute_sha256(full_path)
+                )
+                files_manifest[rel_to_payload] = {
+                    "sha256": file_sha,
+                    "size": os.path.getsize(full_path),
+                }
+
         manifest_data = {
             "target_version": version,
             "min_compatible_base": "1.0.0",
             "arch": "arm64",
             "package_type": "delta",
             "code_only": False,
-            "files": {
-                "_internal/argus.zip": {
-                    "sha256": "fake_sha_if_corrupt" if corrupt else "valid",
-                    "size": os.path.getsize(zip_path),
-                },
-                "version.txt": {
-                    "sha256": "valid",
-                    "size": os.path.getsize(ver_path),
-                },
-            },
+            "files": files_manifest,
         }
         manifest_path = os.path.join(staging, "manifest.json")
         with open(manifest_path, "w", encoding="utf-8") as f:
@@ -132,11 +148,15 @@ class MockAppUpdateHandler(http.server.BaseHTTPRequestHandler):
             files_info = []
             if not self.mode_full_only:
                 delta_size = os.path.getsize(self.delta_file_path) if os.path.isfile(self.delta_file_path) else 2516582
-                files_info.append({
+                delta_sha = compute_sha256(self.delta_file_path) if os.path.isfile(self.delta_file_path) else None
+                delta_item = {
                     "fileName": f"argus_delta-v{self.target_version}-arm64.tar.gz",
                     "filePath": f"dist/v{self.target_version}/argus_delta-v{self.target_version}-arm64.tar.gz",
                     "size": delta_size,
-                })
+                }
+                if delta_sha:
+                    delta_item["sha256"] = delta_sha
+                files_info.append(delta_item)
 
             files_info.append({
                 "fileName": f"safety-predictor-nano-v{self.target_version}-arm64.tar.gz",
@@ -192,6 +212,7 @@ def main():
     parser.add_argument("--corrupt", action="store_true", help="提供損毀封包，測試異常攔截與回滾")
     parser.add_argument("--app-id", default="safety-predictor-nano", help="App ID")
     parser.add_argument("--pkg-dir", default="updates/mock_repo", help="本地暫存模擬包路徑")
+    parser.add_argument("--regenerate", action="store_true", help="強制重新生成 Delta 模擬包")
     args = parser.parse_args()
 
     delta_pkg_name = f"argus_delta-v{args.version}-arm64.tar.gz"
@@ -207,9 +228,13 @@ def main():
     print("====================================================================")
 
     if not args.full_only:
-        print(f"[*] 正在生成測試用 Delta 增量更新包: {delta_full_path} ...")
-        create_dummy_delta_package(delta_full_path, version=args.version, corrupt=args.corrupt)
-        print(f"[✓] Delta 封包準備完成，大小: {os.path.getsize(delta_full_path):,} bytes")
+        should_generate = not os.path.isfile(delta_full_path) or args.regenerate or args.corrupt
+        if should_generate:
+            print(f"[*] 正在生成測試用 Delta 增量更新包: {delta_full_path} ...")
+            create_dummy_delta_package(delta_full_path, version=args.version, corrupt=args.corrupt)
+            print(f"[✓] Delta 封包準備完成，大小: {os.path.getsize(delta_full_path):,} bytes")
+        else:
+            print(f"[✓] 沿用既有 Delta 封包: {delta_full_path} (大小: {os.path.getsize(delta_full_path):,} bytes，如需重建請加 --regenerate)")
 
     MockAppUpdateHandler.target_version = args.version
     MockAppUpdateHandler.mode_full_only = args.full_only

@@ -141,8 +141,8 @@ class UpdateManager:
         if self.client is not None and hasattr(self.client, "api_key_missing"):
             try:
                 self.client.api_key_missing = (val is True)
-            except Exception:
-                pass
+            except Exception as ex:
+                logger.debug(f"[UpdateManager] 設定 client.api_key_missing 異常: {ex}")
 
     def configure(
         self,
@@ -270,8 +270,9 @@ class UpdateManager:
                 self.rollback_occurred = True
                 self.error = f"自動回滾告警: {content}"
                 logger.warning(f"[UpdateManager] 偵測到回滾警示: {content}")
-            except Exception:
+            except Exception as ex:
                 self.rollback_occurred = True
+                logger.warning(f"[UpdateManager] 讀取 .rollback_alert 異常: {ex}")
 
     def clear_rollback_alert(self):
         """操作員於 Web UI 確認後清除回滾警示標記。"""
@@ -282,8 +283,8 @@ class UpdateManager:
                 if os.path.exists(p):
                     try:
                         os.remove(p)
-                    except Exception:
-                        pass
+                    except Exception as ex:
+                        logger.warning(f"[UpdateManager] 移除回滾警示標記失敗 ({p}): {ex}")
         self._notify_subscribers()
 
 
@@ -576,18 +577,15 @@ class UpdateManager:
                 if self.is_delta_package(self.staging_dir) or (self.downloaded_archive_path and self.is_delta_package(self.downloaded_archive_path)):
                     self.is_delta = True
 
-                # 若為 Delta package，呼叫 install.sh --delta 或 DeltaUpdater 執行局部原子替換與雜湊校驗
-                if self.is_delta and os.path.exists(self.staging_dir):
-                    logger.info(f"[UpdateManager] 執行 Delta 局部原子替換與校驗 (staging={self.staging_dir})")
-                    delta_res = self.run_install_delta(self.staging_dir)
-                    if isinstance(delta_res, dict) and delta_res.get("status") != "ok":
-                        err_msg = delta_res.get("error") or delta_res.get("message") or "Delta 局部原子替換失敗"
-                        raise RuntimeError(f"Delta 增量替換失敗: {err_msg}")
-                elif os.path.exists(self.staging_dir):
-                    # 全量包或一般包若包含 manifest.json，執行檔案雜湊校驗
+                # 驗證 staging 目錄檔案完整性與相容性（嚴格遞延置換至 Exit 42，不提前替換運行中檔案）
+                if os.path.exists(self.staging_dir):
                     manifest_file = os.path.join(self.staging_dir, "manifest.json")
                     if os.path.isfile(manifest_file):
                         manifest = DeltaManifest.from_manifest_file(manifest_file)
+                        if self.is_delta and not manifest.is_compatible(self.current_version):
+                            raise RuntimeError(
+                                f"版本不相容: 目標補丁需要基礎版本 >= {manifest.min_compatible_base}，目前版本為 {self.current_version}"
+                            )
                         payload_dir = os.path.join(self.staging_dir, "payload")
                         if os.path.isdir(payload_dir) and manifest.files:
                             valid, mismatches = manifest.verify_payload(payload_dir)
@@ -673,22 +671,25 @@ class UpdateManager:
         self._notify_subscribers()
 
         def _do_restart():
-            logger.info("AutoUpdate: Triggering restart sequence (Exit code 42 for run.sh)")
-            # 寫入進行中標記
+            logger.info("AutoUpdate: Triggering restart sequence (Exit code 42 for runner)")
+            # 寫入進行中標記，包含完整中繼資料供守護程序 (run.bat / run.sh) 與 install.py 讀取
+            progress_data = {
+                "target_version": self.target_version,
+                "timestamp": time.time(),
+                "backup_dir": self.config.get("backup_dir", "argus_predictor_bak"),
+                "is_delta": self.is_delta,
+                "staging_dir": self.staging_dir,
+                "package_type": "delta" if self.is_delta else "full",
+            }
             targets = [os.path.join(self.base_dir, ".update_in_progress")]
             if os.path.abspath(".") != self.base_dir:
                 targets.append(".update_in_progress")
             for p in targets:
                 try:
                     with open(p, "w", encoding="utf-8") as f:
-                        f.write(json.dumps({
-                            "target_version": self.target_version,
-                            "timestamp": time.time(),
-                            "backup_dir": self.config.get("backup_dir", "argus_predictor_bak"),
-                            "is_delta": self.is_delta,
-                        }))
-                except Exception:
-                    pass
+                        f.write(json.dumps(progress_data, indent=2))
+                except Exception as e:
+                    logger.warning(f"[UpdateManager] 寫入 .update_in_progress 失敗 ({p}): {e}")
 
             time.sleep(1.0)
 
@@ -727,8 +728,8 @@ class UpdateManager:
                 if os.path.exists(p):
                     try:
                         os.remove(p)
-                    except Exception:
-                        pass
+                    except Exception as ex:
+                        logger.warning(f"[UpdateManager] 移除更新標記檔失敗 ({p}): {ex}")
 
             if self.target_version:
                 self.current_version = self.target_version
@@ -745,8 +746,8 @@ class UpdateManager:
                     os.makedirs(ld, exist_ok=True)
                     with open(os.path.join(ld, "update.log"), "a", encoding="utf-8") as f:
                         f.write(f"[{datetime.datetime.now().isoformat()}] [COMMITTED] 成功升級至 v{self.current_version} (is_delta={self.is_delta})\n")
-            except Exception:
-                pass
+            except Exception as ex:
+                logger.warning(f"[UpdateManager] 寫入 update.log 失敗: {ex}")
         self._notify_subscribers()
         return {"status": "ok", "message": "更新確立完成", "data": self.get_status()}
 
@@ -765,7 +766,8 @@ class UpdateManager:
             elif os.path.isfile(target):
                 m = DeltaManifest.from_archive(target)
                 return m.package_type == "delta"
-        except Exception:
+        except Exception as ex:
+            logger.debug(f"[UpdateManager] 判定 Delta 封包異常: {ex}")
             return False
         return False
 
@@ -791,8 +793,8 @@ class UpdateManager:
             try:
                 with open(".rollback_alert", "w", encoding="utf-8") as f:
                     f.write(self.error)
-            except Exception:
-                pass
+            except Exception as ex:
+                logger.warning(f"[UpdateManager] 寫入 .rollback_alert 失敗: {ex}")
         self._notify_subscribers()
         return {"status": "ok", "message": "已模擬回滾狀態", "data": self.get_status()}
 

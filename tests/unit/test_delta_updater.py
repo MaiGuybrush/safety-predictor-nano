@@ -168,3 +168,31 @@ def test_delta_updater_apply_and_rollback():
         with open(alert_file, "r", encoding="utf-8") as f:
             content = f.read()
             assert "自動安全回滾至原版本" in content
+
+
+def test_delta_updater_incompatible_version():
+    """驗證當基底版本低於 min_compatible_base 時，apply_delta 拋出 DeltaCompatibilityError。"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base_dir = tmpdir
+        argus_dir = os.path.join(base_dir, "argus_predictor")
+        internal_dir = os.path.join(argus_dir, "_internal")
+        os.makedirs(internal_dir, exist_ok=True)
+
+        staging_dir = os.path.join(base_dir, "staging")
+        payload_dir = os.path.join(staging_dir, "payload")
+        os.makedirs(payload_dir, exist_ok=True)
+
+        manifest_data = {
+            "package_type": "delta",
+            "target_version": "2.0.0",
+            "min_compatible_base": "1.5.0",
+            "files": {},
+        }
+        with open(os.path.join(staging_dir, "manifest.json"), "w") as f:
+            json.dump(manifest_data, f)
+
+        updater = DeltaUpdater(base_dir=base_dir)
+        with pytest.raises(DeltaCompatibilityError, match="版本不相容"):
+            updater.apply_delta(staging_dir, current_base_version="1.0.0")
+
+

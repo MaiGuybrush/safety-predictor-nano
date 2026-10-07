@@ -165,9 +165,15 @@ def test_update_manager_trigger_restart_exit_42(tmp_path):
         time.sleep(0.1)
     exit_mock.assert_called_once_with(42)
 
-    # 檢查 .update_in_progress 已寫入
+    # 檢查 .update_in_progress 已寫入且包含完整中繼資料
     progress_file = tmp_path / ".update_in_progress"
     assert progress_file.exists()
+    import json
+    data = json.loads(progress_file.read_text(encoding="utf-8"))
+    assert data["target_version"] == "1.1.0"
+    assert data["is_delta"] is True
+    assert data["staging_dir"] == mgr.staging_dir
+    assert data["package_type"] == "delta"
 
 
 def test_update_manager_commit_update(tmp_path):
@@ -381,6 +387,71 @@ def test_update_manager_checksum_mismatch_blocks_ready_to_install(tmp_path):
     restart_res = mgr.trigger_restart()
     assert restart_res["status"] == "error"
     assert "尚未就緒安裝" in restart_res["message"]
+
+
+def test_update_manager_download_ready_to_install_deferred_swap(tmp_path):
+    """驗證 _do_download 解壓與驗證完畢後僅切換為 READY_TO_INSTALL，絕不調用 run_install_delta 且不提前置換運行中檔案。"""
+    import json
+    import hashlib
+    staging_dir = tmp_path / "updates" / "staging"
+    staging_dir.mkdir(parents=True, exist_ok=True)
+    payload_dir = staging_dir / "payload"
+    payload_dir.mkdir(parents=True, exist_ok=True)
+    internal_dir = tmp_path / "_internal"
+    internal_dir.mkdir(parents=True, exist_ok=True)
+
+    # 運行中舊檔案
+    old_zip = internal_dir / "argus.zip"
+    old_zip.write_text("running_v1_0_0_code", encoding="utf-8")
+
+    # 新版檔案在 staging/payload
+    new_zip = payload_dir / "_internal" / "argus.zip"
+    new_zip.parent.mkdir(parents=True, exist_ok=True)
+    new_zip_content = b"new_v1_1_0_code"
+    new_zip.write_bytes(new_zip_content)
+    zip_sha = hashlib.sha256(new_zip_content).hexdigest()
+
+    manifest_data = {
+        "target_version": "1.1.0",
+        "min_compatible_base": "1.0.0",
+        "package_type": "delta",
+        "files": {
+            "_internal/argus.zip": {
+                "sha256": zip_sha,
+                "size": len(new_zip_content),
+            }
+        }
+    }
+    manifest_path = staging_dir / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest_data), encoding="utf-8")
+
+    mgr = UpdateManager(
+        current_version="1.0.0",
+        config={
+            "base_dir": str(tmp_path),
+            "staging_dir": str(staging_dir),
+        },
+    )
+    mgr.target_version = "1.1.0"
+    mgr.state = UpdateState.AVAILABLE
+    mgr.is_delta = True
+
+    with patch.object(mgr, "run_install_delta") as mock_run_delta:
+        mgr.start_download()
+
+        start_t = time.time()
+        while time.time() - start_t < 5.0:
+            if mgr.state in (UpdateState.FAILED, UpdateState.READY_TO_INSTALL):
+                break
+            time.sleep(0.1)
+
+        # 1. 驗證狀態僅切換至 READY_TO_INSTALL
+        assert mgr.state == UpdateState.READY_TO_INSTALL
+        # 2. 驗證絕對未調用 run_install_delta
+        assert mock_run_delta.call_count == 0
+        # 3. 驗證運行中檔案完全未被置換（嚴格遞延至 Exit 42）
+        assert old_zip.read_text(encoding="utf-8") == "running_v1_0_0_code"
+
 
 
 

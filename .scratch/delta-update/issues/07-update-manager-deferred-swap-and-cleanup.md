@@ -8,11 +8,11 @@
 
 ## Acceptance criteria
 
-- [ ] `UpdateManager._do_download` 解壓與驗證完畢後僅切換為 `READY_TO_INSTALL`，不調用 `run_install_delta`
-- [ ] `UpdateManager.trigger_restart` 寫入包含 `target_version`, `is_delta`, `staging_dir`, `package_type` 之 `.update_in_progress`，並呼叫 `sys.exit(42)`
-- [ ] 拔除 `delta_updater.py` 中的 `release_file_handles`、`gc.get_objects()` 遍歷與 `shutil.copyfile` 就地覆寫降級，全面回歸標準 `os.replace`
-- [ ] 清理所有裸吞例外 (`except Exception: pass`)，規範補齊 logger 輸出
-- [ ] 更新 `tests/unit/test_update_manager.py` 與 `tests/unit/test_delta_updater.py`，單元測試全數通過
+- [x] `UpdateManager._do_download` 解壓與驗證完畢後僅切換為 `READY_TO_INSTALL`，不調用 `run_install_delta`
+- [x] `UpdateManager.trigger_restart` 寫入包含 `target_version`, `is_delta`, `staging_dir`, `package_type` 之 `.update_in_progress`，並呼叫 `sys.exit(42)`
+- [x] 拔除 `delta_updater.py` 中的 `release_file_handles`、`gc.get_objects()` 遍歷與 `shutil.copyfile` 就地覆寫降級，全面回歸標準 `os.replace`
+- [x] 清理所有裸吞例外 (`except Exception: pass`)，規範補齊 logger 輸出
+- [x] 更新 `tests/unit/test_update_manager.py` 與 `tests/unit/test_delta_updater.py`，單元測試全數通過
 
 ## Blocked by
 

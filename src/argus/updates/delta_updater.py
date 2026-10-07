@@ -21,6 +21,8 @@ import shutil
 import sys
 import tarfile
 import tempfile
+import time
+import zipfile
 from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("system")
@@ -147,7 +149,8 @@ class DeltaManifest:
             current_t = parse_v(base_version)
             min_t = parse_v(self.min_compatible_base)
             return current_t >= min_t
-        except Exception:
+        except Exception as e:
+            logger.debug(f"[DeltaManifest] 解析版本相容性異常，預設允許: {e}")
             return True
 
     def verify_payload(self, payload_dir: str) -> Tuple[bool, List[str]]:
