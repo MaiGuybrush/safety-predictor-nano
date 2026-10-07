@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -113,15 +114,21 @@ def setup_mock_sandbox(sandbox_dir: str):
     os.makedirs(models_dir, exist_ok=True)
     os.makedirs(logs_dir, exist_ok=True)
 
-    # 複製專案當前之 install.sh 至測試沙盒
-    src_install_sh = os.path.abspath("scripts/install.sh")
+    # 複製專案當前之 install.sh 與 install.py 至測試沙盒 (基於測試檔案絕對路徑定位專案根目錄)
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+    src_install_sh = os.path.join(repo_root, "scripts", "install.sh")
     dest_install_sh = os.path.join(scripts_dir, "install.sh")
     shutil.copy2(src_install_sh, dest_install_sh)
 
-    # 1. 舊版業務代碼 (argus.zip)
+    src_install_py = os.path.join(repo_root, "scripts", "install.py")
+    dest_install_py = os.path.join(scripts_dir, "install.py")
+    shutil.copy2(src_install_py, dest_install_py)
+
+    # 1. 舊版業務代碼 (argus.zip) - 建立標準有效 zip 檔案
     old_zip = os.path.join(internal_dir, "argus.zip")
-    with open(old_zip, "w", encoding="utf-8") as f:
-        f.write("old_business_logic_v1.0.0")
+    with zipfile.ZipFile(old_zip, "w") as zf:
+        zf.writestr("argus/__init__.py", '__version__ = "1.0.0"\n')
+        zf.writestr("argus/core.py", "# old_business_logic_v1.0.0\n")
 
     # 2. 舊版前端 Web 模板
     old_tpl_dir = os.path.join(internal_dir, "argus", "web", "templates")
@@ -312,7 +319,11 @@ def test_delta_update_full_lifecycle_e2e(tmp_path):
     # 4. 階段一：版本檢查 (CHECKING -> AVAILABLE)
     check_res = mgr.check_for_updates()
     assert check_res["status"] == "ok"
-    time.sleep(0.5)
+    start_check = time.time()
+    while time.time() - start_check < 5.0:
+        if mgr.get_status()["state"] == UpdateState.AVAILABLE:
+            break
+        time.sleep(0.1)
 
     status = mgr.get_status()
     assert status["state"] == UpdateState.AVAILABLE
@@ -346,7 +357,7 @@ def test_delta_update_full_lifecycle_e2e(tmp_path):
             assert 'id="up-package-type"' in ui_html
             assert 'id="up-package-size"' in ui_html
 
-    # 6. 階段三：觸發下載並執行局部原子置換 (install.sh --delta)
+    # 6. 階段三：觸發下載並驗證 READY_TO_INSTALL 規格（活體檔案維持舊版）
     down_res = mgr.start_download()
     assert down_res["status"] == "ok"
     start_wait = time.time()
@@ -358,6 +369,44 @@ def test_delta_update_full_lifecycle_e2e(tmp_path):
     status_ready = mgr.get_status()
     assert status_ready["state"] == UpdateState.READY_TO_INSTALL
     assert mgr.is_delta is True
+
+    # 驗證 Acceptance Criteria 1: 下載就緒時，活體檔案依然為舊版 (嚴格遞延置換至 Exit 42)
+    with zipfile.ZipFile(env["old_zip"], "r") as zf:
+        ver_py_before = zf.read("argus/__init__.py").decode("utf-8")
+        assert '1.0.0' in ver_py_before
+        assert '1.1.0' not in ver_py_before
+
+    # 7. 階段四：觸發重啟並驗證 Exit Code 42
+    exit_mock = MagicMock()
+    mgr._exit_func = exit_mock
+
+    restart_res = mgr.trigger_restart(exit_on_restart=True)
+    assert restart_res["status"] == "ok"
+    assert mgr.state == UpdateState.RESTARTING
+
+    start_exit = time.time()
+    while time.time() - start_exit < 5.0 and not exit_mock.called:
+        time.sleep(0.1)
+    exit_mock.assert_called_once_with(42)
+
+    # 驗證寫入 .update_in_progress
+    progress_file = os.path.join(sandbox_dir, ".update_in_progress")
+    assert os.path.isfile(progress_file)
+    with open(progress_file, "r", encoding="utf-8") as f:
+        prog_data = json.load(f)
+    assert prog_data["target_version"] == "1.1.0"
+    assert prog_data["is_delta"] is True
+
+    # 模擬守護腳本 (run.bat / run.sh) 捕捉 Exit 42 後執行 install.py --delta updates/staging
+    # Acceptance Criteria 2: 模擬守護腳本執行 install.py --delta，活體檔案原子切換為新版並產出 .patch_bak/
+    install_py_path = os.path.join(sandbox_dir, "scripts", "install.py")
+    staging_updates = os.path.join(sandbox_dir, "updates", "staging")
+    cmd_install = [sys.executable, install_py_path, "--delta", staging_updates, "--dir", sandbox_dir]
+    env_install = os.environ.copy()
+    env_install["PYTHONIOENCODING"] = "utf-8"
+    env_install["PYTHONUTF8"] = "1"
+    run_res = subprocess.run(cmd_install, cwd=sandbox_dir, capture_output=True, text=True, env=env_install)
+    assert run_res.returncode == 0, f"install.py failed: {run_res.stderr}\n{run_res.stdout}"
 
     # 驗證局部原子置換成效：
     # (a) 業務代碼已更新 (argus.zip 內包含 v1.1.0)
@@ -379,25 +428,6 @@ def test_delta_update_full_lifecycle_e2e(tmp_path):
     # (d) 使用者本機配置檔 (config.yaml) 嚴格未受覆蓋
     with open(env["cfg_path"], "r", encoding="utf-8") as f:
         assert "factory_cleanroom" in f.read()
-
-    # 7. 階段四：觸發重啟並驗證 Exit Code 42
-    exit_mock = MagicMock()
-    mgr._exit_func = exit_mock
-
-    restart_res = mgr.trigger_restart(exit_on_restart=True)
-    assert restart_res["status"] == "ok"
-    assert mgr.state == UpdateState.RESTARTING
-
-    time.sleep(1.5)
-    exit_mock.assert_called_once_with(42)
-
-    # 驗證寫入 .update_in_progress
-    progress_file = os.path.join(sandbox_dir, ".update_in_progress")
-    assert os.path.isfile(progress_file)
-    with open(progress_file, "r", encoding="utf-8") as f:
-        prog_data = json.load(f)
-    assert prog_data["target_version"] == "1.1.0"
-    assert prog_data["is_delta"] is True
 
     # 8. 階段五：新版進程喚起與 30 秒健康檢查確立 (Commit)
     # 模擬服務重啟：新 UpdateManager 偵測到 .update_in_progress 進入 HEALTHCHECK
@@ -426,49 +456,58 @@ def test_delta_update_full_lifecycle_e2e(tmp_path):
 
     # 驗證日誌記錄 [COMMITTED]
     update_log_path = os.path.join(sandbox_dir, "logs", "update.log")
-    if os.path.isfile(update_log_path):
-
-        with open(update_log_path, "r", encoding="utf-8") as f:
-            log_content = f.read()
-            assert "[COMMITTED]" in log_content
-            assert "1.1.0" in log_content
+    assert os.path.isfile(update_log_path), f"預期產生日誌檔不存在: {update_log_path}"
+    with open(update_log_path, "r", encoding="utf-8") as f:
+        log_content = f.read()
+        assert "[COMMITTED]" in log_content
+        assert "1.1.0" in log_content
 
     mgr.unsubscribe(sse_queue)
 
 
 
 def test_delta_update_healthcheck_failure_auto_rollback(tmp_path):
-    """驗證升級異常健康檢查超時後觸發 Delta 局部秒級回滾與告警標記。"""
+    """驗證升級異常健康檢查超時或崩潰後觸發 install.py --rollback 之秒級還原閉環與告警標記。"""
     sandbox_dir = str(tmp_path / "sandbox")
     env = setup_mock_sandbox(sandbox_dir)
 
     server_tar_path = str(tmp_path / "server_files" / "argus_delta-v1.1.0-arm64.tar.gz")
     create_test_delta_archive(server_tar_path, target_version="1.1.0")
 
-    # 套用 Delta 更新
-    updater = DeltaUpdater(base_dir=sandbox_dir)
-    updater.apply_delta(server_tar_path, current_base_version="1.0.0")
+    # 模擬守護腳本執行 install.py --delta 套用增量補丁
+    install_py_path = os.path.join(sandbox_dir, "scripts", "install.py")
+    cmd_install = [sys.executable, install_py_path, "--delta", server_tar_path, "--dir", sandbox_dir]
+    env_install = os.environ.copy()
+    env_install["PYTHONIOENCODING"] = "utf-8"
+    env_install["PYTHONUTF8"] = "1"
+    run_res = subprocess.run(cmd_install, cwd=sandbox_dir, capture_output=True, text=True, env=env_install)
+    assert run_res.returncode == 0, f"install.py --delta failed: {run_res.stderr}\n{run_res.stdout}"
 
-    # 驗證升級後有備份
-    assert updater.has_patch_backup()
+    # 驗證套用後有備份
+    patch_bak = os.path.join(env["internal_dir"], ".patch_bak")
+    assert os.path.isdir(patch_bak)
 
-    mgr = UpdateManager(
-        current_version="1.0.0",
-        config={"base_dir": sandbox_dir},
-    )
-    # 模擬健康檢查失敗觸發回滾
-    res = mgr.trigger_mock_rollback()
-    assert res["status"] == "ok"
-    assert mgr.state == UpdateState.ROLLBACK
-    assert mgr.rollback_occurred is True
+    # 模擬新版本異常崩潰或守護程序偵測健康檢查失敗，呼叫 install.py --rollback
+    cmd_rollback = [sys.executable, install_py_path, "--rollback", "--dir", sandbox_dir]
+    rb_res = subprocess.run(cmd_rollback, cwd=sandbox_dir, capture_output=True, text=True, env=env_install)
+    assert rb_res.returncode == 0, f"install.py --rollback failed: {rb_res.stderr}\n{rb_res.stdout}"
 
     # 驗證局部秒級回滾成功：argus.zip 還原為舊版
-    with open(env["old_zip"], "r", encoding="utf-8") as f:
-        assert f.read() == "old_business_logic_v1.0.0"
+    with zipfile.ZipFile(env["old_zip"], "r") as zf:
+        ver_py = zf.read("argus/__init__.py").decode("utf-8")
+        assert '1.0.0' in ver_py
+        assert '1.1.0' not in ver_py
 
     # 驗證產生 .rollback_alert
     alert_path = os.path.join(sandbox_dir, ".rollback_alert")
     assert os.path.isfile(alert_path)
+
+    # 模擬舊版喚醒後 UpdateManager 偵測到 .rollback_alert
+    mgr = UpdateManager(
+        current_version="1.0.0",
+        config={"base_dir": sandbox_dir},
+    )
+    assert mgr.rollback_occurred is True
 
     # 驗證 /api/health 回傳 rollback_occurred 為 True
     with patch("argus.web.web_ui.GLOBAL_UPDATE_MANAGER", mgr):
@@ -492,6 +531,11 @@ class ServerThread(threading.Thread):
 
     def shutdown(self):
         self.server.shutdown()
+        if hasattr(self, "ctx") and self.ctx:
+            try:
+                self.ctx.pop()
+            except Exception:
+                pass
 
 
 def test_delta_update_modal_browser_e2e():
@@ -553,5 +597,13 @@ def test_delta_update_modal_browser_e2e():
             browser.close()
     finally:
         server.shutdown()
+        server.join(timeout=3.0)
+        GLOBAL_UPDATE_MANAGER.set_state(
+            UpdateState.IDLE,
+            target_version=None,
+            is_delta=False,
+            total=0,
+            release_notes=None,
+        )
 
 

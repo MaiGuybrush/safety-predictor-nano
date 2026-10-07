@@ -1,3 +1,5 @@
+Status: resolved
+
 ## Parent
 
 #90 (自動更新功能需求)
@@ -8,12 +10,25 @@
 
 ## Acceptance criteria
 
-- [ ] 修訂 `tests/e2e/test_delta_update_flow.py`，驗證下載完成後活體檔案依然為舊版，符合 READY_TO_INSTALL 規格
-- [ ] 驗證重啟觸發 Exit 42 後，模擬守護腳本執行 `install.py --delta`，活體檔案原子切換為新版並產出 `.patch_bak/`
-- [ ] 驗證新版程序啟動偵測到 `.update_in_progress` 進入 HEALTHCHECK，通過 `/api/health` 探針後確立為 COMMITTED
-- [ ] 驗證健康檢查失敗或崩潰時觸發 `install.py --rollback` 之秒級還原閉環
-- [ ] 同步更新 `.scratch/delta-update/map.md` 藍圖文件，記錄重構決策與驗證結果
-- [ ] 確保 `pytest tests/unit/ tests/integration/ tests/e2e/` 全線通過
+- [x] 修訂 `tests/e2e/test_delta_update_flow.py`，驗證下載完成後活體檔案依然為舊版，符合 READY_TO_INSTALL 規格
+- [x] 驗證重啟觸發 Exit 42 後，模擬守護腳本執行 `install.py --delta`，活體檔案原子切換為新版並產出 `.patch_bak/`
+- [x] 驗證新版程序啟動偵測到 `.update_in_progress` 進入 HEALTHCHECK，通過 `/api/health` 探針後確立為 COMMITTED
+- [x] 驗證健康檢查失敗或崩潰時觸發 `install.py --rollback` 之秒級還原閉環
+- [x] 同步更新 `.scratch/delta-update/map.md` 藍圖文件，記錄重構決策與驗證結果
+- [x] 確保 `pytest tests/unit/ tests/integration/ tests/e2e/` 全線通過
+
+## Answer
+
+已完成 `tests/e2e/test_delta_update_flow.py` 的端到端生命週期與回滾閉環重構：
+1. 修正 `test_delta_update_full_lifecycle_e2e`：
+   - 下載完成至 `READY_TO_INSTALL` 狀態時，活體檔案依然保持舊版本（v1.0.0），嚴格遞延置換至 Exit 42。
+   - 觸發 `trigger_restart` 時產生包含完整中繼資料的 `.update_in_progress` 標記檔並觸發 Exit 42。
+   - 模擬外層守護腳本（`run.bat` / `run.sh`）捕捉 Exit 42 後執行獨立 `install.py --delta updates/staging`，活體檔案原子切換至新版本（v1.1.0）並產出 `.patch_bak/`。
+   - 模擬重啟後之新進程 UpdateManager 偵測到 `.update_in_progress` 自動進入 `HEALTHCHECK`，通過 `/api/health` 探測後確立為 `COMMITTED`，版本更新為 1.1.0 並清除更新標記。
+2. 修正 `test_delta_update_healthcheck_failure_auto_rollback`：
+   - 模擬更新後異常崩潰或健康檢查失敗時，守護程序執行 `install.py --rollback`。
+   - 驗證秒級還原至舊版 `argus.zip`，產生 `.rollback_alert`，重啟後 `/api/health` 回傳 `rollback_occurred: True`。
+3. 全線測試通過：unit、integration、e2e 測試 100% 通過。
 
 ## Blocked by
 

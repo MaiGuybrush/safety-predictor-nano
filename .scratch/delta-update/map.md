@@ -16,6 +16,9 @@
 - [02 — install.sh 與更新引擎支援 Delta 局部替換與原子回滾](issues/02-install-script-delta-and-rollback.md) — `scripts/install.sh` 擴充支援 `--delta` 模式與 `.patch_bak/` 備份機制，達成秒級局域覆蓋與秒級原子回滾，完整保留底層動態庫與配置檔案。([Gitea #84](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/84))
 - [03 — UpdateManager 整合 Delta 下載、Web UI 標籤與端到端升級閉環](issues/03-update-manager-delta-and-ui-loop.md) — `AppUpdateClient` 支援優先選取 `argus_delta-*.tar.gz` 增量包與自動回退；`UpdateManager` 整合增量磁檢（20MB）、`--delta` 套用與 Exit 42 重啟；Web UI 提供 Delta 標籤與 SSE 實時進度，並通過 E2E 全流程驗證。([Gitea #85](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/85))
 - [05 — 建立跨平台獨立安裝與回滾執行器 (scripts/install.py)](issues/05-install-script-python-core.md) — 實作跨平台 Python 獨立安裝與回滾工具 `scripts/install.py`，支援 `--delta`、`--rollback` 與 `--full`，具備 Manifest SHA-256 完整性校驗與標準原子置換，通過專屬單元測試。([Gitea #91](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/91))
+- [06 — 實作 Windows 守護腳本 (run.bat)、同步修訂 run.sh 與 main.py 自動委派防呆](issues/06-runner-scripts-and-auto-relaunch.md) — 建立 `run.bat` 與修訂 `run.sh`，委派管理生命週期並鎖定 Exit 42 更新與崩潰自動回滾。([Gitea #92](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/92))
+- [07 — 重構 UpdateManager 狀態機生命週期 (遞延置換至 Exit 42) 並拔除 delta_updater 程式碼異味](issues/07-update-manager-deferred-swap-and-cleanup.md) — 狀態機下載完成解壓後停在 `READY_TO_INSTALL`，嚴格遞延置換至 Exit 42；拔除 `delta_updater.py` 所有代碼異味與裸吞例外。([Gitea #93](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/93))
+- [08 — 端到端增量更新生命週期與回滾閉環驗證 (test_delta_update_flow.py)](issues/08-e2e-deferred-update-lifecycle.md) — 修訂 `tests/e2e/test_delta_update_flow.py`，完整覆蓋「下載就緒（活體維持舊版）-> 點擊重啟 (Exit 42) -> 守護腳本呼叫 install.py 置換 -> 喚起新版並通過健康檢查 (Commit) / 異常崩潰自動回滾」的真實端到端閉環。([Gitea #94](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/94))
 
 ## Slices / Issues
 
@@ -26,6 +29,6 @@
 - [x] 5. **[05 — 建立跨平台獨立安裝與回滾執行器 (scripts/install.py)](issues/05-install-script-python-core.md)** (Gitea [#91](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/91))
 - [x] 6. **[06 — 實作 Windows 守護腳本 (run.bat)、同步修訂 run.sh 與 main.py 自動委派防呆](issues/06-runner-scripts-and-auto-relaunch.md)** (Gitea [#92](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/92))
 - [x] 7. **[07 — 重構 UpdateManager 狀態機生命週期 (遞延置換至 Exit 42) 並拔除 delta_updater 程式碼異味](issues/07-update-manager-deferred-swap-and-cleanup.md)** (Gitea [#93](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/93))
-- [ ] 8. **[08 — 端到端增量更新生命週期與回滾閉環驗證 (test_delta_update_flow.py)](issues/08-e2e-deferred-update-lifecycle.md)** (Gitea [#94](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/94))
+- [x] 8. **[08 — 端到端增量更新生命週期與回滾閉環驗證 (test_delta_update_flow.py)](issues/08-e2e-deferred-update-lifecycle.md)** (Gitea [#94](http://tncimweb.cminl.oa/git-server/guy.mai/safety-predictor-nano/issues/94))
 
 
