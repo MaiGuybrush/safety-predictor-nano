@@ -20,12 +20,29 @@ cd "$BASE_DIR"
 
 echo "[run.sh] 工作目錄鎖定至: $(pwd)"
 
-# 2. RPi 5 最佳化環境變數注入
+# 2. RPi 5 最佳化環境變數注入與守護標記
+export ARGUS_MANAGED_RUNNER=1
 export PYTHONUNBUFFERED=1
 export OPENCV_LOG_LEVEL=ERROR
 export OPENCV_FFMPEG_CAPTURE_OPTIONS="rtsp_transport;tcp"
 export OMP_NUM_THREADS=4
 export MALLOC_ARENA_MAX=2
+
+# 探測 Python 執行檔
+PYTHON_BIN="python3"
+if command -v python3 &>/dev/null; then
+    PYTHON_BIN="python3"
+elif command -v python &>/dev/null; then
+    PYTHON_BIN="python"
+fi
+
+# 探測 install.py
+INSTALL_SCRIPT=""
+if [ -f "./scripts/install.py" ]; then
+    INSTALL_SCRIPT="./scripts/install.py"
+elif [ -f "./install.py" ]; then
+    INSTALL_SCRIPT="./install.py"
+fi
 
 # 若有 _internal/ 則優先載入動態庫
 if [ -d "./argus_predictor/_internal" ]; then
@@ -40,7 +57,7 @@ if [ ! -f "$BINARY_PATH" ]; then
     if [ -f "./argus_predictor" ]; then
         BINARY_PATH="./argus_predictor"
     elif [ -f "./main.py" ]; then
-        BINARY_PATH="python3 main.py"
+        BINARY_PATH="$PYTHON_BIN main.py"
     else
         echo "[run.sh] 錯誤: 找不到可執行之 argus_predictor 二進位檔或 main.py"
         exit 1
@@ -60,7 +77,21 @@ while true; do
     echo "[run.sh] 行程結束，Exit Code: $EXIT_CODE"
 
     if [ "$EXIT_CODE" -eq 42 ]; then
-        echo "[run.sh] 收到重啟代碼 42 (RESTART_FOR_UPDATE)，準備載入新版本..."
+        echo "[run.sh] 收到重啟代碼 42 (RESTART_FOR_UPDATE)，準備套用更新..."
+        
+        # 若存在暫存增量更新目錄，呼叫 install.py 執行局部原子替換
+        if [ -f "updates/staging/manifest.json" ]; then
+            echo "[run.sh] 偵測到 updates/staging 增量補丁，執行 install.py --delta updates/staging..."
+            if [ -n "$INSTALL_SCRIPT" ]; then
+                if ! $PYTHON_BIN "$INSTALL_SCRIPT" --delta updates/staging; then
+                    echo "[run.sh] 錯誤: install.py --delta 套用失敗，執行回滾..."
+                    $PYTHON_BIN "$INSTALL_SCRIPT" --rollback || true
+                fi
+            elif [ -f "./scripts/install.sh" ]; then
+                ./scripts/install.sh --delta updates/staging || ./scripts/install.sh --rollback || true
+            fi
+        fi
+
         sleep 1
         continue
     elif [ "$EXIT_CODE" -eq 0 ]; then
@@ -70,7 +101,9 @@ while true; do
         # 異常退出檢查是否處於更新窗口
         if [ -f ".update_in_progress" ]; then
             echo "[run.sh] 警告: 更新期間發生異常崩潰 (Exit Code: $EXIT_CODE)，啟動自動回滾程序..."
-            if [ -f "./scripts/install.sh" ]; then
+            if [ -n "$INSTALL_SCRIPT" ]; then
+                $PYTHON_BIN "$INSTALL_SCRIPT" --rollback || true
+            elif [ -f "./scripts/install.sh" ]; then
                 ./scripts/install.sh --rollback || true
             elif [ -d "argus_predictor_bak" ]; then
                 rm -rf "argus_predictor_failed_$(date +%s)" 2>/dev/null || true

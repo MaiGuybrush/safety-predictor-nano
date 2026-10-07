@@ -58,7 +58,72 @@ def mount_argus_zip(custom_path: str = None) -> bool:
 mount_argus_zip()
 
 
+import subprocess
+
+
+def delegate_to_managed_runner() -> None:
+    """自動委派至守護腳本 (run.bat / run.sh) 執行。
+
+    防呆機制：確保程序由具備 Exit Code 42 自動置換與異常崩潰回滾能力的
+    外層守護迴圈進行管理，避免操作員直接呼叫 python main.py 導致更新無法重啟。
+    """
+    # 支援透過 --allow-direct 參數或 ARGUS_MANAGED_RUNNER=1 跳過委派
+    if os.environ.get("ARGUS_MANAGED_RUNNER") == "1":
+        return
+
+    if "--allow-direct" in sys.argv:
+        sys.argv.remove("--allow-direct")
+        return
+
+    # 特殊診斷或單次指令不強求委派
+    if any(arg in sys.argv for arg in ("--probe", "--report-issue", "-r", "--help", "-h")):
+        return
+
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    is_windows = sys.platform == "win32"
+
+    runner_path = None
+    runner_cmd = []
+
+    if is_windows:
+        # Windows: 優先尋找 run.bat
+        cand_bat = [
+            os.path.join(base_dir, "run.bat"),
+            os.path.abspath("run.bat"),
+            os.path.join(base_dir, "scripts", "run.bat"),
+        ]
+        for p in cand_bat:
+            if os.path.isfile(p):
+                runner_path = p
+                runner_cmd = ["cmd.exe", "/c", p] + sys.argv[1:]
+                break
+    else:
+        # Linux / POSIX: 優先尋找 scripts/run.sh 或 run.sh
+        cand_sh = [
+            os.path.join(base_dir, "scripts", "run.sh"),
+            os.path.join(base_dir, "run.sh"),
+            os.path.abspath("scripts/run.sh"),
+        ]
+        for p in cand_sh:
+            if os.path.isfile(p):
+                runner_path = p
+                runner_cmd = ["bash", p] + sys.argv[1:]
+                break
+
+    if runner_path and runner_cmd:
+        print(f"[main.py] 偵測到未由守護腳本託管 (ARGUS_MANAGED_RUNNER 未設定)。")
+        print(f"[main.py] 自動轉交至外層守護腳本執行: {runner_path}")
+        try:
+            # 委派至外層守護腳本執行並繼承標準輸出入，並以該腳本之 Exit Code 退出當前進程
+            res = subprocess.run(runner_cmd, cwd=base_dir)
+            sys.exit(res.returncode)
+        except Exception as e:
+            print(f"[main.py] 自動轉發守護腳本失敗 ({e})，降級為直接運行。")
+
+
 if __name__ == "__main__":
+    delegate_to_managed_runner()
+
     if "--probe" in sys.argv:
         # 打包完整性探針：驗證所有 import 與資料檔是否正確打包
         # 用法：./argus_predictor --probe [--json]

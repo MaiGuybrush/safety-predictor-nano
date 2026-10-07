@@ -232,8 +232,10 @@ def build_delta_package(
         if os.path.isdir(scripts_src):
             dest_scripts = os.path.join(payload_dir, "scripts")
             os.makedirs(dest_scripts, exist_ok=True)
-            for sname in ["run.sh", "install.sh", "ask_and_report.sh", "ask_and_report.bat"]:
+            for sname in ["run.sh", "run.bat", "install.sh", "install.py", "ask_and_report.sh", "ask_and_report.bat"]:
                 sf = os.path.join(scripts_src, sname)
+                if not os.path.isfile(sf) and sname == "run.bat":
+                    sf = os.path.abspath(sname)
                 if os.path.isfile(sf):
                     shutil.copy2(sf, os.path.join(dest_scripts, sname))
 

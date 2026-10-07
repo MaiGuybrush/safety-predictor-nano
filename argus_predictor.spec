@@ -24,8 +24,10 @@ datas = [
     ('docs/user-manual/book', 'docs/user-manual/book'),
     ('scripts/run.sh', 'scripts'),
     ('scripts/install.sh', 'scripts'),
+    ('scripts/install.py', 'scripts'),
     ('scripts/ask_and_report.sh', 'scripts'),
     ('scripts/ask_and_report.bat', 'scripts'),
+    ('run.bat', '.'),
 ]
 if os.path.isfile(argus_zip):
     datas.append((argus_zip, '.'))
@@ -92,8 +94,13 @@ coll = COLLECT(
 import shutil
 dist_scripts = os.path.join(SPECPATH, 'dist', 'argus_predictor', 'scripts')
 os.makedirs(dist_scripts, exist_ok=True)
-for sname in ['run.sh', 'install.sh', 'ask_and_report.sh', 'ask_and_report.bat']:
+for sname in ['run.sh', 'install.sh', 'install.py', 'ask_and_report.sh', 'ask_and_report.bat']:
     src_s = os.path.join(SPECPATH, 'scripts', sname)
     if os.path.isfile(src_s):
         shutil.copy2(src_s, os.path.join(dist_scripts, sname))
+
+# 複製 run.bat 至 dist 根目錄
+src_run_bat = os.path.join(SPECPATH, 'run.bat')
+if os.path.isfile(src_run_bat):
+    shutil.copy2(src_run_bat, os.path.join(SPECPATH, 'dist', 'argus_predictor', 'run.bat'))
 
