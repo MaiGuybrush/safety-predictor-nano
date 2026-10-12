@@ -111,7 +111,7 @@ class UpdateManager:
         self.delta_updater = DeltaUpdater(base_dir=self.base_dir)
         self.is_delta: bool = False
         self.exit_code_on_restart: int = 42
-        self._exit_func: Callable[[int], None] = sys.exit
+        self._exit_func: Callable[[int], None] = os._exit
 
         # 優先從 base_dir 或執行環境探測 version.txt
         self._probe_version_file()
@@ -693,10 +693,17 @@ class UpdateManager:
 
             time.sleep(1.0)
 
-            # 若指定 exit_on_restart 或非 pytest 測試環境，呼叫 sys.exit(42)
+            # 若指定 exit_on_restart 或非 pytest 測試環境，呼叫 os._exit(42) 終止整個行程給外層 runner 捕捉
             should_exit = exit_on_restart if exit_on_restart is not None else (not os.environ.get("PYTEST_CURRENT_TEST"))
             if should_exit:
-                logger.info(f"AutoUpdate: Invoking sys.exit({self.exit_code_on_restart}) for outer runner loop restart")
+                logger.info(f"AutoUpdate: Invoking exit({self.exit_code_on_restart}) for outer runner loop restart")
+                try:
+                    import logging
+                    logging.shutdown()
+                    sys.stdout.flush()
+                    sys.stderr.flush()
+                except Exception:
+                    pass
                 self._exit_func(self.exit_code_on_restart)
                 return
 

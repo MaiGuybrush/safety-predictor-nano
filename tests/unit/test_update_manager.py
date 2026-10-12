@@ -1,3 +1,4 @@
+import os
 import queue
 import time
 from unittest.mock import MagicMock, patch
@@ -150,6 +151,7 @@ def test_update_manager_trigger_restart_exit_42(tmp_path):
     mgr = UpdateManager(current_version="1.0.0", config={"base_dir": str(tmp_path)})
     mgr.set_state(UpdateState.READY_TO_INSTALL, target_version="1.1.0", is_delta=True)
 
+    assert mgr._exit_func == os._exit
     exit_mock = MagicMock()
     mgr._exit_func = exit_mock
 
