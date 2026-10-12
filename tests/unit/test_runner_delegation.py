@@ -60,3 +60,38 @@ def test_main_delegate_triggers_runner(monkeypatch, tmp_path):
     # 在 Linux 下應為 ['bash', '...run.sh', '--run-service']
     assert any("run.bat" in str(arg) or "run.sh" in str(arg) for arg in cmd_args)
     assert "--run-service" in cmd_args
+
+
+def test_run_bat_working_directory_lock_windows(tmp_path):
+    """驗證 Windows 環境下 scripts/run.bat 能正確鎖定工作目錄至程式根目錄而非 scripts/。"""
+    if sys.platform != "win32":
+        pytest.skip("Windows batch script test only applies to win32")
+
+    base_dir = tmp_path / "app_root"
+    scripts_dir = base_dir / "scripts"
+    scripts_dir.mkdir(parents=True)
+
+    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    src_bat = os.path.join(repo_root, "scripts", "run.bat")
+    with open(src_bat, "r", encoding="utf-8") as f:
+        bat_content = f.read()
+
+    test_bat = scripts_dir / "run.bat"
+    test_bat.write_text(bat_content, encoding="utf-8")
+
+    # 建立假的 main.py，印出當前目錄並正常退出 (Exit 0)
+    fake_main = base_dir / "main.py"
+    fake_main.write_text("import os; print('CWD_IS:' + os.getcwd()); exit(0)\n", encoding="utf-8")
+
+    # 在 scripts 目錄下執行 scripts/run.bat
+    res = subprocess.run(
+        ["cmd.exe", "/c", str(test_bat)],
+        cwd=str(scripts_dir),
+        capture_output=True,
+        text=True,
+    )
+
+    assert res.returncode == 0
+    assert f"Working directory locked to: {str(base_dir)}" in res.stdout
+    assert f"CWD_IS:{str(base_dir)}" in res.stdout
+

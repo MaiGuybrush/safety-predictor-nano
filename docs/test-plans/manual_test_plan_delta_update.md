@@ -52,7 +52,7 @@
 > ```bash
 > # 在專案根目錄（開發機或樹莓派）執行
 > mdbook build docs/user-manual    # 首次或手冊異動時
-> python scripts/build_delta_package.py
+> python scripts/build_delta_package.py --version 1.1.0 --output-dir dist/
 > # 產出：dist/argus_delta-v{VERSION}-arm64.tar.gz 及 .sha256
 > ```
 >
@@ -138,8 +138,10 @@ auto_update:
 * **前置條件**：工作目錄為專案根目錄，虛擬環境已啟用。
 * **操作步驟**：
   1. 執行標準 Delta 增量包建置：
+     
      ```bash
-     python scripts/build_delta_package.py --version 1.1.0 --output-dir dist/
+     #src\argus\__init__.py 中 __version__ 需與此 --version 參數一致
+     python scripts/build_delta_package.py --version 1.0.0 --output-dir dist/
      ```
   2. 檢查產出檔案與檔案大小：
      ```bash

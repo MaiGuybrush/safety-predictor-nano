@@ -9,8 +9,27 @@
 chcp 65001 >nul
 setlocal enabledelayedexpansion
 
-:: 1. Lock working directory to script directory
-cd /d "%~dp0"
+:: 1. Lock working directory to application root (ADR-005)
+set "SCRIPT_DIR=%~dp0"
+if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
+
+if exist "%~dp0..\argus_predictor.exe" (
+    cd /d "%~dp0.."
+) else if exist "%~dp0..\main.py" (
+    cd /d "%~dp0.."
+) else if exist "%~dp0argus_predictor.exe" (
+    cd /d "%~dp0"
+) else if exist "%~dp0main.py" (
+    cd /d "%~dp0"
+) else (
+    for %%F in ("%SCRIPT_DIR%") do (
+        if /i "%%~nxF"=="scripts" (
+            cd /d "%~dp0.."
+        ) else (
+            cd /d "%~dp0"
+        )
+    )
+)
 echo [run.bat] Working directory locked to: %CD%
 
 :: 2. Inject managed runner flag and environment variables
