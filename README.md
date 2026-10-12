@@ -130,10 +130,11 @@ pyinstaller --onefile \
 mdbook build docs/user-manual
 
 # 完整增量包（含 Web 模板與離線手冊，< 3.5 MB）
-python scripts/build_delta_package.py
+# src\argus\__init__.py 中 __version__ 需與此 --version 參數一致
+python scripts/build_delta_package.py --version 1.0.0 --output-dir dist/
 
 # 或純代碼修復模式（< 250 KB，不含手冊）
-python scripts/build_delta_package.py --code-only
+python scripts/build_delta_package.py --version 1.0.0 --code-only --output-dir dist/
 ```
 
 此步驟會在 `dist/` 下產生：
