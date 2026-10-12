@@ -58,6 +58,17 @@ for _pkg in ('onnx', 'onnxruntime'):
             "請先安裝 requirements.txt 中的 onnx / onnxruntime。"
         )
 
+# ncnn 為選用依賴（僅 NCNN 格式模型需要，見 ADR-020）：建置環境有安裝就收集，
+# 缺少時明確警告（打包版將無法載入 NCNN 模型），不使建置失敗。
+try:
+    __import__('ncnn')
+    tmp_ret = collect_all('ncnn')
+    datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+    datas += copy_metadata('ncnn')
+except Exception as _e:
+    print(f"[argus_predictor.spec] WARNING: 未安裝 ncnn ({_e})，"
+          "打包產物將不支援 NCNN 格式模型。如需支援請先 pip install ncnn。")
+
 
 a = Analysis(
     ['main.py'],
