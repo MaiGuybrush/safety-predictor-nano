@@ -65,3 +65,22 @@ def test_run_probe_fails_when_metadata_missing(monkeypatch, capsys):
     assert report["result"] == "FAIL"
     assert "dependency_metadata" in report["sections"]
     assert "onnx_smoke" in report["sections"]
+
+
+def test_ncnn_is_optional_import():
+    assert "ncnn" not in probe_package.THIRD_PARTY_IMPORTS
+    assert "ncnn" in probe_package.OPTIONAL_THIRD_PARTY_IMPORTS
+
+
+def test_missing_optional_import_does_not_fail(monkeypatch, capsys):
+    real_import = probe_package.importlib.import_module
+
+    def fake_import(name, *a, **k):
+        if name == "ncnn":
+            raise ImportError("No module named 'ncnn'")
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(probe_package.importlib, "import_module", fake_import)
+    results = probe_package._probe_imports(["ncnn"], optional=True)
+    assert results[0]["status"] == "OPTIONAL_MISSING"
+    assert not any(r["status"] == "FAIL" for r in results)

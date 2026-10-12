@@ -38,11 +38,16 @@ THIRD_PARTY_IMPORTS: List[str] = [
     "yaml",
     "psutil",
     "requests",
-    "ncnn",
     "onnx",
     "onnxruntime",
     "argus_eventlog",
     "ums_client",
+]
+
+# 選用套件：僅載入 NCNN 模型時需要；某些平台（如 Windows）可能無法安裝，
+# 缺少時只警告，不算 FAIL。
+OPTIONAL_THIRD_PARTY_IMPORTS: List[str] = [
+    "ncnn",
 ]
 
 # Ultralytics 以 importlib.metadata 檢查的套件：metadata 缺失會被誤判為未安裝
@@ -89,8 +94,11 @@ REQUIRED_DATA_FILES: List[tuple] = [
 # 2. 探針執行函式
 # ─────────────────────────────────────────────────────────────
 
-def _probe_imports(modules: List[str]) -> List[Dict[str, Any]]:
-    """逐一 import 指定模組，回傳每個模組的結果。"""
+def _probe_imports(modules: List[str], optional: bool = False) -> List[Dict[str, Any]]:
+    """逐一 import 指定模組，回傳每個模組的結果。
+
+    optional=True 時，import 失敗標記為 OPTIONAL_MISSING（不算 FAIL）。
+    """
     results = []
     for mod in modules:
         t0 = time.perf_counter()
@@ -104,7 +112,7 @@ def _probe_imports(modules: List[str]) -> List[Dict[str, Any]]:
         except Exception as e:
             results.append({
                 "module": mod,
-                "status": "FAIL",
+                "status": "OPTIONAL_MISSING" if optional else "FAIL",
                 "error": str(e),
                 "traceback": traceback.format_exc(),
                 "elapsed_ms": round((time.perf_counter() - t0) * 1000, 1),
@@ -261,6 +269,7 @@ def run_probe(json_output: bool = False) -> int:
 
     # ── Section 2: 第三方套件 import ───────────────────────────
     third_party = _probe_imports(THIRD_PARTY_IMPORTS)
+    third_party += _probe_imports(OPTIONAL_THIRD_PARTY_IMPORTS, optional=True)
     report["sections"]["third_party_imports"] = third_party
     if any(r["status"] == "FAIL" for r in third_party):
         all_pass = False
@@ -340,9 +349,16 @@ def _print_human_report(report: Dict[str, Any]) -> None:
     # third_party_imports
     print("\n[third_party_imports]")
     for item in sections["third_party_imports"]:
-        sym = "✅" if item["status"] == "OK" else "❌"
+        if item["status"] == "OK":
+            sym = "✅"
+        elif item["status"] == "OPTIONAL_MISSING":
+            sym = "⚠️ "
+        else:
+            sym = "❌"
         extra = f"  ← {item.get('error', '')}" if item["status"] != "OK" else \
                 f"  ({item['elapsed_ms']} ms)"
+        if item["status"] == "OPTIONAL_MISSING":
+            extra += " (optional)"
         print(f"  {sym} {item['module']}{extra}")
 
     # argus_modules
