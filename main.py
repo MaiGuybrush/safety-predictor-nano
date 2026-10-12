@@ -9,6 +9,10 @@ import os
 import sys
 import zipimport
 
+# 永遠停用 Ultralytics AutoUpdate：打包環境中 sys.executable 為本執行檔，
+# pip install 會導致應用程式被重複啟動（issue #95）。需在 import ultralytics 之前設定。
+os.environ["YOLO_AUTOINSTALL"] = "false"
+
 
 def mount_argus_zip(custom_path: str = None) -> bool:
     """Mount _internal/argus.zip via zipimport if available.

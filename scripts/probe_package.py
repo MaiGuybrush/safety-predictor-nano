@@ -39,8 +39,17 @@ THIRD_PARTY_IMPORTS: List[str] = [
     "psutil",
     "requests",
     "ncnn",
+    "onnx",
+    "onnxruntime",
     "argus_eventlog",
     "ums_client",
+]
+
+# Ultralytics 以 importlib.metadata 檢查的套件：metadata 缺失會被誤判為未安裝
+# 並觸發 AutoUpdate（打包環境下會遞迴啟動執行檔，見 issue #95）。
+DEPENDENCY_METADATA: List[str] = [
+    "onnx",
+    "onnxruntime",
 ]
 
 # argus 業務子模組：驗證 zipimport 掛載後的模組可達性
@@ -117,6 +126,65 @@ def _probe_data_files(base_dir: Path) -> List[Dict[str, Any]]:
             "status": "OK" if exists else ("MISSING" if required else "OPTIONAL_MISSING"),
         })
     return results
+
+
+def _probe_dependency_metadata(packages: List[str] = None) -> List[Dict[str, Any]]:
+    """驗證套件 metadata 存在（Ultralytics 以 importlib.metadata 判斷是否已安裝）。"""
+    import importlib.metadata as importlib_metadata
+
+    results = []
+    for pkg in (DEPENDENCY_METADATA if packages is None else packages):
+        try:
+            version = importlib_metadata.version(pkg)
+            results.append({"package": pkg, "status": "OK", "version": version})
+        except Exception as e:
+            results.append({
+                "package": pkg,
+                "status": "FAIL",
+                "error": f"metadata not found: {e}",
+            })
+    return results
+
+
+def _probe_onnx_smoke() -> Dict[str, Any]:
+    """關閉自動安裝後，以極小 ONNX 模型驗證 onnxruntime 可實際推理。
+
+    缺少依賴時回報 FAIL，絕不觸發 Ultralytics AutoUpdate (pip install)。
+    """
+    try:
+        import numpy as np
+        import onnx
+        import onnxruntime as ort
+        from onnx import TensorProto, helper
+        import ultralytics.utils.checks as checks
+
+        # 與 Ultralytics AutoBackend 載入 ONNX 時相同的依賴檢查，但禁止安裝
+        checks.AUTOINSTALL = False
+        if not checks.check_requirements(("onnx", "onnxruntime"), install=False):
+            return {
+                "status": "FAIL",
+                "error": "Ultralytics 判定 onnx/onnxruntime 未安裝 (metadata 缺失)，"
+                         "於打包環境會觸發 AutoUpdate",
+            }
+
+        node = helper.make_node("Identity", ["x"], ["y"])
+        graph = helper.make_graph(
+            [node], "probe",
+            [helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 2])],
+            [helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 2])],
+        )
+        model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
+        model.ir_version = 8
+        onnx.checker.check_model(model)
+        session = ort.InferenceSession(
+            model.SerializeToString(), providers=["CPUExecutionProvider"]
+        )
+        out = session.run(None, {"x": np.ones((1, 2), dtype=np.float32)})[0]
+        if out.shape != (1, 2):
+            return {"status": "FAIL", "error": f"unexpected output shape {out.shape}"}
+        return {"status": "OK", "note": f"onnxruntime {ort.__version__} inference OK"}
+    except Exception as e:
+        return {"status": "FAIL", "error": str(e), "traceback": traceback.format_exc()}
 
 
 def _probe_inference_engine() -> Dict[str, Any]:
@@ -211,6 +279,16 @@ def run_probe(json_output: bool = False) -> int:
         all_pass = False
 
     # ── Section 5: 推論引擎初始化 ──────────────────────────────
+    meta = _probe_dependency_metadata()
+    report["sections"]["dependency_metadata"] = meta
+    if any(r["status"] == "FAIL" for r in meta):
+        all_pass = False
+
+    onnx_smoke = _probe_onnx_smoke()
+    report["sections"]["onnx_smoke"] = onnx_smoke
+    if onnx_smoke["status"] != "OK":
+        all_pass = False
+
     inference = _probe_inference_engine()
     report["sections"]["inference_engine"] = inference
     if inference["status"] != "OK":
@@ -287,6 +365,16 @@ def _print_human_report(report: Dict[str, Any]) -> None:
         note = "" if item["status"] == "OK" else f"  ← {item['status']}"
         req = "" if item["required"] else " (optional)"
         print(f"  {sym} {item['path']}{req}{note}")
+
+    # dependency_metadata
+    print("\n[dependency_metadata]")
+    for item in sections["dependency_metadata"]:
+        if item["status"] == "OK":
+            print(f"  ✅ {item['package']}  ({item['version']})")
+        else:
+            print(f"  ❌ {item['package']}  ← {item.get('error', '')}")
+
+    _print_single(sections["onnx_smoke"], "onnx_smoke")
 
     # inference_engine & flask_routes
     _print_single(sections["inference_engine"], "inference_engine")

@@ -43,6 +43,21 @@ datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('ums_client')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
+# onnx / onnxruntime 為必要依賴（Ultralytics 以套件 metadata 檢查，缺 metadata 會觸發
+# AutoUpdate 並遞迴啟動執行檔，見 issue #95）。缺少時建置直接失敗，不靜默略過。
+from PyInstaller.utils.hooks import copy_metadata
+for _pkg in ('onnx', 'onnxruntime'):
+    try:
+        __import__(_pkg)
+        tmp_ret = collect_all(_pkg)
+        datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+        datas += copy_metadata(_pkg)
+    except Exception as _e:
+        raise SystemExit(
+            f"[argus_predictor.spec] ERROR: 必要依賴 '{_pkg}' 無法打包 ({_e})。"
+            "請先安裝 requirements.txt 中的 onnx / onnxruntime。"
+        )
+
 
 a = Analysis(
     ['main.py'],
