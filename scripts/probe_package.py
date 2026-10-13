@@ -200,9 +200,16 @@ def _probe_inference_engine() -> Dict[str, Any]:
     """驗證 YOLO 推論引擎類別可達，並驗證 NMS 運算子相容性（不載入模型檔，不開攝影機）。"""
     try:
         from ultralytics import YOLO  # noqa: F401
+        from ultralytics.utils.nms import TorchNMS
         from argus.vision.inference_engine import _ensure_torchvision_compatibility
         _ensure_torchvision_compatibility()
-        return {"status": "OK", "note": "ultralytics.YOLO & NMS operators reachable"}
+        import torchvision
+        nms_fn = getattr(getattr(torchvision, "ops", None), "nms", None)
+        if nms_fn is TorchNMS.nms:
+            nms_mode = "Fallback (Pure PyTorch)"
+        else:
+            nms_mode = "Native C++"
+        return {"status": "OK", "note": f"ultralytics.YOLO reachable, NMS: {nms_mode}"}
     except Exception as e:
         return {"status": "FAIL", "error": str(e), "traceback": traceback.format_exc()}
 

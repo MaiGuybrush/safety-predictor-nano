@@ -200,23 +200,22 @@ class TestInferenceEngineLabel(unittest.TestCase):
         import torch
         from argus.vision.inference_engine import _ensure_torchvision_compatibility
 
-        # 模擬破壞性的 torchvision 模組（C++ operator 遺失）
+        # 模擬破壞性的 torchvision 模組（C++ operator 遺失且無 ops 屬性，驗證 hasattr 缺失處理）
         broken_tv = types.ModuleType("torchvision")
-        broken_ops = types.ModuleType("torchvision.ops")
-        def broken_nms(*args, **kwargs):
-            raise RuntimeError("operator torchvision::nms does not exist")
-        broken_ops.nms = broken_nms
-        broken_tv.ops = broken_ops
 
         orig_tv = sys.modules.get("torchvision")
         orig_ops = sys.modules.get("torchvision.ops")
         try:
             sys.modules["torchvision"] = broken_tv
-            sys.modules["torchvision.ops"] = broken_ops
+            sys.modules.pop("torchvision.ops", None)
 
-            _ensure_torchvision_compatibility()
+            # 強制觸發檢查
+            _ensure_torchvision_compatibility(force=True)
 
             import torchvision
+            self.assertTrue(hasattr(torchvision, "ops"))
+            self.assertTrue(hasattr(torchvision.ops, "nms"))
+
             boxes = torch.tensor([[0.0, 0.0, 10.0, 10.0], [1.0, 1.0, 9.0, 9.0]], dtype=torch.float32)
             scores = torch.tensor([0.9, 0.8], dtype=torch.float32)
             keep = torchvision.ops.nms(boxes, scores, 0.5)
@@ -231,7 +230,60 @@ class TestInferenceEngineLabel(unittest.TestCase):
             else:
                 sys.modules.pop("torchvision.ops", None)
 
+    @patch("argus.vision.inference_engine.YOLO")
+    def test_inference_engine_lifecycle_with_broken_torchvision(self, mock_yolo_cls):
+        import sys
+        import types
+        import numpy as np
+        from argus.vision.inference_engine import InferenceEngine, _ensure_torchvision_compatibility
+
+        # 模擬呼叫時拋出 operator torchvision::nms does not exist 的情境
+        broken_tv = types.ModuleType("torchvision")
+        broken_ops = types.ModuleType("torchvision.ops")
+        def broken_nms(*args, **kwargs):
+            raise RuntimeError("operator torchvision::nms does not exist")
+        broken_ops.nms = broken_nms
+        broken_tv.ops = broken_ops
+
+        orig_tv = sys.modules.get("torchvision")
+        orig_ops = sys.modules.get("torchvision.ops")
+        try:
+            sys.modules["torchvision"] = broken_tv
+            sys.modules["torchvision.ops"] = broken_ops
+
+            # 重設快取並強制修正
+            _ensure_torchvision_compatibility(force=True)
+
+            box = MagicMock()
+            box.cls = 0
+            box.conf = 0.95
+            box.xyxy.tolist.return_value = [[10.0, 10.0, 50.0, 50.0]]
+            res = MagicMock()
+            res.names = {0: "person"}
+            res.boxes = [box]
+            mock_model = MagicMock()
+            mock_model.predict.return_value = [res]
+            mock_yolo_cls.return_value = mock_model
+
+            engine = InferenceEngine(model_path="dummy.pt", num_threads=1)
+            frame = np.zeros((480, 640, 3), dtype=np.uint8)
+            detections, inf_time = engine.infer(frame, conf_threshold=0.25)
+
+            self.assertEqual(len(detections), 1)
+            self.assertEqual(detections[0]["label"], "person")
+            self.assertGreaterEqual(inf_time, 0)
+        finally:
+            if orig_tv is not None:
+                sys.modules["torchvision"] = orig_tv
+            else:
+                sys.modules.pop("torchvision", None)
+            if orig_ops is not None:
+                sys.modules["torchvision.ops"] = orig_ops
+            else:
+                sys.modules.pop("torchvision.ops", None)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
