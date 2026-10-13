@@ -63,6 +63,7 @@ The system utilizes a multi-threaded Python architecture to decouple frame captu
               --add-data "ums-api-config.json:." \
               --add-data "docs/user-manual/book:docs/user-manual/book" \
               --collect-all ultralytics \
+              --collect-all torchvision \
               --collect-all flask \
               --collect-all argus_eventlog \
               --collect-all ums_client \

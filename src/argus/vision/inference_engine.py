@@ -1,6 +1,74 @@
+import logging
 import os
+import sys
 import time
+import types
 from ultralytics import YOLO
+
+logger = logging.getLogger(__name__)
+
+def _ensure_torchvision_compatibility():
+    """
+    確保 torchvision 可用；若遇到 operator torchvision::nms 缺失（常見於 PyInstaller 打包或
+    ARM64 / 樹莓派環境中的 C++ extension 缺失），自動註冊相容 fallback，避免 AutoBackend.warmup
+    觸發 RuntimeError 導致推論 worker 崩潰。
+    """
+    try:
+        import torchvision
+        if hasattr(torchvision, "ops") and hasattr(torchvision.ops, "nms"):
+            import torch
+            _test_boxes = torch.zeros((1, 4), dtype=torch.float32)
+            _test_scores = torch.zeros((1,), dtype=torch.float32)
+            torchvision.ops.nms(_test_boxes, _test_scores, 0.5)
+            return
+    except Exception as e:
+        logger.warning(
+            f"[InferenceEngine] torchvision C++ 擴充不可用 ({e})，已啟用 Pure PyTorch NMS 容錯模式。"
+        )
+        try:
+            from ultralytics.utils.nms import TorchNMS
+            fallback_nms = TorchNMS.nms
+        except Exception:
+            import torch
+            def fallback_nms(boxes, scores, iou_threshold):
+                x1 = boxes[:, 0]
+                y1 = boxes[:, 1]
+                x2 = boxes[:, 2]
+                y2 = boxes[:, 3]
+                areas = (x2 - x1) * (y2 - y1)
+                _, order = scores.sort(0, descending=True)
+                keep = []
+                while order.numel() > 0:
+                    if order.numel() == 1:
+                        keep.append(order.item())
+                        break
+                    i = order[0].item()
+                    keep.append(i)
+                    xx1 = x1[order[1:]].clamp(min=x1[i].item())
+                    yy1 = y1[order[1:]].clamp(min=y1[i].item())
+                    xx2 = x2[order[1:]].clamp(max=x2[i].item())
+                    yy2 = y2[order[1:]].clamp(max=y2[i].item())
+                    w = (xx2 - xx1).clamp(min=0.0)
+                    h = (yy2 - yy1).clamp(min=0.0)
+                    inter = w * h
+                    ovr = inter / (areas[i] + areas[order[1:]] - inter)
+                    ids = (ovr <= iou_threshold).nonzero().squeeze(1)
+                    if ids.numel() == 0:
+                        break
+                    order = order[ids + 1]
+                return torch.tensor(keep, dtype=torch.long, device=boxes.device)
+
+        m = sys.modules.get("torchvision")
+        if m is None or not isinstance(m, types.ModuleType):
+            m = types.ModuleType("torchvision")
+            sys.modules["torchvision"] = m
+        ops = types.ModuleType("torchvision.ops")
+        ops.nms = fallback_nms
+        m.ops = ops
+        sys.modules["torchvision.ops"] = ops
+
+# 模組載入時預先檢查並準備相容性環境
+_ensure_torchvision_compatibility()
 
 class InferenceEngine:
     """
@@ -12,6 +80,7 @@ class InferenceEngine:
     """
 
     def __init__(self, model_path="yolov8n.pt", num_threads=4, model_format="auto"):
+        _ensure_torchvision_compatibility()
         self.model_path = model_path
         self.num_threads = num_threads
         self.model_format = (model_format or "auto").lower()

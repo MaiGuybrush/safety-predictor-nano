@@ -70,12 +70,28 @@ except Exception as _e:
           "打包產物將不支援 NCNN 格式模型。如需支援請先 pip install ncnn。")
 
 
+# torchvision 算子與動態庫收集（包含 C++ extensions 如 _C.so / ops.nms）
+try:
+    __import__('torchvision')
+    tmp_ret = collect_all('torchvision')
+    datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+    datas += copy_metadata('torchvision')
+except Exception as _e:
+    print(f"[argus_predictor.spec] WARNING: 未能完整收集 torchvision ({_e})，"
+          "若環境缺少 torchvision C++ 算子，推論引擎將自動降級至純 PyTorch NMS。")
+
+
 a = Analysis(
     ['main.py'],
     pathex=['.', 'src'],
     binaries=binaries,
     datas=datas,
-    hiddenimports=hiddenimports + ['scripts.probe_package'],
+    hiddenimports=hiddenimports + [
+        'scripts.probe_package',
+        'torchvision',
+        'torchvision.ops',
+        'torchvision.ops.boxes',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

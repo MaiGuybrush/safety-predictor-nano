@@ -194,6 +194,43 @@ class TestInferenceEngineLabel(unittest.TestCase):
                 import shutil
                 shutil.rmtree(tmp_dir)
 
+    def test_torchvision_nms_fallback_when_operator_missing(self):
+        import sys
+        import types
+        import torch
+        from argus.vision.inference_engine import _ensure_torchvision_compatibility
+
+        # 模擬破壞性的 torchvision 模組（C++ operator 遺失）
+        broken_tv = types.ModuleType("torchvision")
+        broken_ops = types.ModuleType("torchvision.ops")
+        def broken_nms(*args, **kwargs):
+            raise RuntimeError("operator torchvision::nms does not exist")
+        broken_ops.nms = broken_nms
+        broken_tv.ops = broken_ops
+
+        orig_tv = sys.modules.get("torchvision")
+        orig_ops = sys.modules.get("torchvision.ops")
+        try:
+            sys.modules["torchvision"] = broken_tv
+            sys.modules["torchvision.ops"] = broken_ops
+
+            _ensure_torchvision_compatibility()
+
+            import torchvision
+            boxes = torch.tensor([[0.0, 0.0, 10.0, 10.0], [1.0, 1.0, 9.0, 9.0]], dtype=torch.float32)
+            scores = torch.tensor([0.9, 0.8], dtype=torch.float32)
+            keep = torchvision.ops.nms(boxes, scores, 0.5)
+            self.assertTrue(len(keep) > 0)
+        finally:
+            if orig_tv is not None:
+                sys.modules["torchvision"] = orig_tv
+            else:
+                sys.modules.pop("torchvision", None)
+            if orig_ops is not None:
+                sys.modules["torchvision.ops"] = orig_ops
+            else:
+                sys.modules.pop("torchvision.ops", None)
+
 
 if __name__ == "__main__":
     unittest.main()

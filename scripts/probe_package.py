@@ -44,10 +44,11 @@ THIRD_PARTY_IMPORTS: List[str] = [
     "ums_client",
 ]
 
-# 選用套件：僅載入 NCNN 模型時需要；某些平台（如 Windows）可能無法安裝，
-# 缺少時只警告，不算 FAIL。
+# 選用套件：僅載入 NCNN 模型或 torchvision C++ 加速時需要；
+# 缺少或缺失 C++ 算子時會自動降級至純 PyTorch NMS，不算 FAIL。
 OPTIONAL_THIRD_PARTY_IMPORTS: List[str] = [
     "ncnn",
+    "torchvision",
 ]
 
 # Ultralytics 以 importlib.metadata 檢查的套件：metadata 缺失會被誤判為未安裝
@@ -196,10 +197,12 @@ def _probe_onnx_smoke() -> Dict[str, Any]:
 
 
 def _probe_inference_engine() -> Dict[str, Any]:
-    """驗證 YOLO 推論引擎類別可達（不載入模型檔，不開攝影機）。"""
+    """驗證 YOLO 推論引擎類別可達，並驗證 NMS 運算子相容性（不載入模型檔，不開攝影機）。"""
     try:
         from ultralytics import YOLO  # noqa: F401
-        return {"status": "OK", "note": "ultralytics.YOLO class reachable"}
+        from argus.vision.inference_engine import _ensure_torchvision_compatibility
+        _ensure_torchvision_compatibility()
+        return {"status": "OK", "note": "ultralytics.YOLO & NMS operators reachable"}
     except Exception as e:
         return {"status": "FAIL", "error": str(e), "traceback": traceback.format_exc()}
 
