@@ -205,7 +205,9 @@ def _probe_inference_engine() -> Dict[str, Any]:
         _ensure_torchvision_compatibility()
         import torchvision
         nms_fn = getattr(getattr(torchvision, "ops", None), "nms", None)
-        if nms_fn is TorchNMS.nms:
+        if nms_fn is None:
+            return {"status": "FAIL", "error": "torchvision.ops.nms 算子未就緒或缺失"}
+        elif nms_fn is TorchNMS.nms:
             nms_mode = "Fallback (Pure PyTorch)"
         else:
             nms_mode = "Native C++"

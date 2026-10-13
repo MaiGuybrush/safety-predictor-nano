@@ -9,14 +9,14 @@ logger = logging.getLogger(__name__)
 
 _is_compatibility_ensured = False
 
-def _ensure_torchvision_compatibility(force: bool = False):
+def _ensure_torchvision_compatibility():
     """
     確保 torchvision 可用；若遇到 operator torchvision::nms 缺失（常見於 PyInstaller 打包或
     ARM64 / 樹莓派環境中的 C++ extension 缺失），自動註冊相容 fallback，避免 AutoBackend.warmup
     觸發 RuntimeError 導致推論 worker 崩潰。
     """
     global _is_compatibility_ensured
-    if _is_compatibility_ensured and not force:
+    if _is_compatibility_ensured:
         return
 
     try:

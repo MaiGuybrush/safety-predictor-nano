@@ -198,7 +198,7 @@ class TestInferenceEngineLabel(unittest.TestCase):
         import sys
         import types
         import torch
-        from argus.vision.inference_engine import _ensure_torchvision_compatibility
+        import argus.vision.inference_engine as ie_mod
 
         # 模擬破壞性的 torchvision 模組（C++ operator 遺失且無 ops 屬性，驗證 hasattr 缺失處理）
         broken_tv = types.ModuleType("torchvision")
@@ -209,8 +209,9 @@ class TestInferenceEngineLabel(unittest.TestCase):
             sys.modules["torchvision"] = broken_tv
             sys.modules.pop("torchvision.ops", None)
 
-            # 強制觸發檢查
-            _ensure_torchvision_compatibility(force=True)
+            # 重設快取旗標以觸發檢查
+            ie_mod._is_compatibility_ensured = False
+            ie_mod._ensure_torchvision_compatibility()
 
             import torchvision
             self.assertTrue(hasattr(torchvision, "ops"))
@@ -235,7 +236,8 @@ class TestInferenceEngineLabel(unittest.TestCase):
         import sys
         import types
         import numpy as np
-        from argus.vision.inference_engine import InferenceEngine, _ensure_torchvision_compatibility
+        import argus.vision.inference_engine as ie_mod
+        from argus.vision.inference_engine import InferenceEngine
 
         # 模擬呼叫時拋出 operator torchvision::nms does not exist 的情境
         broken_tv = types.ModuleType("torchvision")
@@ -251,8 +253,8 @@ class TestInferenceEngineLabel(unittest.TestCase):
             sys.modules["torchvision"] = broken_tv
             sys.modules["torchvision.ops"] = broken_ops
 
-            # 重設快取並強制修正
-            _ensure_torchvision_compatibility(force=True)
+            # 重設快取，讓 InferenceEngine 建構子自動觸發相容性修正
+            ie_mod._is_compatibility_ensured = False
 
             box = MagicMock()
             box.cls = 0
@@ -265,6 +267,7 @@ class TestInferenceEngineLabel(unittest.TestCase):
             mock_model.predict.return_value = [res]
             mock_yolo_cls.return_value = mock_model
 
+            # 實例化過程中自動觸發 _ensure_torchvision_compatibility
             engine = InferenceEngine(model_path="dummy.pt", num_threads=1)
             frame = np.zeros((480, 640, 3), dtype=np.uint8)
             detections, inf_time = engine.infer(frame, conf_threshold=0.25)
@@ -272,6 +275,7 @@ class TestInferenceEngineLabel(unittest.TestCase):
             self.assertEqual(len(detections), 1)
             self.assertEqual(detections[0]["label"], "person")
             self.assertGreaterEqual(inf_time, 0)
+            self.assertTrue(ie_mod._is_compatibility_ensured)
         finally:
             if orig_tv is not None:
                 sys.modules["torchvision"] = orig_tv
